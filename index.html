@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+
+  <!-- PWA -->
+  <meta name="theme-color" content="#6C63FF" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#6C63FF" media="(prefers-color-scheme: dark)">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Budget Foyer">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/icon.svg">
+
+  <title>Budget Foyer</title>
+  <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+
+<div id="app">
+
+  <!-- ── Header ── -->
+  <header id="app-header">
+    <div class="header-left">
+      <h1 id="page-title">Budget Foyer</h1>
+    </div>
+    <div class="header-right">
+      <button id="btn-notif" class="btn-icon" aria-label="Notifications" title="Notifications">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+          <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+        </svg>
+        <span class="notif-badge hidden" id="notif-dot"></span>
+      </button>
+    </div>
+  </header>
+
+  <!-- ── Contenu principal ── -->
+  <main id="app-content" role="main">
+    <!-- Rendu dynamique par JS -->
+    <div class="loading">
+      <div class="spinner"></div>
+      Chargement…
+    </div>
+  </main>
+
+  <!-- ── Navigation bas ── -->
+  <nav id="bottom-nav" aria-label="Navigation principale">
+
+    <button class="nav-item active" data-page="dashboard" aria-label="Accueil">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+        <rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/>
+      </svg>
+      <span>Accueil</span>
+    </button>
+
+    <button class="nav-item" data-page="saisie" aria-label="Saisie du mois">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4z"/>
+      </svg>
+      <span>Saisie</span>
+      <span class="nav-badge hidden" id="badge-saisie"></span>
+    </button>
+
+    <button class="nav-item" data-page="charges" aria-label="Charges et achats">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/>
+        <rect x="9" y="3" width="6" height="4" rx="2"/>
+        <line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/>
+      </svg>
+      <span>Charges</span>
+    </button>
+
+    <button class="nav-item" data-page="stats" aria-label="Statistiques">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/>
+        <line x1="6"  y1="20" x2="6"  y2="14"/>
+      </svg>
+      <span>Stats</span>
+    </button>
+
+    <button class="nav-item" data-page="settings" aria-label="Réglages">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="3"/>
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.65 1.65 0 0 0 15 19.4a1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+      </svg>
+      <span>Réglages</span>
+    </button>
+
+  </nav>
+</div>
+
+<!-- ── Toast ── -->
+<div id="toast" class="toast hidden" role="alert" aria-live="polite"></div>
+
+<!-- ── Modal ── -->
+<div id="modal-overlay" class="hidden" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+  <div id="modal">
+    <div id="modal-header">
+      <h2 id="modal-title"></h2>
+      <button id="modal-close" class="btn-icon" aria-label="Fermer">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+    <div id="modal-body"></div>
+    <div id="modal-footer"></div>
+  </div>
+</div>
+
+<!-- ── Écran de premier lancement ── -->
+<div id="onboarding" class="hidden" style="
+  position:fixed; inset:0; z-index:999;
+  background:var(--bg); display:flex; flex-direction:column;
+  align-items:center; justify-content:center; padding:32px; text-align:center;">
+  <img src="icons/icon.svg" width="80" height="80" style="border-radius:20px;margin-bottom:24px;" alt="Budget Foyer">
+  <h1 style="font-size:1.5rem;font-weight:800;letter-spacing:-0.03em;margin-bottom:8px;">Budget Foyer</h1>
+  <p style="color:var(--text-2);margin-bottom:32px;max-width:300px;">
+    Bienvenue ! Commençons par renseigner vos prénoms.
+  </p>
+  <div style="width:100%;max-width:320px;display:flex;flex-direction:column;gap:10px;margin-bottom:24px;">
+    <div class="form-group">
+      <label class="form-label">Prénom Personne 1</label>
+      <input type="text" class="form-input" id="ob-p1" placeholder="Ex: Julien" maxlength="30">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Prénom Personne 2 (optionnel)</label>
+      <input type="text" class="form-input" id="ob-p2" placeholder="Ex: Océane" maxlength="30">
+    </div>
+  </div>
+  <button class="btn btn-primary btn-lg" id="ob-start" style="width:100%;max-width:320px;">
+    Commencer 🚀
+  </button>
+</div>
+
+<!-- Chart.js via CDN -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+
+<!-- Application principale (ES Module) -->
+<script type="module">
+  import { getSetting, setSetting } from './js/db.js';
+  import { navigateTo, applyTheme } from './js/app.js';
+
+  // Vérification du premier lancement
+  (async () => {
+    const p1 = await getSetting('p1Name');
+    if (!p1 || p1 === 'Personne 1') {
+      // Premier lancement : afficher l'onboarding
+      document.getElementById('onboarding').classList.remove('hidden');
+
+      document.getElementById('ob-start')?.addEventListener('click', async () => {
+        const v1 = document.getElementById('ob-p1')?.value.trim() || 'Personne 1';
+        const v2 = document.getElementById('ob-p2')?.value.trim() || 'Personne 2';
+        await setSetting('p1Name', v1);
+        await setSetting('p2Name', v2);
+        document.getElementById('onboarding').classList.add('hidden');
+        navigateTo('dashboard');
+      });
+    }
+  })();
+</script>
+
+<script type="module" src="js/app.js"></script>
+
+</body>
+</html>

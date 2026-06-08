@@ -1,0 +1,35 @@
+{
+  "name": "Budget Foyer",
+  "short_name": "Budget",
+  "description": "Suivi de budget familial – Revenus, Dépenses, Épargne",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#0D0D1B",
+  "theme_color": "#6C63FF",
+  "orientation": "portrait-primary",
+  "lang": "fr",
+  "icons": [
+    {
+      "src": "icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-maskable.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Saisie du mois",
+      "short_name": "Saisie",
+      "url": "./index.html#saisie",
+      "icons": [{ "src": "icons/icon.svg", "sizes": "any" }]
+    }
+  ],
+  "categories": ["finance", "lifestyle"],
+  "screenshots": []
+}
