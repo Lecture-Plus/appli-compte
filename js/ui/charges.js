@@ -5,7 +5,7 @@
 import { State }                                          from '../app.js';
 import { getAllCharges, saveCharge, deleteCharge,
          getAchatsForMonth, saveAchat, deleteAchat,
-         getActiveUsers }                                  from '../db.js';
+         getActiveUsers, getAvailableYears }                from '../db.js';
 import { eur, escHtml, nomMois, addMonth, showToast,
          openModal, closeModal, getCategoryInfo,
          CATEGORIES, MOIS }                                from '../utils.js';
@@ -387,6 +387,68 @@ async function renderAchats(container) {
     const n = addMonth(State.year, State.month, 1);
     State.year = n.year; State.month = n.month;
     renderAchats(container);
+  });
+
+  tc.querySelector('#btn-copy-achats')?.addEventListener('click', () =>
+    showCopyAchatsModal(year, month, () => renderAchats(container))
+  );
+}
+
+async function showCopyAchatsModal(destYear, destMonth, onSave) {
+  const years   = await getAvailableYears();
+  if (!years.length) { showToast('Aucun mois disponible', 'error'); return; }
+
+  const MOIS_LABEL = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+  const destLabel  = `${MOIS_LABEL[destMonth - 1]} ${destYear}`;
+
+  // Générer la liste de tous les mois disponibles sauf le mois de destination
+  const monthOptions = [];
+  for (const y of years.sort((a, b) => b - a)) {
+    for (let m = 12; m >= 1; m--) {
+      if (y === destYear && m === destMonth) continue;
+      monthOptions.push(`<option value="${y}-${m}">${MOIS_LABEL[m-1]} ${y}</option>`);
+    }
+  }
+
+  openModal(`📋 Copier vers ${destLabel}`, `
+    <p style="font-size:0.85rem;color:var(--text-2);margin-bottom:12px;">
+      Sélectionnez le mois source. Les achats exceptionnels seront copiés vers <strong>${destLabel}</strong>.
+    </p>
+    <div class="form-group" style="margin-bottom:12px;">
+      <label class="form-label">Mois source</label>
+      <select class="form-input" id="copy-src-month">
+        ${monthOptions.join('')}
+      </select>
+    </div>
+    <div id="copy-preview" style="font-size:0.82rem;color:var(--text-3);min-height:40px;"></div>
+  `, `<button class="btn btn-primary btn-full" id="copy-confirm">Copier les achats</button>`);
+
+  let srcAchats = [];
+
+  const preview = document.getElementById('copy-preview');
+  const doPreview = async () => {
+    const [y, m] = document.getElementById('copy-src-month')?.value.split('-').map(Number) || [];
+    if (!y || !m) return;
+    srcAchats = await getAchatsForMonth(y, m);
+    if (!srcAchats.length) {
+      preview.innerHTML = `<span style="color:var(--warning);">Aucun achat exceptionnel pour ce mois.</span>`;
+    } else {
+      preview.innerHTML = `✅ ${srcAchats.length} achat(s) trouvé(s) — ${srcAchats.map(a => escHtml(a.label)).join(', ')}`;
+    }
+  };
+
+  document.getElementById('copy-src-month')?.addEventListener('change', doPreview);
+  doPreview();
+
+  document.getElementById('copy-confirm')?.addEventListener('click', async () => {
+    if (!srcAchats.length) { showToast('Aucun achat à copier', 'error'); return; }
+    for (const a of srcAchats) {
+      const { id: _id, ...rest } = a;
+      await saveAchat({ ...rest, year: destYear, month: destMonth });
+    }
+    closeModal();
+    showToast(`${srcAchats.length} achat(s) copié(s) ✅`, 'success');
+    onSave();
   });
 }
 

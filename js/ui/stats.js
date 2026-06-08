@@ -11,7 +11,8 @@ import { getMonthsByYear, getAllCharges,
          getAllAchats }                                     from '../db.js';
 import { calcMonth, calcYear, calcSavingsBalance }         from '../calculs.js';
 import { eur, pct, nomMoisCourt, escHtml, showToast,
-         downloadBlob, buildCSV, MOIS_COURT, MOIS }        from '../utils.js';
+         downloadBlob, buildCSV, MOIS_COURT, MOIS,
+         getCategoryInfo, CATEGORIES }                      from '../utils.js';
 
 let _charts = [];
 let _statsTab = 'revenus'; // 'revenus' | 'epargne' | 'depenses'
@@ -90,8 +91,14 @@ export async function render(container) {
     <div id="stab-depenses" style="${_statsTab !== 'depenses' ? 'display:none;' : ''}">
       <div class="card" style="margin-bottom:12px;">
         <div class="card-header"><span class="card-title">🥧 Répartition des dépenses</span></div>
-        <div class="chart-wrap" style="height:200px;display:flex;align-items:center;justify-content:center;">
-          <canvas id="chart-repartition" style="max-width:200px;max-height:200px;"></canvas>
+        <div class="chart-wrap" style="height:220px;display:flex;align-items:center;justify-content:center;">
+          <canvas id="chart-repartition" style="max-width:220px;max-height:220px;"></canvas>
+        </div>
+      </div>
+      <div class="card" style="margin-bottom:12px;">
+        <div class="card-header"><span class="card-title">🏷️ Répartition des charges fixes</span></div>
+        <div class="chart-wrap" style="height:220px;display:flex;align-items:center;justify-content:center;">
+          <canvas id="chart-charges-cat" style="max-width:220px;max-height:220px;"></canvas>
         </div>
       </div>
       ${users.length >= 2 ? `
@@ -201,6 +208,7 @@ async function loadAndRender(container, year, users, s) {
   renderChartEpargne(displayResults);
   await renderChartSavingsBalance(year, curYear, curMonth, users);
   renderChartRepartition(yearKPI);
+  renderChartChargesCat(yearKPI, allChargesRaw);
   renderTableMensuel(container, displayResults);
   if (users.length >= 2) renderTablePerso(container, yearKPI, users);
   await renderN1Comparison(container, year, users, s, displayResults);
@@ -464,15 +472,66 @@ async function renderChartSavingsBalance(year, curYear, curMonth, users = []) {
   _charts.push(chart);
 }
 
+function renderChartChargesCat(yearKPI, allCharges = []) {
+  const canvas = document.getElementById('chart-charges-cat');
+  if (!canvas) return;
+
+  // Calculer le total par catégorie depuis les charges actives
+  const byCat = {};
+  for (const c of allCharges) {
+    if (!c.active) continue;
+    const cat = c.category || 'autre';
+    const lines = c.lines?.length ? c.lines : [c];
+    const amt   = lines.reduce((s, l) => s + (Number(l.amount) || 0), 0);
+    byCat[cat] = (byCat[cat] || 0) + amt;
+  }
+
+  const entries = Object.entries(byCat).filter(([, v]) => v > 0)
+    .sort((a, b) => b[1] - a[1]);
+
+  if (!entries.length) return;
+
+  const COLORS = ['#6C63FF','#00C896','#FFB020','#FF4757','#8B85FF','#00D2D3','#FF9F43','#EE5A24','#0652DD','#9980FA'];
+  const total  = entries.reduce((s, [, v]) => s + v, 0);
+  const labels = entries.map(([id]) => { const i = getCategoryInfo(id); return `${i.emoji} ${i.label}`; });
+  const data   = entries.map(([, v]) => v);
+
+  const chart  = new Chart(canvas, {
+    type: 'doughnut',
+    data: {
+      labels,
+      datasets: [{ data, backgroundColor: COLORS.slice(0, entries.length), borderWidth: 0 }],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: true,
+      plugins: {
+        legend: { position: 'bottom', labels: { padding: 10, font: { size: 11 }, color: getComputedStyle(document.documentElement).getPropertyValue('--text').trim() } },
+        tooltip: { callbacks: {
+          label: ctx => {
+            const v = ctx.raw;
+            const p = total > 0 ? ((v / total) * 100).toFixed(1) : 0;
+            return `${ctx.label}: ${eur(v)} (${p}%)`;
+          }
+        }},
+      },
+      cutout: '60%',
+    },
+  });
+  _charts.push(chart);
+}
+
 function renderChartRepartition(yearKPI) {
   const canvas = document.getElementById('chart-repartition');
   if (!canvas || !yearKPI) return;
-  const chart = new Chart(canvas, {
+  const labels = ['Charges fixes', 'Courses', 'Extras', 'Achats exc.', 'Imprévus'];
+  const data   = [yearKPI.charges.total, yearKPI.courses.total, yearKPI.extras.total, yearKPI.achats.total, yearKPI.imprevus.total];
+  const total  = data.reduce((s, v) => s + v, 0);
+  const chart  = new Chart(canvas, {
     type: 'doughnut',
     data: {
-      labels: ['Charges fixes', 'Courses', 'Extras', 'Achats exc.', 'Imprévus'],
+      labels,
       datasets: [{
-        data: [yearKPI.charges.total, yearKPI.courses.total, yearKPI.extras.total, yearKPI.achats.total, yearKPI.imprevus.total],
+        data,
         backgroundColor: ['#6C63FF','#00C896','#FFB020','#FF4757','#8B85FF'],
         borderWidth: 0,
       }],
@@ -481,7 +540,13 @@ function renderChartRepartition(yearKPI) {
       responsive: true, maintainAspectRatio: true,
       plugins: {
         legend: { position: 'bottom', labels: { padding: 10, font: { size: 11 }, color: getComputedStyle(document.documentElement).getPropertyValue('--text').trim() } },
-        tooltip: { callbacks: { label: ctx => `${ctx.label}: ${eur(ctx.raw)}` } },
+        tooltip: { callbacks: {
+          label: ctx => {
+            const v    = ctx.raw;
+            const p    = total > 0 ? ((v / total) * 100).toFixed(1) : 0;
+            return `${ctx.label}: ${eur(v)} (${p}%)`;
+          }
+        }},
       },
       cutout: '60%',
     },
