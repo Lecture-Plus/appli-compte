@@ -9,13 +9,14 @@ import { getMonthlyData, getChargesForMonth,
          computeCurrentSavingsBalance,
          getAllSavingsOperations, saveSavingsOperation,
          deleteSavingsOperation,
+         getBudgetOpsForMonth, saveBudgetOp,
          getActiveUsers }                                  from '../db.js';
 import { calcMonth, calcPrevisionnel }                    from '../calculs.js';
 import { eur, pct, nomMois, addMonth, signClass,
          txEparClass, completenessStatus,
          progressColor, escHtml, showToast,
          openModal, closeModal }                          from '../utils.js';
-import * as saisieModule                                  from './saisie.js';
+import { showCraquageModal }                              from './saisie.js';
 
 let _activeTab = 'resume';
 
@@ -24,8 +25,8 @@ export async function render(container) {
   const { year, month } = State;
 
   container.innerHTML = `
-    <!-- Navigation mois (cachée quand onglet Saisir actif) -->
-    <div class="month-nav" id="dash-month-nav" style="margin-bottom:12px;${_activeTab === 'saisie' ? 'display:none;' : ''}">
+    <!-- Navigation mois -->
+    <div class="month-nav" id="dash-month-nav" style="margin-bottom:12px;">
       <button class="month-btn" id="prev-month" aria-label="Mois précédent">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M15 18l-6-6 6-6"/></svg>
       </button>
@@ -42,7 +43,6 @@ export async function render(container) {
     <div class="tabs" id="dash-tabs" style="margin-bottom:12px;">
       <button class="tab-btn ${_activeTab === 'resume'       ? 'active' : ''}" data-tab="resume">📊 Résumé</button>
       <button class="tab-btn ${_activeTab === 'previsionnel' ? 'active' : ''}" data-tab="previsionnel">📅 Prévisionnel</button>
-      <button class="tab-btn ${_activeTab === 'saisie'       ? 'active' : ''}" data-tab="saisie">✏️ Saisir les budgets</button>
     </div>
 
     <div id="dash-content"></div>
@@ -64,8 +64,6 @@ export async function render(container) {
       container.querySelectorAll('#dash-tabs .tab-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       _activeTab = btn.dataset.tab;
-      const nav = container.querySelector('#dash-month-nav');
-      if (nav) nav.style.display = _activeTab === 'saisie' ? 'none' : '';
       _renderContent(container, s, users);
     });
   });
@@ -74,9 +72,8 @@ export async function render(container) {
 }
 
 async function _renderContent(container, s, users) {
-  if (_activeTab === 'resume')       await _renderResume(container, s, users);
-  else if (_activeTab === 'saisie')  await saisieModule.render(container.querySelector('#dash-content'));
-  else                               await _renderPrevisionnel(container, s, users);
+  if (_activeTab === 'resume') await _renderResume(container, s, users);
+  else                         await _renderPrevisionnel(container, s, users);
 }
 
 // ══════════════════════════════════════════════════
@@ -84,17 +81,37 @@ async function _renderContent(container, s, users) {
 // ══════════════════════════════════════════════════
 async function _renderResume(container, s, users) {
   const { year, month } = State;
-  const [md, charges, achats, repCfg, savInfo, allSavOps] = await Promise.all([
+
+  const customBudgets = s.customBudgets || [];
+  const pinnedBudgets = s.pinnedBudgets || ['courses', 'extras'];
+
+  const [md, charges, achats, repCfg, savInfo, allSavOps, allBudgetOps] = await Promise.all([
     getMonthlyData(year, month),
     getChargesForMonth(month),
     getAchatsForMonth(year, month),
     getRepartition(year, month),
     computeCurrentSavingsBalance(),
     getAllSavingsOperations(),
+    getBudgetOpsForMonth(year, month),
   ]);
 
   const kpi    = calcMonth(md, charges, achats, repCfg, users);
   const status = completenessStatus(md);
+
+  // Pinned budget cards data
+  const budgCourses  = users.reduce((acc, u) => acc + (Number(md?.users?.[String(u.id)]?.courses) || 0), 0) || (Number(s.budgetCibles?.courses) || 0);
+  const budgExtras   = users.reduce((acc, u) => acc + (Number(md?.users?.[String(u.id)]?.extras)  || 0), 0) || (Number(s.budgetCibles?.extras)  || 0);
+  const spentCourses = allBudgetOps.filter(o => o.category === 'courses').reduce((a, o) => a + (Number(o.amount)||0), 0);
+  const spentExtras  = allBudgetOps.filter(o => o.category === 'extras').reduce((a, o) => a + (Number(o.amount)||0), 0);
+
+  const pinnedCards = pinnedBudgets.map(pid => {
+    if (pid === 'courses') return { id:'courses', icon:'🛒', label:'Courses', budget:budgCourses, spent:spentCourses };
+    if (pid === 'extras')  return { id:'extras',  icon:'🎮', label:'Loisirs',  budget:budgExtras,  spent:spentExtras  };
+    const cb = customBudgets.find(b => b.id === pid);
+    if (!cb) return null;
+    const spentCustom = allBudgetOps.filter(o => o.category === pid).reduce((a, o) => a + (Number(o.amount)||0), 0);
+    return { id:pid, icon:cb.icon||'📌', label:cb.name, budget:Number(cb.amount)||0, spent:spentCustom };
+  }).filter(Boolean);
 
   const goal     = Number(s.savingsGoal) || 0;
   const goalYear = s.savingsGoalYear ?? year;
@@ -192,10 +209,22 @@ async function _renderResume(container, s, users) {
       <button class="btn btn-danger" id="btn-go-craquage" style="font-size:0.8rem;padding:10px 4px;">💥 Craquage</button>
     </div>
 
-    <!-- ── Suivi budgets rapide ── -->
-    ${(budgCourses > 0 || budgExtras > 0) ? `<div style="display:grid;grid-template-columns:${[budgCourses > 0, budgExtras > 0].filter(Boolean).map(() => '1fr').join(' ')};gap:8px;margin-bottom:12px;align-items:stretch;">
-      ${budgCourses > 0 ? _buildBudgetCard('🛒 Courses', budgCourses, spentCourses, 'Budget') : ''}
-      ${budgExtras  > 0 ? _buildBudgetCard('🎮 Loisirs',  budgExtras,  spentExtras,  'Budget') : ''}
+    <!-- ── Suivi budgets épinglés ── -->
+    ${pinnedCards.length > 0 ? `<div style="display:grid;grid-template-columns:${pinnedCards.map(() => '1fr').join(' ')};gap:8px;margin-top:12px;margin-bottom:12px;align-items:stretch;">
+      ${pinnedCards.map(c => `<div class="card" style="padding:12px;box-sizing:border-box;position:relative;" data-quickadd-cat="${escHtml(c.id)}" data-quickadd-label="${escHtml(c.label)}">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+          <div style="font-size:0.72rem;font-weight:600;color:var(--text-3);">${c.icon} ${escHtml(c.label)}</div>
+          <button class="btn btn-sm btn-primary btn-quickadd" data-qcat="${escHtml(c.id)}" data-qlabel="${escHtml(c.icon+' '+c.label)}" style="padding:2px 8px;font-size:0.7rem;line-height:1.4;">+</button>
+        </div>
+        <div class="progress-track" style="height:6px;margin-bottom:6px;">
+          <div class="progress-bar ${c.budget > 0 ? (c.spent/c.budget >= 1 ? 'danger' : c.spent/c.budget >= 0.8 ? 'warning' : 'success') : 'success'}" style="width:${c.budget > 0 ? Math.min(100, Math.round(c.spent/c.budget*100)) : 0}%;"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:0.75rem;">
+          <span style="color:var(--${c.budget > 0 ? (c.spent/c.budget >= 1 ? 'danger' : c.spent/c.budget >= 0.8 ? 'warning' : 'success') : 'text-2'});">${eur(c.spent)} dépensé</span>
+          <span style="color:var(--text-3);">/ ${eur(c.budget)}</span>
+        </div>
+        ${(c.budget > 0 && c.spent > c.budget) ? `<div style="font-size:0.7rem;color:var(--danger);margin-top:3px;">⚠️ +${eur(c.spent - c.budget)}</div>` : ''}
+      </div>`).join('')}
     </div>` : '<div style="margin-bottom:12px;"></div>'}
 
     <!-- ── Détail collapsible ── -->
@@ -320,22 +349,23 @@ async function _renderResume(container, s, users) {
     }
   });
 
-  el.querySelector('#btn-go-saisie')?.addEventListener('click', () => {
-    _activeTab = 'saisie';
-    const nav = container.querySelector('#dash-month-nav');
-    if (nav) nav.style.display = 'none';
-    container.querySelectorAll('#dash-tabs .tab-btn').forEach(b => b.classList.remove('active'));
-    container.querySelector('[data-tab="saisie"]')?.classList.add('active');
-    _renderContent(container, s, users);
-  });
+  el.querySelector('#btn-go-saisie')?.addEventListener('click', () => navigateTo('argent', { tab: 'saisir' }));
   el.querySelector('#btn-go-savings')?.addEventListener('click', () => navigateTo('argent', { tab: 'epargne' }));
   el.querySelector('#btn-go-craquage')?.addEventListener('click', () => {
-    _activeTab = 'saisie';
-    const nav = container.querySelector('#dash-month-nav');
-    if (nav) nav.style.display = 'none';
-    container.querySelectorAll('#dash-tabs .tab-btn').forEach(b => b.classList.remove('active'));
-    container.querySelector('[data-tab="saisie"]')?.classList.add('active');
-    _renderContent(container, s, users);
+    showCraquageModal(null, month, year, users, async () => {
+      await _renderResume(container, s, users);
+    });
+  });
+
+  // ── Quick-add sur cartes budgets épinglées ──
+  el.querySelectorAll('.btn-quickadd').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      _showQuickAddBudgetOp(
+        btn.dataset.qcat, btn.dataset.qlabel, year, month, users,
+        async () => { await _renderResume(container, s, users); }
+      );
+    });
   });
 }
 // ══════════════════════════════════════════════════
@@ -533,6 +563,44 @@ function _buildBudgetCard(title, budget, spent, budgetLabel = 'Budget') {
       ${(budget - spent) < 0 ? `<div style="font-size:0.7rem;color:var(--danger);margin-top:3px;">⚠️ Dépassement ${eur(Math.abs(budget - spent))}</div>` : ''}
     </div>
   `;
+}
+
+// ── Quick-add budget op depuis l'accueil ──
+function _showQuickAddBudgetOp(catId, catLabel, year, month, users, onSave) {
+  const now = new Date();
+  const daysInMonth = new Date(year, month, 0).getDate();
+  const userSelect = users.length > 1
+    ? `<div class="form-group" style="margin-bottom:10px;">
+        <label class="form-label">Personne</label>
+        <select class="form-input" id="qbop-user">
+          <option value="">— Sans attribution —</option>
+          ${users.map(u => `<option value="${u.id}">${escHtml(u.name)}</option>`).join('')}
+        </select>
+       </div>`
+    : '';
+  openModal(`+ ${catLabel}`, `
+    <div class="form-group" style="margin-bottom:10px;">
+      <label class="form-label">Description *</label>
+      <input type="text" class="form-input" id="qbop-label" placeholder="Ex: Carrefour…" autofocus>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+      <div class="form-group"><label class="form-label">Jour</label><input type="number" class="form-input" id="qbop-day" min="1" max="${daysInMonth}" value="${now.getDate()}"></div>
+      <div class="form-group"><label class="form-label">Montant (€) *</label><div class="input-wrap"><input type="number" class="form-input" id="qbop-amount" min="0.01" step="0.01" placeholder="0.00"><span class="input-suffix">€</span></div></div>
+    </div>
+    ${userSelect}
+  `, `<button class="btn btn-primary btn-full" id="qbop-save">Enregistrer</button>`);
+  document.getElementById('qbop-save')?.addEventListener('click', async () => {
+    const label  = document.getElementById('qbop-label')?.value.trim();
+    const amount = parseFloat(document.getElementById('qbop-amount')?.value);
+    const day    = parseInt(document.getElementById('qbop-day')?.value, 10) || null;
+    const userId = document.getElementById('qbop-user')?.value || null;
+    if (!label)            { showToast('Saisissez une description', 'error'); return; }
+    if (!amount || amount <= 0) { showToast('Montant invalide', 'error'); return; }
+    await saveBudgetOp({ category: catId, year, month, day, label, amount, userId });
+    closeModal();
+    showToast('Ajouté ✅', 'success');
+    if (onSave) await onSave();
+  });
 }
 
 function _buildPrevDay(d) {

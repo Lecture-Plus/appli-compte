@@ -7,6 +7,7 @@ import { getMonthlyData, saveMonthlyData,
          getChargesForMonth, getAchatsForMonth,
          saveAchat, getRepartition, saveRepartition,
          getAllSettings, saveSavingsOperation,
+         saveBudgetOp,
          getActiveUsers, getUserMonthData }             from '../db.js';
 import { calcMonth, whatIf }                           from '../calculs.js';
 import { eur, pct, nomMois, addMonth, escHtml,
@@ -82,10 +83,47 @@ export async function render(container) {
       </div>
     ` : `
 
-    <!-- Mode répartition (masqué si solo) -->
+    <!-- ── Zone 1 : Revenus ── -->
+    <div class="form-section" style="margin-bottom:10px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <div class="form-section-title" style="margin:0;"><span class="section-icon">💰</span>Revenus ${nomMois(month)}</div>
+        <button class="btn btn-sm btn-outline" id="btn-toggle-aides" style="font-size:0.72rem;">⬇ Aides &amp; primes</button>
+      </div>
+      <div class="form-grid-${Math.min(N, 4)}">
+        ${_users.map(u => inputField(`rev-${u.id}`, u, _md.users[String(u.id)]?.revenus, '€')).join('')}
+      </div>
+      <div id="aides-primes-section" style="display:none;margin-top:10px;padding-top:10px;border-top:1px solid var(--border);">
+        <div style="font-size:0.75rem;font-weight:600;color:var(--text-3);margin-bottom:8px;">Aides (CAF, APL, allocations…)</div>
+        ${_users.map(u => {
+          const aidesVal = _md.users[String(u.id)]?.aides ?? '';
+          const aidesRep = (_repCfg.aidesRepartition || {})[String(u.id)] ?? false;
+          return `
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+              <span style="flex:1;font-size:0.8rem;font-weight:600;display:flex;align-items:center;gap:5px;">
+                <span style="width:8px;height:8px;border-radius:50%;background:${escHtml(u.color||'#6C63FF')};display:inline-block;"></span>
+                ${escHtml(u.name)}
+              </span>
+              <div class="input-wrap" style="width:110px;">
+                <input type="number" class="form-input input-euro" id="aid-${u.id}" min="0" step="1" placeholder="0" value="${Number(aidesVal)||''}" style="padding-right:22px;font-size:0.82rem;">
+                <span class="input-suffix">€</span>
+              </div>
+              <label style="display:flex;align-items:center;gap:4px;font-size:0.72rem;color:var(--text-2);cursor:pointer;white-space:nowrap;">
+                <input type="checkbox" id="aid-rep-${u.id}" ${aidesRep ? 'checked' : ''}> Répartition
+              </label>
+            </div>`;
+        }).join('')}
+        <div style="font-size:0.75rem;font-weight:600;color:var(--text-3);margin:12px 0 8px;">Primes &amp; Bonus</div>
+        <p style="font-size:0.72rem;color:var(--text-3);margin:-4px 0 8px;">Personnels — jamais comptabilisés dans la répartition</p>
+        <div class="form-grid-${Math.min(N, 4)}">
+          ${_users.map(u => inputField(`pri-${u.id}`, u, _md.users[String(u.id)]?.primes, '€')).join('')}
+        </div>
+      </div>
+    </div>
+
     ${!modeHidden ? `
-    <div class="form-section" style="margin-bottom:12px;">
-      <div class="form-section-title"><span class="section-icon">⚖️</span>Mode de répartition des charges</div>
+    <!-- ── Mode répartition ── -->
+    <div class="form-section" style="margin-bottom:10px;">
+      <div class="form-section-title"><span class="section-icon">⚖️</span>Répartition des charges</div>
       <div class="tabs" id="mode-tabs">
         <button class="tab-btn ${_repCfg.mode === 'separe'    ? 'active' : ''}" data-mode="separe">Séparé</button>
         <button class="tab-btn ${_repCfg.mode === 'fixe'      ? 'active' : ''}" data-mode="fixe">Fixe %</button>
@@ -95,9 +133,99 @@ export async function render(container) {
         ${_users.map(u => `
           <div class="form-group">
             <label class="form-label" style="display:flex;align-items:center;gap:6px;">
-              <span class="user-color-dot" style="background:${escHtml(u.color||'#6C63FF')};width:12px;height:12px;border-radius:50%;display:inline-block;"></span>
+              <span style="background:${escHtml(u.color||'#6C63FF')};width:12px;height:12px;border-radius:50%;display:inline-block;"></span>
               ${escHtml(u.name)} (%)
             </label>
+            <div class="input-wrap">
+              <input type="number" class="form-input input-euro pct-field" data-uid="${u.id}"
+                min="0" max="100" step="1" value="${_repCfg.pcts?.[u.id] ?? Math.round(100/_users.length)}">
+              <span class="input-suffix">%</span>
+            </div>
+          </div>`).join('')}
+      </div>
+      <div id="equitable-info" style="margin-top:8px;${_repCfg.mode !== 'equitable' ? 'display:none;' : ''}"></div>
+      <div id="mode-desc" style="font-size:0.78rem;color:var(--text-3);margin-top:6px;">${getModeDesc(_repCfg.mode)}</div>
+    </div>` : ''}
+
+    <!-- ── Zone 2 : Budgets du mois ── -->
+    <div class="form-section" style="margin-bottom:10px;">
+      <div class="form-section-title"><span class="section-icon">📊</span>Budgets du mois</div>
+      ${N === 1 ? `
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div>
+          <div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;color:var(--text-3);margin-bottom:6px;">🛍️ Courses</div>
+          <div class="input-wrap">
+            <input type="number" class="form-input input-euro" id="crs-${_users[0].id}"
+              min="0" step="0.01" placeholder="0.00" value="${Number(_md.users[String(_users[0].id)]?.courses) || ''}">
+            <span class="input-suffix">€</span>
+          </div>
+        </div>
+        <div>
+          <div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;color:var(--text-3);margin-bottom:6px;">🎮 Loisirs</div>
+          <div class="input-wrap">
+            <input type="number" class="form-input input-euro" id="ext-${_users[0].id}"
+              min="0" step="0.01" placeholder="0.00" value="${Number(_md.users[String(_users[0].id)]?.extras) || ''}">
+            <span class="input-suffix">€</span>
+          </div>
+        </div>
+      </div>` : `
+      <div style="margin-bottom:10px;" id="courses-section">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+          <div style="font-size:0.78rem;font-weight:700;color:var(--text);">🛍️ Courses alimentaires</div>
+          <button class="btn btn-sm btn-outline" id="btn-courses-mode" style="font-size:0.7rem;">${_coursesFoyerMode ? '👤 Par personne' : '🏠 Foyer'}</button>
+        </div>
+        <div id="courses-content">${_buildCoursesContent(N)}</div>
+      </div>
+      <div>
+        <div style="font-size:0.78rem;font-weight:700;color:var(--text);margin-bottom:6px;">🎮 Loisirs &amp; Sorties</div>
+        <div class="form-grid-${Math.min(N, 4)}">
+          ${_users.map(u => inputField(`ext-${u.id}`, u, _md.users[String(u.id)]?.extras, '€')).join('')}
+        </div>
+      </div>`}
+    </div>
+
+    <!-- ── Zone 3 : Imprévus ── -->
+    <div class="form-section" style="margin-bottom:10px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+        <div class="form-section-title" style="margin:0;"><span class="section-icon">⚡</span>Imprévus</div>
+        <button class="btn btn-sm btn-secondary" id="btn-add-imprevu">+ Ajouter</button>
+      </div>
+      <p style="font-size:0.75rem;color:var(--text-3);margin:0 0 6px;">Dépenses non planifiées (panne, urgence…). Les achats exceptionnels (meubles, appareils) se gèrent dans l'onglet <strong>Achats</strong>.</p>
+      <div id="imprevu-list"></div>
+    </div>
+
+    <!-- ── Options avancées ── -->
+    <button id="btn-toggle-adv-saisie" class="btn btn-outline btn-full" style="margin-bottom:10px;font-size:0.8rem;display:flex;align-items:center;justify-content:space-between;">
+      <span>⚙️ Notes, Récapitulatif, Craquage &amp; What-if</span>
+      <svg id="chevron-adv-saisie" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14"><path d="M6 9l6 6 6-6"/></svg>
+    </button>
+    <div id="adv-saisie-section" style="display:none;">
+      <div class="form-section" style="margin-bottom:10px;">
+        <div class="form-section-title"><span class="section-icon">📝</span>Notes du mois</div>
+        <textarea id="notes-field" class="form-input" rows="3"
+          placeholder="Remarques, événements du mois…" style="resize:vertical;">${escHtml(_md.notes || '')}</textarea>
+      </div>
+      <div class="calc-preview" id="calc-preview" style="margin-bottom:10px;">
+        <div class="calc-preview-title">📊 Récapitulatif du mois</div>
+        <div id="calc-rows">Calcul en cours…</div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+        <button class="btn btn-danger" id="btn-craquage">💥 Craquage</button>
+        <button class="btn btn-outline" id="btn-whatif">🧮 What-if</button>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;gap:8px;">
+        <div style="font-size:0.72rem;color:var(--text-3);">« Marquer complet » valide que le mois est entièrement saisi → badge ✅ sur l'accueil</div>
+        <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+          <span id="save-indicator" class="save-indicator hidden">✓ Sauvegardé</span>
+          <button class="btn btn-outline btn-sm" id="btn-complete" style="display:flex;align-items:center;gap:5px;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14"><path d="M20 6L9 17l-5-5"/></svg>
+            Marquer complet
+          </button>
+        </div>
+      </div>
+    </div>
+    `}
+  `;
             <div class="input-wrap">
               <input type="number" class="form-input input-euro pct-field" data-uid="${u.id}"
                 min="0" max="100" step="1" value="${_repCfg.pcts?.[u.id] ?? Math.round(100/_users.length)}">
@@ -189,22 +317,7 @@ export async function render(container) {
       <div id="calc-rows">Calcul en cours…</div>
     </div>
 
-    <!-- Barre d'actions -->
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
-      <button class="btn btn-danger" id="btn-craquage" style="font-size:0.9rem;gap:6px;">
-        💥 Craquage et dépassement
-      </button>
-      <button class="btn btn-outline" id="btn-whatif" style="font-size:0.9rem;gap:6px;">
-        🧮 What-if
-      </button>
-    </div>
-    <div style="display:flex;align-items:center;justify-content:flex-end;margin-bottom:24px;gap:8px;">
-      <span id="save-indicator" class="save-indicator hidden">✓ Sauvegardé</span>
-      <button class="btn btn-outline btn-sm" id="btn-complete" style="display:flex;align-items:center;gap:5px;">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14"><path d="M20 6L9 17l-5-5"/></svg>
-        Marquer complet
-      </button>
-    </div>
+    <!-- (old HTML removed, now in new zones above) -->
     `}
   `;
 
@@ -215,6 +328,27 @@ export async function render(container) {
   // Mise à jour immédiate de l'aperçu
   updatePreview(container);
   _updateModeOptions(container);
+
+  // ── Toggle : Aides & primes ──
+  container.querySelector('#btn-toggle-aides')?.addEventListener('click', () => {
+    const sec = container.querySelector('#aides-primes-section');
+    const btn = container.querySelector('#btn-toggle-aides');
+    if (!sec || !btn) return;
+    const open = sec.style.display !== 'none';
+    sec.style.display = open ? 'none' : '';
+    btn.textContent = open ? '⬇ Aides & primes' : '⬆ Masquer';
+  });
+
+  // ── Toggle : Options avancées ──
+  container.querySelector('#btn-toggle-adv-saisie')?.addEventListener('click', () => {
+    const sec = container.querySelector('#adv-saisie-section');
+    const chv = container.querySelector('#chevron-adv-saisie');
+    if (!sec) return;
+    const open = sec.style.display !== 'none';
+    sec.style.display = open ? 'none' : '';
+    if (chv) chv.style.transform = open ? '' : 'rotate(180deg)';
+    if (!open) updatePreview(container);
+  });
 
   // ── Navigation mois ──
   container.querySelector('#prev-month')?.addEventListener('click', () => {
@@ -246,7 +380,7 @@ export async function render(container) {
 
   // ── Saisie des champs (auto-save debounced) ──
   const fieldSelectors = [
-    ...Array.from(container.querySelectorAll('input[id^="rev-"], input[id^="pri-"], input[id^="ext-"], input[id^="aid-"]:not([type="checkbox"])')),
+    ...Array.from(container.querySelectorAll('input[id^="rev-"], input[id^="pri-"], input[id^="ext-"], input[id^="aid-"]:not([type="checkbox"]), input[id^="crs-"]')),
     ...Array.from(container.querySelectorAll('.pct-field')),
   ];
 
@@ -274,7 +408,7 @@ export async function render(container) {
     debouncedSave();
   });
 
-  // ── Courses toggle (foyer / individuel) ──
+  // ── Courses toggle (foyer / individuel) — N>1 only ──
   container.querySelector('#courses-section')?.addEventListener('input', (e) => {
     if (e.target.matches('input[type="number"]')) {
       syncFormToState(container);
@@ -594,8 +728,9 @@ function showImprévuModal(container, month, year) {
   });
 }
 
-// ── Modal Craquage et dépassement ──
-async function showCraquageModal(container, month, year) {
+// ── Modal Craquage et dépassement (exportable) ──
+export async function showCraquageModal(container, month, year, usersOverride = null, onSave = null) {
+  const users         = usersOverride || _users;
   const now           = new Date();
   const settings      = await getAllSettings();
   const customBudgets = settings.customBudgets || [];
@@ -619,10 +754,12 @@ async function showCraquageModal(container, month, year) {
         ${budgetOpts.map(b => `<option value="${b.id}" ${r.subValue === b.id ? 'selected' : ''}>${b.label}</option>`).join('')}
       </select>`;
     }
-    if (r.source === 'savings' && _users.length > 1) {
+    if (r.source === 'savings' && users.length > 1) {
+      const currentQui  = document.getElementById('crq-qui')?.value ?? 'shared';
+      const showCommon  = (currentQui === 'shared');
       return `<select class="form-input crq-sub" style="width:100%;font-size:0.78rem;padding:6px 8px;">
-        <option value="" ${!r.subValue ? 'selected' : ''}>— Épargne commune —</option>
-        ${_users.map(u => `<option value="${u.id}" ${r.subValue === String(u.id) ? 'selected' : ''}>${escHtml(u.name)}</option>`).join('')}
+        ${showCommon ? `<option value="" ${!r.subValue ? 'selected' : ''}>— Épargne commune —</option>` : ''}
+        ${users.map(u => `<option value="${u.id}" ${r.subValue === String(u.id) ? 'selected' : ''}>${escHtml(u.name)}</option>`).join('')}
       </select>`;
     }
     if (r.source === 'perso') {
@@ -652,7 +789,7 @@ async function showCraquageModal(container, month, year) {
       </div>`).join('');
   }
 
-  const userOptions = _users.map(u =>
+  const userOptions = users.map(u =>
     `<option value="${u.id}">${escHtml(u.name)}</option>`
   ).join('');
 
@@ -667,7 +804,7 @@ async function showCraquageModal(container, month, year) {
     <div class="form-group" style="margin-bottom:10px;">
       <label class="form-label">Qui a dépensé ?</label>
       <select class="form-select" id="crq-qui">
-        ${_users.length > 1 ? `<option value="shared">À tous</option>` : ''}
+        ${users.length > 1 ? `<option value="shared">À tous</option>` : ''}
         ${userOptions}
       </select>
     </div>
@@ -718,6 +855,12 @@ async function showCraquageModal(container, month, year) {
   }
   bindRowEvents();
 
+  // Reconstruire les sub-fields si "qui" change (économie commune dépend de qui)
+  document.getElementById('crq-qui')?.addEventListener('change', () => {
+    syncRows();
+    rebuildRows();
+  });
+
   document.getElementById('crq-add-row')?.addEventListener('click', () => {
     syncRows(); rows.push({ source: 'balance', amount: '', subValue: 'courses' }); rebuildRows();
   });
@@ -731,31 +874,67 @@ async function showCraquageModal(container, month, year) {
     const validRows = rows.filter(r => Number(r.amount) > 0);
     if (!validRows.length) { showToast('Montant invalide', 'error'); return; }
 
+    const N = users.length || 1;
+
     for (const r of validRows) {
       const amt = Number(r.amount);
-      await saveAchat({
-        year, month, label, amount: amt, qui,
-        category:               'craquage',
-        craquage_source:        r.source,
-        craquage_budget:        r.source === 'balance' ? (r.subValue || 'courses') : null,
-        craquage_savings_user:  r.source === 'savings' ? (r.subValue || null)      : null,
-        craquage_note:          r.source === 'perso'   ? (r.subValue || null)      : null,
-        day: now.getDate(), createdAt: now.toISOString(),
-      });
-      if (r.source === 'savings') {
-        await saveSavingsOperation({
-          amount: -amt, label: `Craquage : ${label}`,
-          type: 'craquage_cover',
-          userId: r.subValue || null,
-          year, month, day: now.getDate(), createdAt: now.toISOString(),
+
+      // ── Bug 1: "À tous" → un achat par user avec amount/N ──
+      const achatsList = (qui === 'shared' && N > 1)
+        ? users.map(u => ({ quiId: String(u.id), quiAmt: amt / N }))
+        : [{ quiId: qui, quiAmt: amt }];
+
+      for (const { quiId, quiAmt } of achatsList) {
+        await saveAchat({
+          year, month, label, amount: quiAmt, qui: quiId,
+          category:               'craquage',
+          craquage_source:        r.source,
+          craquage_budget:        r.source === 'balance' ? (r.subValue || 'courses') : null,
+          craquage_savings_user:  r.source === 'savings' ? (r.subValue || null)      : null,
+          craquage_note:          r.source === 'perso'   ? (r.subValue || null)      : null,
+          day: now.getDate(), createdAt: now.toISOString(),
         });
       }
+
+      // ── Bug 2: Budget mensuel → enregistrer une opération de budget ──
+      if (r.source === 'balance') {
+        const budgetCat = r.subValue || 'courses';
+        await saveBudgetOp({
+          category: budgetCat, year, month,
+          day: now.getDate(), label: `💥 ${label}`, amount: amt,
+          userId: (qui !== 'shared' && qui) ? qui : null,
+        });
+      }
+
+      // ── Bug 3: Épargne commune → diviser par N users ──
+      if (r.source === 'savings') {
+        if (!r.subValue && N > 1) {
+          const amtPerUser = amt / N;
+          for (const u of users) {
+            await saveSavingsOperation({
+              amount: -amtPerUser, label: `Craquage : ${label}`,
+              type: 'craquage_cover', userId: String(u.id),
+              year, month, day: now.getDate(), createdAt: now.toISOString(),
+            });
+          }
+        } else {
+          await saveSavingsOperation({
+            amount: -amt, label: `Craquage : ${label}`,
+            type: 'craquage_cover', userId: r.subValue || null,
+            year, month, day: now.getDate(), createdAt: now.toISOString(),
+          });
+        }
+      }
     }
+
     closeModal();
     const total = validRows.reduce((s, r) => s + Number(r.amount), 0);
     showToast(`Craquage enregistré : ${eur(total)} 💥`, 'success');
-    _achatsCache = await getAchatsForMonth(year, month);
-    updatePreview(container);
+    if (container) {
+      _achatsCache = await getAchatsForMonth(year, month);
+      updatePreview(container);
+    }
+    if (onSave) await onSave();
   });
 }
 

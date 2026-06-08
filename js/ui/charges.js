@@ -23,6 +23,7 @@ export async function render(container) {
 
   container.innerHTML = `
     <div class="tabs" id="charges-tabs">
+
       <button class="tab-btn ${_tab === 'recurrentes' ? 'active' : ''}" data-tab="recurrentes">Récurrentes</button>
       <button class="tab-btn ${_tab === 'achats'      ? 'active' : ''}" data-tab="achats">Exceptionnels</button>
       <button class="tab-btn ${_tab === 'budgets'     ? 'active' : ''}" data-tab="budgets">Budgets</button>
@@ -56,6 +57,33 @@ export async function render(container) {
   });
 
   renderTab();
+}
+
+// ── Export: rendu d'une section individuelle (pour argent.js 5 onglets) ──
+export async function renderSection(container, section = 'recurrentes') {
+  _users = await getActiveUsers();
+  _tab   = section;
+  container.innerHTML = `<div id="tab-content"></div>`;
+  if (section !== 'budgets') {
+    const fab = document.createElement('button');
+    fab.className = 'fab'; fab.id = 'fab-add';
+    fab.setAttribute('aria-label', 'Ajouter');
+    fab.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>';
+    container.appendChild(fab);
+    fab.addEventListener('click', () => {
+      if (_tab === 'recurrentes') showChargeModal(null, () => renderSection(container, 'recurrentes'));
+      else if (_tab === 'achats') showAchatModal(null,  () => renderSection(container, 'achats'));
+    });
+  }
+  if (section === 'recurrentes') renderRecurrentes(container);
+  else if (section === 'achats')  renderAchats(container);
+  else                            renderBudgets(container);
+}
+
+// ── Export: modal d'ajout d'opération budget (pour dashboard quick-add) ──
+export async function showBudgetOpModal(catId, catLabel, year, month, onSave) {
+  const users = await getActiveUsers();
+  _showAddBudgetOpModal({ catId, catLabel }, users, year, month, onSave);
 }
 
 // ══════════════════════════════════════════════════
@@ -494,7 +522,8 @@ async function renderBudgets(container) {
     getAllSettings(),
   ]);
   const users = _users;
-  const customBudgets = settings.customBudgets || [];
+  const customBudgets  = settings.customBudgets  || [];
+  const pinnedBudgets  = settings.pinnedBudgets   || ['courses', 'extras'];
   const tc = container.querySelector('#tab-content');
 
   const budgetCourses = users.reduce((s, u) => s + (Number(md?.users?.[String(u.id)]?.courses) || 0), 0);
@@ -556,6 +585,26 @@ async function renderBudgets(container) {
       renderBudgets(container);
     });
   });
+  tc.querySelectorAll('[data-bgt-pin]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const catId = btn.dataset.bgtPin;
+      const s2    = await getAllSettings();
+      const pins  = [...(s2.pinnedBudgets || ['courses', 'extras'])];
+      const idx   = pins.indexOf(catId);
+      if (idx >= 0) {
+        pins.splice(idx, 1);
+        await setSetting('pinnedBudgets', pins);
+        showToast("Désépinglé de l'accueil", 'success');
+      } else {
+        if (pins.length >= 2) { showToast('Maximum 2 budgets épinglés en accueil', 'warning'); return; }
+        pins.push(catId);
+        await setSetting('pinnedBudgets', pins);
+        showToast('Épinglé en accueil ✅', 'success');
+      }
+      renderBudgets(container);
+    });
+  });
+
   tc.querySelectorAll('[data-bgt-edit]').forEach(btn => {
     btn.addEventListener('click', () => {
       const b = customBudgets.find(b => b.id === btn.dataset.bgtEdit);
@@ -564,17 +613,20 @@ async function renderBudgets(container) {
   });
 }
 
-function _buildBudCatSection({ id, icon, title, budget, spent, ops, users, hint }) {
+function _buildBudCatSection({ id, icon, title, budget, spent, ops, users, hint, isPinned = false }) {
   const remaining = budget - spent;
   const pct = budget > 0 ? Math.min(100, Math.round((spent / budget) * 100)) : (spent > 0 ? 100 : 0);
   const color = pct >= 100 ? 'danger' : pct >= 80 ? 'warning' : 'success';
   const sorted = [...ops].sort((a,b) => (b.day||0)-(a.day||0));
   const editBtn = (id !== 'courses' && id !== 'extras') ? `<button class="btn-icon" data-bgt-edit="${id}" title="Modifier" style="width:28px;height:28px;color:var(--text-3);">✏️</button>` : '';
+  const pinBtn  = `<button class="btn-icon" data-bgt-pin="${id}" title="${isPinned ? 'Désépingler de l\'accueil' : 'Épingler en accueil'}" style="width:28px;height:28px;color:${isPinned ? 'var(--primary)' : 'var(--text-3)'};">${
+isPinned ? '📌' : '📍'}</button>`;
   return `<div class="card" style="margin-bottom:12px;">
     <div class="card-header">
       <span class="card-title">${icon} ${escHtml(title)}</span>
       <div style="display:flex;align-items:center;gap:4px;">
         ${editBtn}
+        ${pinBtn}
         <button class="btn btn-sm btn-primary" data-bgt-add-op="${id}" data-cat-name="${escHtml(title)}" data-cat-icon="${escHtml(icon)}">+ Ajouter</button>
       </div>
     </div>
