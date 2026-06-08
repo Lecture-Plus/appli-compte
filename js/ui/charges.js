@@ -413,7 +413,8 @@ function buildAchatItem(a) {
 function showAchatModal(achat, onSave) {
   const isNew = !achat;
   const { year, month } = State;
-  const a = achat ?? { year, month, label: '', category: 'loisirs', amount: 0, qui: 'shared' };
+  const now = new Date();
+  const a = achat ?? { year, month, day: now.getDate(), label: '', category: 'loisirs', amount: 0, qui: 'shared' };
 
   const catOptions = CATEGORIES.map(cat =>
     `<option value="${cat.id}" ${a.category === cat.id ? 'selected' : ''}>${cat.emoji} ${cat.label}</option>`
@@ -448,15 +449,19 @@ function showAchatModal(achat, onSave) {
         ${_users.map(u => `<option value="${u.id}" ${String(a.qui) === String(u.id) ? 'selected' : ''}>${escHtml(u.name)}</option>`).join('')}
       </select>
     </div>
-    <div class="form-grid-2">
+    <div class="form-grid-2" style="margin-bottom:10px;">
+      <div class="form-group">
+        <label class="form-label">Jour</label>
+        <input type="number" class="form-input" id="a-day" min="1" max="31" value="${a.day || now.getDate()}">
+      </div>
       <div class="form-group">
         <label class="form-label">Mois</label>
         <select class="form-select" id="a-month">${moisOptions}</select>
       </div>
-      <div class="form-group">
-        <label class="form-label">Année</label>
-        <input type="number" class="form-input" id="a-year" min="2020" max="2099" value="${a.year || year}">
-      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Année</label>
+      <input type="number" class="form-input" id="a-year" min="2020" max="2099" value="${a.year || year}">
     </div>
   `;
 
@@ -491,6 +496,7 @@ function showAchatModal(achat, onSave) {
       qui,
       month:    Number(document.getElementById('a-month')?.value) || month,
       year:     Number(document.getElementById('a-year')?.value) || year,
+      day:      Number(document.getElementById('a-day')?.value)   || now.getDate(),
     });
     State.year  = Number(document.getElementById('a-year')?.value) || year;
     State.month = Number(document.getElementById('a-month')?.value) || month;
