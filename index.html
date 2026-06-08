@@ -155,11 +155,13 @@
   overflow-y:auto;">
   <img src="icons/icon.svg" width="80" height="80" style="border-radius:20px;margin-bottom:24px;" alt="Budget Foyer">
   <h1 style="font-size:1.5rem;font-weight:800;letter-spacing:-0.03em;margin-bottom:8px;">Budget Foyer</h1>
-  <p style="color:var(--text-2);margin-bottom:28px;max-width:300px;">
-    Bienvenue ! Commençons par créer votre profil.
-  </p>
 
-  <div style="width:100%;max-width:340px;display:flex;flex-direction:column;gap:14px;">
+  <!-- ── Étape 1 : Nouveau profil ── -->
+  <div id="ob-step-create" style="width:100%;max-width:340px;display:flex;flex-direction:column;gap:14px;">
+    <p style="color:var(--text-2);max-width:300px;margin:0 auto 4px;">
+      Bienvenue ! Commençons par créer votre profil.
+    </p>
+
     <!-- Utilisateur 1 -->
     <div class="card" style="text-align:left;padding:16px;">
       <div style="font-size:0.78rem;font-weight:700;color:var(--primary);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px;">Vous</div>
@@ -192,10 +194,58 @@
       <button class="btn btn-sm btn-outline" id="ob-remove-second" style="margin-top:10px;font-size:0.78rem;">✕ Retirer</button>
     </div>
 
-    <button class="btn btn-primary btn-lg" id="ob-start" style="width:100%;margin-top:8px;">
+    <button class="btn btn-primary btn-lg" id="ob-start" style="width:100%;margin-top:4px;">
       Commencer 🚀
     </button>
+
+    <!-- Séparateur -->
+    <div style="display:flex;align-items:center;gap:12px;">
+      <div style="flex:1;height:1px;background:var(--border);"></div>
+      <span style="font-size:0.75rem;color:var(--text-3);">ou</span>
+      <div style="flex:1;height:1px;background:var(--border);"></div>
+    </div>
+
+    <button class="btn btn-outline btn-full" id="ob-existing" style="font-size:0.875rem;">
+      ☁️ J'ai déjà un espace
+    </button>
   </div>
+
+  <!-- ── Étape 2 : URL Drive ── -->
+  <div id="ob-step-drive" style="width:100%;max-width:340px;display:none;flex-direction:column;gap:14px;">
+    <button class="btn btn-sm btn-outline" id="ob-back-create" style="align-self:flex-start;display:flex;align-items:center;gap:5px;">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14"><path d="M15 18l-6-6 6-6"/></svg>
+      Retour
+    </button>
+    <p style="color:var(--text-2);max-width:300px;margin:4px auto 0;">
+      Entrez l'URL de votre Google Apps Script pour récupérer vos données.
+    </p>
+    <div class="card" style="text-align:left;padding:16px;">
+      <div class="form-group">
+        <label class="form-label">URL du Web App Drive</label>
+        <input type="url" class="form-input" id="ob-drive-url"
+          placeholder="https://script.google.com/macros/s/…">
+        <p class="form-hint" style="margin-top:6px;">Cette URL se trouve dans votre Google Apps Script → Déployer → Gérer les déploiements.</p>
+      </div>
+    </div>
+    <button class="btn btn-primary btn-lg" id="ob-import" style="width:100%;">
+      ⬇️ Récupérer mes données
+    </button>
+    <p id="ob-drive-error" style="color:var(--danger);font-size:0.82rem;display:none;"></p>
+  </div>
+
+  <!-- ── Étape 3 : Choix de l'utilisateur courant ── -->
+  <div id="ob-step-whoami" style="width:100%;max-width:340px;display:none;flex-direction:column;gap:14px;">
+    <p style="color:var(--text-2);max-width:300px;margin:0 auto;">
+      Données importées avec succès ! Qui êtes-vous sur cet appareil ?
+    </p>
+    <div class="card" style="text-align:left;padding:16px;">
+      <div class="form-group">
+        <label class="form-label">Votre profil</label>
+        <div id="ob-whoami-list" style="display:flex;flex-direction:column;gap:8px;margin-top:8px;"></div>
+      </div>
+    </div>
+  </div>
+
 </div>
 
 <!-- Chart.js via CDN -->
@@ -203,12 +253,13 @@
 
 <!-- Application principale (ES Module) -->
 <script type="module">
-  import { getActiveUsers, saveUser, USER_COLORS } from './js/db.js';
-  import { navigateTo, reloadUsers, State }        from './js/app.js';
+  import { getActiveUsers, saveUser, importAllData, setSetting, USER_COLORS } from './js/db.js';
+  import { pullFromDrive, isValidDriveUrl, DRIVE_URL_KEY, DRIVE_SYNC_KEY }    from './js/drive.js';
+  import { navigateTo, reloadUsers, State }                                    from './js/app.js';
 
   function buildColorPicker(containerId, defaultColor) {
     const cont = document.getElementById(containerId);
-    if (!cont) return;
+    if (!cont) return () => defaultColor;
     let selected = defaultColor;
     cont.innerHTML = USER_COLORS.map(c => `
       <button type="button" class="ob-color-btn" data-color="${c}"
@@ -225,6 +276,13 @@
     return () => selected;
   }
 
+  function showStep(name) {
+    ['create','drive','whoami'].forEach(s => {
+      const el = document.getElementById(`ob-step-${s}`);
+      if (el) el.style.display = s === name ? 'flex' : 'none';
+    });
+  }
+
   let getColor1, getColor2;
 
   (async () => {
@@ -236,11 +294,11 @@
     getColor1 = buildColorPicker('ob-colors-1', USER_COLORS[0]);
     getColor2 = buildColorPicker('ob-colors-2', USER_COLORS[1] || USER_COLORS[0]);
 
+    // ── Step create : interactions ──
     document.getElementById('ob-add-second')?.addEventListener('click', () => {
       document.getElementById('ob-user-2').style.display = '';
       document.getElementById('ob-add-second').style.display = 'none';
     });
-
     document.getElementById('ob-remove-second')?.addEventListener('click', () => {
       document.getElementById('ob-user-2').style.display = 'none';
       document.getElementById('ob-add-second').style.display = '';
@@ -251,22 +309,94 @@
       if (!name1) { document.getElementById('ob-name-1').focus(); return; }
 
       const now = new Date().toISOString();
-      const u1  = await saveUser({ name: name1, color: getColor1 ? getColor1() : USER_COLORS[0], active: true, createdAt: now });
+      const u1  = await saveUser({ name: name1, color: getColor1(), active: true, createdAt: now });
       localStorage.setItem('currentDeviceUserId', String(u1));
       State.currentUserId = String(u1);
 
       const name2 = document.getElementById('ob-user-2')?.style.display !== 'none'
-        ? document.getElementById('ob-name-2')?.value.trim()
-        : '';
+        ? document.getElementById('ob-name-2')?.value.trim() : '';
       if (name2) {
-        await saveUser({ name: name2, color: getColor2 ? getColor2() : USER_COLORS[1], active: true, createdAt: now });
+        await saveUser({ name: name2, color: getColor2(), active: true, createdAt: now });
       }
 
       await reloadUsers();
       document.getElementById('onboarding').classList.add('hidden');
       navigateTo('dashboard');
     });
+
+    // ── Bouton "J'ai déjà un espace" ──
+    document.getElementById('ob-existing')?.addEventListener('click', () => {
+      showStep('drive');
+    });
+    document.getElementById('ob-back-create')?.addEventListener('click', () => {
+      showStep('create');
+    });
+
+    // ── Step drive : import ──
+    document.getElementById('ob-import')?.addEventListener('click', async () => {
+      const url     = document.getElementById('ob-drive-url')?.value.trim();
+      const errEl   = document.getElementById('ob-drive-error');
+      const importBtn = document.getElementById('ob-import');
+
+      errEl.style.display = 'none';
+
+      if (!url || !isValidDriveUrl(url)) {
+        errEl.textContent = 'URL invalide. Vérifiez l\'adresse du Web App Apps Script.';
+        errEl.style.display = '';
+        return;
+      }
+
+      importBtn.disabled = true;
+      importBtn.textContent = '⏳ Récupération en cours…';
+
+      try {
+        const data = await pullFromDrive(url);
+        if (!data) throw new Error('Aucune sauvegarde trouvée sur cet espace Drive.');
+
+        await importAllData(data);
+        await setSetting(DRIVE_URL_KEY, url);
+        await setSetting(DRIVE_SYNC_KEY, new Date().toISOString());
+
+        // Récupère les utilisateurs importés et affiche le choix
+        const importedUsers = await getActiveUsers();
+        if (!importedUsers.length) throw new Error('Aucun utilisateur dans la sauvegarde.');
+
+        _showWhoAmI(importedUsers);
+      } catch (e) {
+        errEl.textContent = 'Erreur : ' + e.message;
+        errEl.style.display = '';
+        importBtn.disabled = false;
+        importBtn.textContent = '⬇️ Récupérer mes données';
+      }
+    });
   })();
+
+  function _showWhoAmI(importedUsers) {
+    showStep('whoami');
+    const list = document.getElementById('ob-whoami-list');
+    if (!list) return;
+
+    list.innerHTML = importedUsers.map(u => `
+      <button class="btn btn-outline whoami-btn" data-uid="${u.id}"
+        style="display:flex;align-items:center;gap:10px;padding:10px 14px;text-align:left;width:100%;">
+        <span style="width:32px;height:32px;border-radius:50%;background:${u.color||'#6C63FF'};
+          display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;
+          font-size:0.9rem;flex-shrink:0;">${(u.name||'?')[0].toUpperCase()}</span>
+        <span style="font-weight:600;">${u.name}</span>
+      </button>
+    `).join('');
+
+    list.querySelectorAll('.whoami-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const uid = btn.dataset.uid;
+        localStorage.setItem('currentDeviceUserId', uid);
+        State.currentUserId = uid;
+        await reloadUsers();
+        document.getElementById('onboarding').classList.add('hidden');
+        navigateTo('dashboard');
+      });
+    });
+  }
 </script>
 
 <script type="module" src="js/app.js"></script>
