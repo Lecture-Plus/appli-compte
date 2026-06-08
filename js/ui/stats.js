@@ -798,7 +798,8 @@ async function exportPDF(year, month, users, s) {
   *,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
   html{width:210mm;}
   body{font-family:'Inter',system-ui,sans-serif;background:#fff;color:#1E293B;font-size:12px;line-height:1.55;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
-  @page{size:A4 portrait;margin:0;}
+  @page{size:A4 portrait;margin:15mm 14mm 14mm;}
+  @page :first{margin-top:0;}
   @media print{
     .pb{page-break-before:always;}
     .kpi-grid,.ss-row,.ug,.bar-box,.ch-wrap,.obj-box,.tx-box,.score-box,.spark-box,.mt-wrap,.ac-wrap{break-inside:avoid;page-break-inside:avoid;}
