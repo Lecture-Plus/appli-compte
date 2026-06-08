@@ -375,14 +375,14 @@ function showDriveWarningBanner(s) {
 
   const banner = document.createElement('div');
   banner.id = 'drive-banner';
-  banner.style.cssText = 'background:var(--warning-bg);border-bottom:2px solid var(--warning);padding:10px 16px;display:flex;align-items:center;gap:10px;position:fixed;top:0;left:0;right:0;z-index:10000;box-sizing:border-box;';
+  banner.style.cssText = 'background:#FFB020;padding:10px 16px;display:flex;align-items:center;gap:10px;position:fixed;top:0;left:0;right:0;z-index:10000;box-sizing:border-box;';
   banner.innerHTML = `
     <span style="font-size:1.1rem;flex-shrink:0;">☁️</span>
-    <div style="flex:1;font-size:0.82rem;color:var(--text-2);">
+    <div style="flex:1;font-size:0.82rem;color:#1a1308;">
       <strong>Sync Drive non configurée</strong> — vos données ne sont sauvegardées que sur cet appareil.
     </div>
-    <button id="drive-banner-go" class="btn btn-sm btn-primary" style="white-space:nowrap;flex-shrink:0;">Configurer</button>
-    <button id="drive-banner-close" class="btn-icon" style="width:28px;height:28px;flex-shrink:0;font-size:1.1rem;" aria-label="Fermer">✕</button>`;
+    <button id="drive-banner-go" class="btn btn-sm" style="white-space:nowrap;flex-shrink:0;background:#fff;color:#1a1308;font-weight:700;border-radius:6px;padding:4px 10px;">Configurer</button>
+    <button id="drive-banner-close" class="btn-icon" style="width:28px;height:28px;flex-shrink:0;font-size:1.1rem;color:#1a1308;" aria-label="Fermer">✕</button>`;
 
   document.body.appendChild(banner);
 
