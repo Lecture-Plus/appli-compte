@@ -685,6 +685,9 @@ async function exportPDF(year, month, users, s) {
     const achatMap = {}, repartMap = {};
     for (const a of allAchats)  { if (a.year === year) { (achatMap[a.month] ??= []).push(a); } }
     for (const r of allRep)     { if (r.year === year) repartMap[r.month] = r; }
+    // Collect budget_ops for budgets section
+    let allBudgetOps = [];
+    try { const { getBudgetOpsForYear } = await import('./db.js'); allBudgetOps = await getBudgetOpsForYear?.(year) ?? []; } catch(_) {}
 
     function chgForMonth(m) {
       const out = [];
@@ -712,121 +715,78 @@ async function exportPDF(year, month, users, s) {
     const kpiSource   = singleMonth ? [allResults[month-1]].filter(Boolean) : allResults.filter(Boolean);
     const yearKPI     = calcYear(kpiSource);
 
-    const MOIS_FULL = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+    const MOIS_FULL  = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
     const MOIS_SHORT = ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'];
-    const periodLabel = singleMonth ? `${MOIS_FULL[month-1]} ${year}` : `Année ${year}`;
+    const periodLabel = singleMonth ? MOIS_FULL[month-1] + ' ' + year : 'Année ' + year;
 
-    const fmt = v => {
-      const n = Number(v) || 0;
-      const abs = Math.abs(n).toLocaleString('fr-FR', {minimumFractionDigits:2, maximumFractionDigits:2});
-      return (n < 0 ? '−' : '') + abs + '\u00a0€';
-    };
-    const fmtPct = v => (Number(v)*100).toFixed(1) + '\u00a0%';
-    const clr = v => Number(v) >= 0 ? '#10B981' : '#EF4444';
-    const esc = escHtml;
-
-    // ── Sparkline SVG solde ──
-    const sparkData = allResults.map(r => r?.solde?.total ?? null);
-    const nonNull = sparkData.filter(v => v !== null);
-    let sparkSVG = '';
-    if (!singleMonth && nonNull.length > 1) {
-      const W=300, H=60, pad=6;
-      const sMin = Math.min(...nonNull, 0), sMax = Math.max(...nonNull, 1);
-      const toX = i  => pad + i * ((W-2*pad)/11);
-      const toY = v  => H-pad - ((v-sMin)/(sMax-sMin||1))*(H-2*pad);
-      const filled = sparkData.map((v,i) => v!==null ? `${toX(i).toFixed(1)},${toY(v).toFixed(1)}` : null).filter(Boolean);
-      const zerY = toY(0).toFixed(1);
-      const first = sparkData.findIndex(v=>v!==null), last = sparkData.map((v,i)=>v!==null?i:-1).filter(i=>i>=0).pop();
-      const area  = `M${toX(first).toFixed(1)},${zerY} ` + filled.map((p,i)=>(i===0?`L`:'')+p).join(' ') + ` L${toX(last).toFixed(1)},${zerY} Z`;
-      sparkSVG = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">
-        <defs><linearGradient id="sg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#6C63FF" stop-opacity=".25"/><stop offset="100%" stop-color="#6C63FF" stop-opacity=".02"/></linearGradient></defs>
-        <path d="${area}" fill="url(#sg)"/>
-        <polyline points="${filled.join(' ')}" fill="none" stroke="#6C63FF" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-        ${sparkData.map((v,i)=>v!==null?`<circle cx="${toX(i).toFixed(1)}" cy="${toY(v).toFixed(1)}" r="3" fill="#6C63FF"/>`:''  ).filter(Boolean).join('')}
-      </svg>`;
-    }
-
-    // ── Barres de répartition revenus/dépenses ──
-    const barRows = months.map(m => {
-      const r = allResults[m-1];
-      if (!r) return null;
-      const rev = r.revenus.total + (r.aides?.total??0) + r.primes.total;
-      const dep = r.depenses.total;
-      return { label: MOIS_SHORT[m-1], rev, dep, solde: r.solde.total, tx: r.txEpargne.total };
-    }).filter(Boolean);
-    const maxVal = Math.max(...barRows.map(b => Math.max(b.rev, b.dep)), 1);
-    const barWidth = 540;
-    const barChartRows = barRows.map(b => {
-      const rw = Math.round((b.rev/maxVal)*barWidth*0.42);
-      const dw = Math.round((b.dep/maxVal)*barWidth*0.42);
-      return `<tr>
-        <td style="font-size:10px;font-weight:600;color:#64748b;width:32px;padding:3px 6px 3px 0;white-space:nowrap;">${b.label}</td>
-        <td style="padding:2px 0;">
-          <div style="height:10px;background:#EEF2FF;border-radius:6px;overflow:hidden;margin-bottom:2px;">
-            <div style="height:10px;width:${rw}px;background:linear-gradient(90deg,#6C63FF,#8B85FF);border-radius:6px;"></div>
-          </div>
-          <div style="height:10px;background:#FEF2F2;border-radius:6px;overflow:hidden;">
-            <div style="height:10px;width:${dw}px;background:linear-gradient(90deg,#EF4444,#F87171);border-radius:6px;"></div>
-          </div>
-        </td>
-        <td style="font-size:9px;text-align:right;padding:2px 0 2px 8px;white-space:nowrap;">
-          <div style="color:#6C63FF;font-weight:700;">${fmt(b.rev)}</div>
-          <div style="color:#EF4444;">${fmt(b.dep)}</div>
-        </td>
-        <td style="font-size:9px;text-align:right;padding:2px 0 2px 8px;white-space:nowrap;font-weight:700;color:${clr(b.solde)};">${fmt(b.solde)}</td>
-      </tr>`;
-    }).join('');
-
-    // ── Tableau mensuel synthèse ──
-    const tableRows = months.map(m => {
-      const r = allResults[m-1];
-      const rowBg = (m % 2 === 0) ? 'background:#F8F7FF;' : '';
-      if (!r) return `<tr style="${rowBg}"><td style="color:#CBD5E1;font-style:italic;">${MOIS_FULL[m-1]}</td>${users.map(()=>'<td style="color:#CBD5E1">—</td>').join('')}<td style="color:#CBD5E1">—</td><td style="color:#CBD5E1">—</td><td style="color:#CBD5E1">—</td><td style="color:#CBD5E1">—</td></tr>`;
-      const txC = r.txEpargne.total>=0.1?'#10B981':r.txEpargne.total>=0?'#F59E0B':'#EF4444';
-      return `<tr style="${rowBg}">
-        <td style="font-weight:600;color:#334155;">${MOIS_FULL[m-1]}</td>
-        ${users.map(u=>`<td>${fmt(r.revenus.byUser?.[u.id]??0)}</td>`).join('')}
-        <td>${fmt(r.charges.total)}</td>
-        <td>${fmt(r.depenses.total)}</td>
-        <td style="color:${clr(r.solde.total)};font-weight:800;">${fmt(r.solde.total)}</td>
-        <td style="color:${txC};font-weight:700;">${fmtPct(r.txEpargne.total)}</td>
-      </tr>`;
-    }).join('');
-
-    // ── Achats exceptionnels ──
-    const achatsForPDF = [];
-    for (const m of months) {
-      const list = (achatMap[m]||[]).filter(a=>!(a.category==='craquage'&&a.craquage_source==='pending'));
-      for (const a of list) achatsForPDF.push({...a,_month:m});
-    }
-    achatsForPDF.sort((a,b)=> (b._month*100+(b.day||0)) - (a._month*100+(a.day||0)));
-    const achatRows = achatsForPDF.slice(0,25).map((a,i) => {
-      const info = getCategoryInfo(a.category);
-      const d    = a.day ? `${a.day} ${MOIS_SHORT[a._month-1]}` : MOIS_SHORT[a._month-1];
-      const bg   = i%2===0 ? '' : 'background:#F8F7FF;';
-      return `<tr style="${bg}">
-        <td style="display:flex;align-items:center;gap:6px;"><span style="font-size:13px;">${info.emoji}</span><span>${esc(a.label||'')}</span></td>
-        <td style="color:#94A3B8;">${d}</td>
-        <td style="color:#EF4444;font-weight:700;">${fmt(a.amount)}</td>
-      </tr>`;
-    }).join('');
-
-    // ── Score budgétaire ──
-    const cibles = s?.budgetCibles || {};
-    const kpiR   = singleMonth ? allResults[month-1] : (allResults[new Date().getMonth()] || allResults.filter(Boolean).pop());
-    let scoreVal = 0, scoreColor = '#EF4444', scoreLabel = 'À améliorer';
-    if (kpiR) {
-      const tx  = kpiR.txEpargne?.total ?? 0;
-      const thr = Number(s?.epargneThreshold)||100;
-      const pts = (tx>=0.15?40:tx>=0.05?25:tx>0?10:0) + (kpiR.solde.total>=thr?20:kpiR.solde.total>=0?10:0);
-      scoreVal = Math.min(100, pts + 20);
-      scoreColor = scoreVal>=75?'#10B981':scoreVal>=50?'#F59E0B':'#EF4444';
-      scoreLabel = scoreVal>=75?'Excellent':scoreVal>=50?'Satisfaisant':'À améliorer';
-    }
-    const circumference = 2 * Math.PI * 26;
-    const dashOffset    = circumference - (scoreVal/100)*circumference;
-
+    const fmt    = v => { const n=Number(v)||0; return (n<0?'−':'')+Math.abs(n).toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2})+' €'; };
+    const fmtPct = v => (Number(v)*100).toFixed(1)+' %';
+    const clr    = v => Number(v)>=0?'#10B981':'#EF4444';
+    const esc    = escHtml;
     const genDate = new Date().toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric'});
+
+    // Score budgétaire
+    const refR = singleMonth ? allResults[month-1] : (allResults[new Date().getMonth()] ?? allResults.filter(Boolean).pop());
+    let scoreVal=0, scoreColor='#EF4444', scoreLabel='À améliorer';
+    if (refR) {
+      const tx=refR.txEpargne?.total??0, thr=Number(s?.epargneThreshold)||100;
+      const pts=(tx>=0.15?40:tx>=0.05?25:tx>0?10:0)+(refR.solde.total>=thr?20:refR.solde.total>=0?10:0);
+      scoreVal=Math.min(100,pts+20);
+      scoreColor=scoreVal>=75?'#10B981':scoreVal>=50?'#F59E0B':'#EF4444';
+      scoreLabel=scoreVal>=75?'Excellent':scoreVal>=50?'Satisfaisant':'À améliorer';
+    }
+    const circ=(2*Math.PI*26), dashOff=(circ-(scoreVal/100)*circ).toFixed(2);
+
+    // Sparklines SVG
+    const sparkData = allResults.map(r=>r?.solde?.total??null);
+    const nonNull   = sparkData.filter(v=>v!==null);
+    let sparkSVG='', txSparkSVG='';
+    if (!singleMonth && nonNull.length>1) {
+      const W=300,H=56,pad=6;
+      const sMin=Math.min(...nonNull,0), sMax=Math.max(...nonNull,1);
+      const toX=i=>pad+i*((W-2*pad)/11);
+      const toY=v=>H-pad-((v-sMin)/(sMax-sMin||1))*(H-2*pad);
+      const pts=sparkData.map((v,i)=>v!==null?`${toX(i).toFixed(1)},${toY(v).toFixed(1)}`:null).filter(Boolean);
+      const zerY=toY(0).toFixed(1);
+      const fi=sparkData.findIndex(v=>v!==null), li=sparkData.map((v,i)=>v!==null?i:-1).filter(i=>i>=0).pop();
+      const area=`M${toX(fi).toFixed(1)},${zerY} `+pts.map((p,i)=>(i===0?'L':'')+p).join(' ')+` L${toX(li).toFixed(1)},${zerY} Z`;
+      sparkSVG=`<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="sg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#6C63FF" stop-opacity=".25"/><stop offset="100%" stop-color="#6C63FF" stop-opacity=".02"/></linearGradient></defs><path d="${area}" fill="url(#sg)"/><polyline points="${pts.join(' ')}" fill="none" stroke="#6C63FF" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>${sparkData.map((v,i)=>v!==null?`<circle cx="${toX(i).toFixed(1)}" cy="${toY(v).toFixed(1)}" r="3" fill="#6C63FF"/>`:'').filter(Boolean).join('')}</svg>`;
+      const txData=allResults.map(r=>r?.txEpargne?.total??null), txNN=txData.filter(v=>v!==null);
+      if (txNN.length>1) {
+        const tMin=Math.min(...txNN,0), tMax=Math.max(...txNN,0.2);
+        const tyY=v=>H-pad-((v-tMin)/(tMax-tMin||0.01))*(H-2*pad);
+        const tpts=txData.map((v,i)=>v!==null?`${toX(i).toFixed(1)},${tyY(v).toFixed(1)}`:null).filter(Boolean);
+        const tfi=txData.findIndex(v=>v!==null), tli=txData.map((v,i)=>v!==null?i:-1).filter(i=>i>=0).pop();
+        const tzerY=tyY(0).toFixed(1), tarea=`M${toX(tfi).toFixed(1)},${tzerY} `+tpts.map((p,i)=>(i===0?'L':'')+p).join(' ')+` L${toX(tli).toFixed(1)},${tzerY} Z`;
+        const obj10Y=tyY(0.10).toFixed(1);
+        txSparkSVG=`<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="tg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#10B981" stop-opacity=".25"/><stop offset="100%" stop-color="#10B981" stop-opacity=".02"/></linearGradient></defs><line x1="${pad}" y1="${obj10Y}" x2="${(W-pad).toFixed(1)}" y2="${obj10Y}" stroke="#F59E0B" stroke-width="1" stroke-dasharray="4,3"/><path d="${tarea}" fill="url(#tg)"/><polyline points="${tpts.join(' ')}" fill="none" stroke="#10B981" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>${txData.map((v,i)=>v!==null?`<circle cx="${toX(i).toFixed(1)}" cy="${tyY(v).toFixed(1)}" r="3" fill="${v>=0.1?'#10B981':'#F59E0B'}"/>`:'').filter(Boolean).join('')}</svg>`;
+      }
+    }
+
+    // Barres revenus vs dépenses
+    const barRows=months.map(m=>{ const r=allResults[m-1]; if(!r) return null; return { lbl:MOIS_SHORT[m-1], rev:r.revenus.total+(r.aides?.total??0)+r.primes.total, dep:r.depenses.total, solde:r.solde.total }; }).filter(Boolean);
+    const maxBarVal=Math.max(...barRows.map(b=>Math.max(b.rev,b.dep)),1);
+    const barChartRows=barRows.map(b=>{ const rw=Math.round((b.rev/maxBarVal)*260), dw=Math.round((b.dep/maxBarVal)*260); return `<tr><td style="font-size:9.5px;font-weight:600;color:#64748B;width:30px;padding:2px 6px 2px 0;">${b.lbl}</td><td style="padding:2px 0;"><div style="height:9px;background:#EEF2FF;border-radius:5px;overflow:hidden;margin-bottom:2px;"><div style="height:9px;width:${rw}px;background:linear-gradient(90deg,#4F46E5,#8B85FF);border-radius:5px;"></div></div><div style="height:9px;background:#FEF2F2;border-radius:5px;overflow:hidden;"><div style="height:9px;width:${dw}px;background:linear-gradient(90deg,#DC2626,#F87171);border-radius:5px;"></div></div></td><td style="font-size:9px;text-align:right;padding:2px 0 2px 8px;white-space:nowrap;"><div style="color:#4F46E5;font-weight:700;">${fmt(b.rev)}</div><div style="color:#DC2626;">${fmt(b.dep)}</div></td><td style="font-size:9px;text-align:right;padding:2px 0 2px 8px;white-space:nowrap;font-weight:700;color:${clr(b.solde)};">${fmt(b.solde)}</td></tr>`; }).join('');
+
+    // Charges fixes détail
+    const chargesByCat={};
+    for (const m of months) { const chg=chgForMonth(m); for (const c of chg) { const cat=c.category||'autre'; chargesByCat[cat]=chargesByCat[cat]||{label:c.category||'Autre',total:0}; chargesByCat[cat].total+=Number(c.amount)||0; } }
+    const chargesRows=Object.values(chargesByCat).sort((a,b)=>b.total-a.total).map((c,i)=>{ const bg=i%2?'background:#F8FAFC;':''; const info=getCategoryInfo(c.label); const monthly=months.length>1?(c.total/months.length):c.total; return `<tr style="${bg}"><td>${info.emoji} ${esc(info.name||c.label)}</td><td style="text-align:right;color:#64748B;">${fmt(monthly)}</td><td style="text-align:right;font-weight:700;color:#4F46E5;">${fmt(c.total)}</td></tr>`; }).join('');
+
+    // Objectif épargne
+    const epObjectif=Number(s?.epargneObjectif)||0, epTxObjectif=Number(s?.epargneRate)||0.10;
+    const epActualTotal=yearKPI?.solde?.total??0, epActualTx=yearKPI?.txEpargne?.total??0;
+    const epProgress=epObjectif>0?Math.min(100,Math.round((epActualTotal/epObjectif)*100)):0;
+    const epProgressBar=epObjectif>0?`<div style="background:#E2E8F0;border-radius:8px;overflow:hidden;height:12px;margin:8px 0;"><div style="height:12px;width:${epProgress}%;background:linear-gradient(90deg,#10B981,#34D399);border-radius:8px;min-width:4px;"></div></div><div style="font-size:9px;color:#64748B;">${epProgress}% de l'objectif annuel de ${fmt(epObjectif)}</div>`:'';
+
+    // Tableau mensuel
+    const tableRows=months.map(m=>{ const r=allResults[m-1]; if(!r) return `<tr><td style="color:#CBD5E1;font-style:italic;">${MOIS_FULL[m-1]}</td>${users.map(()=>'<td style="color:#CBD5E1">—</td>').join('')}<td style="color:#CBD5E1">—</td><td style="color:#CBD5E1">—</td><td style="color:#CBD5E1">—</td><td style="color:#CBD5E1">—</td></tr>`; const txC=r.txEpargne.total>=0.1?'#10B981':r.txEpargne.total>=0?'#F59E0B':'#EF4444'; return `<tr><td>${MOIS_FULL[m-1]}</td>${users.map(u=>`<td>${fmt(r.revenus.byUser?.[u.id]??0)}</td>`).join('')}<td>${fmt(r.charges.total)}</td><td>${fmt(r.depenses.total)}</td><td style="color:${clr(r.solde.total)};font-weight:800;">${fmt(r.solde.total)}</td><td style="color:${txC};font-weight:700;">${fmtPct(r.txEpargne.total)}</td></tr>`; }).join('');
+
+    // Achats
+    const achatsForPDF=[];
+    for (const m of months) { const list=(achatMap[m]||[]).filter(a=>!(a.category==='craquage'&&a.craquage_source==='pending')); for (const a of list) achatsForPDF.push({...a,_month:m}); }
+    achatsForPDF.sort((a,b)=>(b._month*100+(b.day||0))-(a._month*100+(a.day||0)));
+    const achatRows=achatsForPDF.slice(0,30).map((a,i)=>{ const info=getCategoryInfo(a.category); const d=a.day?`${a.day} ${MOIS_SHORT[a._month-1]}`:MOIS_SHORT[a._month-1]; return `<tr style="${i%2?'background:#FFF5F5;':''}"><td style="display:flex;align-items:center;gap:6px;"><span>${info.emoji}</span><span>${esc(a.label||'')}</span></td><td style="color:#94A3B8;text-align:right;">${d}</td><td style="color:#EF4444;font-weight:700;text-align:right;">${fmt(a.amount)}</td></tr>`; }).join('');
 
     const html = `<!DOCTYPE html>
 <html lang="fr">
@@ -834,246 +794,150 @@ async function exportPDF(year, month, users, s) {
 <meta charset="UTF-8">
 <title>Compta+ — ${esc(periodLabel)}</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,300;0,14..32,400;0,14..32,600;0,14..32,700;0,14..32,800;0,14..32,900&display=swap');
-  *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
-  html, body { width:210mm; }
-  body { font-family:'Inter',system-ui,-apple-system,sans-serif; background:#fff; color:#1E293B; font-size:12px; line-height:1.5; }
-  @page { size:A4 portrait; margin:0; }
-  @media print { body { -webkit-print-color-adjust:exact; print-color-adjust:exact; } }
-
-  /* ─── COVER BAND ─── */
-  .cover { background:linear-gradient(135deg,#1E1B4B 0%,#312E81 45%,#4C1D95 100%); padding:32px 36px 28px; color:#fff; position:relative; overflow:hidden; }
-  .cover::before { content:''; position:absolute; top:-60px; right:-60px; width:220px; height:220px; border-radius:50%; background:rgba(139,92,246,.18); }
-  .cover::after  { content:''; position:absolute; bottom:-40px; left:80px; width:140px; height:140px; border-radius:50%; background:rgba(99,102,241,.15); }
-  .cover-inner   { position:relative; z-index:1; display:flex; justify-content:space-between; align-items:flex-start; }
-  .cover-logo    { font-size:28px; font-weight:900; letter-spacing:-0.04em; line-height:1; }
-  .cover-logo span { color:#A78BFA; }
-  .cover-sub     { font-size:10px; color:rgba(255,255,255,.55); margin-top:4px; text-transform:uppercase; letter-spacing:.12em; font-weight:500; }
-  .cover-right   { text-align:right; }
-  .cover-period  { font-size:22px; font-weight:800; line-height:1.2; }
-  .cover-date    { font-size:10px; color:rgba(255,255,255,.5); margin-top:5px; }
-  .cover-chips   { display:flex; gap:8px; justify-content:flex-end; margin-top:10px; }
-  .chip-cover    { background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.18); border-radius:20px; padding:3px 10px; font-size:10px; font-weight:600; color:rgba(255,255,255,.85); }
-
-  /* ─── MAIN CONTENT ─── */
-  .content { padding:24px 36px 20px; }
-
-  /* ─── KPI GRID ─── */
-  .kpi-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:22px; }
-  .kpi-card { border-radius:14px; padding:16px 14px 14px; position:relative; overflow:hidden; }
-  .kpi-card::before { content:''; position:absolute; top:-16px; right:-16px; width:64px; height:64px; border-radius:50%; opacity:.12; background:var(--kc); }
-  .kpi-card .kc-icon { font-size:18px; margin-bottom:8px; display:block; }
-  .kpi-card .kc-lbl  { font-size:9px; text-transform:uppercase; letter-spacing:.1em; font-weight:700; color:var(--kc); opacity:.7; margin-bottom:6px; }
-  .kpi-card .kc-val  { font-size:15px; font-weight:900; color:var(--kc); font-feature-settings:"tnum"; line-height:1.1; }
-  .kpi-card .kc-sub  { font-size:9px; margin-top:5px; color:#94A3B8; }
-  .kpi-rev  { background:#EEF2FF; --kc:#4F46E5; }
-  .kpi-dep  { background:#FEF2F2; --kc:#DC2626; }
-  .kpi-sol  { background:var(--solbg); --kc:var(--solc); }
-  .kpi-sav  { background:#ECFDF5; --kc:#059669; }
-
-  /* ─── SECTION TITLE ─── */
-  .sec-title { font-size:9px; font-weight:800; text-transform:uppercase; letter-spacing:.14em; color:#6C63FF; margin-bottom:10px; padding-bottom:6px; border-bottom:2px solid #EEF2FF; display:flex; align-items:center; gap:8px; }
-
-  /* ─── SCORE RING ─── */
-  .score-row { display:flex; align-items:center; gap:20px; background:#FAFAFA; border-radius:14px; padding:14px 18px; margin-bottom:22px; border:1px solid #F1F5F9; }
-  .score-text h3 { font-size:15px; font-weight:800; margin-bottom:2px; }
-  .score-text p  { font-size:10px; color:#94A3B8; }
-
-  /* ─── USER CARDS ─── */
-  .user-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:12px; margin-bottom:22px; }
-  .user-card { border-radius:14px; padding:16px; border:1.5px solid #EEF2FF; background:#FAFAFE; }
-  .user-name { font-size:13px; font-weight:800; color:#312E81; margin-bottom:10px; display:flex; align-items:center; gap:6px; }
-  .user-dot  { width:10px; height:10px; border-radius:50%; }
-  .urow      { display:flex; justify-content:space-between; align-items:center; padding:4px 0; border-bottom:1px solid #EEF2FF; font-size:11px; }
-  .urow:last-child { border:none; }
-  .urow-lbl  { color:#64748B; }
-  .urow-val  { font-weight:700; font-feature-settings:"tnum"; }
-
-  /* ─── BAR CHART ─── */
-  .bar-section { background:#FAFAFE; border-radius:14px; padding:16px; margin-bottom:22px; border:1px solid #EEF2FF; }
-  .bar-table   { width:100%; border-collapse:collapse; }
-  .bar-legend  { display:flex; gap:16px; margin-top:10px; font-size:9px; font-weight:600; }
-  .bl-dot      { display:inline-block; width:10px; height:10px; border-radius:3px; margin-right:4px; vertical-align:middle; }
-
-  /* ─── MONTHLY TABLE ─── */
-  .month-table-wrap { border-radius:14px; overflow:hidden; border:1px solid #EEF2FF; margin-bottom:22px; }
-  .mt { width:100%; border-collapse:collapse; font-size:10.5px; }
-  .mt thead tr { background:linear-gradient(90deg,#312E81,#4F46E5); }
-  .mt thead th { padding:9px 10px; color:#fff; font-weight:700; font-size:9px; text-transform:uppercase; letter-spacing:.06em; text-align:right; }
-  .mt thead th:first-child { text-align:left; }
-  .mt tbody tr:nth-child(odd) { background:#fff; }
-  .mt tbody tr:nth-child(even) { background:#F8F7FF; }
-  .mt tbody td { padding:7px 10px; text-align:right; border-bottom:1px solid #EEF2FF; font-feature-settings:"tnum"; }
-  .mt tbody td:first-child { text-align:left; font-weight:600; color:#334155; }
-  .mt tfoot tr { background:#312E81; }
-  .mt tfoot td { padding:8px 10px; color:#fff; font-weight:800; text-align:right; font-feature-settings:"tnum"; font-size:11px; }
-  .mt tfoot td:first-child { text-align:left; }
-
-  /* ─── ACHATS TABLE ─── */
-  .ach-table-wrap { border-radius:14px; overflow:hidden; border:1px solid #FEE2E2; margin-bottom:22px; }
-  .at { width:100%; border-collapse:collapse; font-size:11px; }
-  .at thead tr { background:linear-gradient(90deg,#7F1D1D,#DC2626); }
-  .at thead th { padding:9px 10px; color:#fff; font-weight:700; font-size:9px; text-transform:uppercase; letter-spacing:.06em; text-align:right; }
-  .at thead th:first-child { text-align:left; }
-  .at tbody tr:nth-child(odd) { background:#fff; }
-  .at tbody tr:nth-child(even) { background:#FFF5F5; }
-  .at tbody td { padding:6px 10px; border-bottom:1px solid #FEE2E2; text-align:right; }
-  .at tbody td:first-child { text-align:left; }
-
-  /* ─── SPARKLINE ─── */
-  .spark-wrap { background:#FAFAFE; border-radius:14px; padding:16px; border:1px solid #EEF2FF; margin-bottom:22px; display:flex; align-items:center; gap:20px; }
-  .spark-meta h4 { font-size:10px; text-transform:uppercase; letter-spacing:.1em; color:#94A3B8; font-weight:700; margin-bottom:4px; }
-  .spark-meta .sm-val { font-size:20px; font-weight:900; font-feature-settings:"tnum"; }
-  .spark-meta .sm-sub { font-size:9px; color:#94A3B8; margin-top:2px; }
-
-  /* ─── FOOTER ─── */
-  .pdf-footer { margin-top:16px; padding-top:10px; border-top:1px solid #E2E8F0; display:flex; justify-content:space-between; align-items:center; font-size:9px; color:#CBD5E1; }
-  .pdf-footer strong { color:#A78BFA; font-weight:700; }
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800;900&display=swap');
+  *,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+  html{width:210mm;}
+  body{font-family:'Inter',system-ui,sans-serif;background:#fff;color:#1E293B;font-size:12px;line-height:1.55;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+  @page{size:A4 portrait;margin:14mm 14mm 18mm;}
+  @media print{.pb{page-break-before:always;}}
+  .cover{background:linear-gradient(135deg,#1E1B4B 0%,#312E81 50%,#4C1D95 100%);color:#fff;padding:36px 40px 30px;position:relative;overflow:hidden;}
+  .cover::before{content:'';position:absolute;top:-80px;right:-80px;width:280px;height:280px;border-radius:50%;background:rgba(167,139,250,.15);}
+  .cover::after{content:'';position:absolute;bottom:-50px;left:60px;width:160px;height:160px;border-radius:50%;background:rgba(99,102,241,.12);}
+  .ci{position:relative;z-index:1;display:flex;justify-content:space-between;align-items:flex-start;}
+  .cl-logo{font-size:32px;font-weight:900;letter-spacing:-.05em;line-height:1;}
+  .cl-logo em{color:#A78BFA;font-style:normal;}
+  .cl-sub{font-size:11px;color:rgba(255,255,255,.5);margin-top:5px;text-transform:uppercase;letter-spacing:.14em;font-weight:500;}
+  .cr{text-align:right;}.cr-period{font-size:24px;font-weight:900;line-height:1.2;}
+  .cr-date{font-size:10px;color:rgba(255,255,255,.45);margin-top:6px;}
+  .cr-chips{display:flex;gap:8px;justify-content:flex-end;margin-top:12px;flex-wrap:wrap;}
+  .chip{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);border-radius:20px;padding:4px 12px;font-size:10px;font-weight:600;color:rgba(255,255,255,.9);}
+  .ct{padding:22px 0 10px;}
+  .kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px;}
+  .kc{border-radius:12px;padding:14px 12px;position:relative;overflow:hidden;}
+  .kc::after{content:'';position:absolute;top:-20px;right:-20px;width:70px;height:70px;border-radius:50%;background:var(--kc);opacity:.1;}
+  .kc-ico{font-size:17px;display:block;margin-bottom:6px;}
+  .kc-lbl{font-size:8.5px;text-transform:uppercase;letter-spacing:.1em;font-weight:700;color:var(--kc);opacity:.75;margin-bottom:4px;}
+  .kc-val{font-size:14.5px;font-weight:900;color:var(--kc);font-feature-settings:"tnum";line-height:1;}
+  .kc-sub{font-size:8.5px;margin-top:5px;color:#94A3B8;}
+  .kr{background:#EEF2FF;--kc:#4F46E5;}.kd{background:#FEF2F2;--kc:#DC2626;}
+  .ks{background:var(--bg);--kc:var(--fc);}.ke{background:#ECFDF5;--kc:#059669;}
+  .st{font-size:8.5px;font-weight:800;text-transform:uppercase;letter-spacing:.16em;color:#6C63FF;margin-bottom:10px;padding-bottom:7px;border-bottom:2px solid #EEF2FF;display:flex;align-items:center;gap:8px;}
+  .ss-row{display:grid;grid-template-columns:180px 1fr;gap:12px;margin-bottom:20px;}
+  .score-box{background:#FAFAFE;border-radius:12px;padding:14px 16px;border:1px solid #EEF2FF;display:flex;align-items:center;gap:14px;}
+  .score-txt h3{font-size:14px;font-weight:800;margin-bottom:2px;}.score-txt p{font-size:9px;color:#94A3B8;line-height:1.4;}
+  .spark-box{background:#FAFAFE;border-radius:12px;padding:14px 16px;border:1px solid #EEF2FF;}
+  .spark-box h4{font-size:8.5px;text-transform:uppercase;letter-spacing:.1em;color:#94A3B8;font-weight:700;margin-bottom:4px;}
+  .spark-val{font-size:18px;font-weight:900;font-feature-settings:"tnum";}
+  .spark-sub{font-size:9px;color:#94A3B8;margin-top:2px;}
+  .tx-box{background:#F0FDF4;border-radius:12px;padding:14px 16px;border:1px solid #BBF7D0;margin-bottom:20px;}
+  .tx-box h4{font-size:8.5px;text-transform:uppercase;letter-spacing:.1em;color:#059669;font-weight:700;margin-bottom:6px;}
+  .tx-row{display:flex;align-items:center;gap:20px;}
+  .tx-val{font-size:18px;font-weight:900;font-feature-settings:"tnum";white-space:nowrap;}
+  .tx-leg{font-size:8.5px;color:#64748B;margin-top:6px;}
+  .ug{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:20px;}
+  .uc{border-radius:12px;padding:14px;border:1.5px solid #EEF2FF;background:#FAFAFE;}
+  .un{font-size:12px;font-weight:800;color:#312E81;margin-bottom:8px;display:flex;align-items:center;gap:7px;}
+  .ud{width:10px;height:10px;border-radius:50%;flex-shrink:0;}
+  .ur{display:flex;justify-content:space-between;padding:3.5px 0;border-bottom:1px solid #F0F0FA;font-size:10.5px;}
+  .ur:last-child{border:none;}.ul{color:#64748B;}.uv{font-weight:700;font-feature-settings:"tnum";}
+  .bar-box{background:#FAFAFE;border-radius:12px;padding:14px 16px;border:1px solid #EEF2FF;margin-bottom:20px;}
+  .bt{width:100%;border-collapse:collapse;}
+  .bleg{display:flex;gap:14px;margin-top:8px;font-size:8.5px;font-weight:600;}
+  .bld{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:3px;vertical-align:middle;}
+  .ch-wrap{border-radius:12px;overflow:hidden;border:1px solid #E2E8F0;margin-bottom:20px;}
+  .cht{width:100%;border-collapse:collapse;font-size:10.5px;}
+  .cht thead tr{background:linear-gradient(90deg,#1E293B,#334155);}
+  .cht thead th{padding:8px 10px;color:#fff;font-size:8.5px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;text-align:right;}
+  .cht thead th:first-child{text-align:left;}
+  .cht tbody tr:nth-child(even){background:#F8FAFC;}
+  .cht tbody td{padding:6px 10px;border-bottom:1px solid #F1F5F9;}
+  .obj-box{background:#F0FDF4;border-radius:12px;padding:14px 16px;border:1px solid #BBF7D0;margin-bottom:20px;}
+  .obj-box h4{font-size:8.5px;text-transform:uppercase;letter-spacing:.1em;color:#059669;font-weight:700;margin-bottom:8px;}
+  .obj-kv{display:flex;justify-content:space-between;font-size:10.5px;margin-bottom:5px;}
+  .ok{color:#64748B;}.ov{font-weight:700;}
+  .mt-wrap{border-radius:12px;overflow:hidden;border:1px solid #EEF2FF;margin-bottom:20px;}
+  .mt{width:100%;border-collapse:collapse;font-size:10.5px;}
+  .mt thead tr{background:linear-gradient(90deg,#312E81,#4F46E5);}
+  .mt thead th{padding:8px 10px;color:#fff;font-weight:700;font-size:8.5px;text-transform:uppercase;letter-spacing:.06em;text-align:right;}
+  .mt thead th:first-child{text-align:left;}
+  .mt tbody tr:nth-child(even){background:#F8F7FF;}
+  .mt tbody td{padding:6.5px 10px;text-align:right;border-bottom:1px solid #EEF2FF;font-feature-settings:"tnum";}
+  .mt tbody td:first-child{text-align:left;font-weight:600;color:#334155;}
+  .mt tfoot tr{background:#1E1B4B;}
+  .mt tfoot td{padding:8px 10px;color:#E0DFFF;font-weight:800;text-align:right;font-feature-settings:"tnum";font-size:11px;}
+  .mt tfoot td:first-child{text-align:left;color:#fff;}
+  .ac-wrap{border-radius:12px;overflow:hidden;border:1px solid #FEE2E2;margin-bottom:20px;}
+  .ac{width:100%;border-collapse:collapse;font-size:10.5px;}
+  .ac thead tr{background:linear-gradient(90deg,#7F1D1D,#DC2626);}
+  .ac thead th{padding:8px 10px;color:#fff;font-size:8.5px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;}
+  .ac thead th:first-child{text-align:left;}.ac thead th:nth-child(2),.ac thead th:nth-child(3){text-align:right;}
+  .ac tbody tr:nth-child(even){background:#FFF5F5;}
+  .ac tbody td{padding:6px 10px;border-bottom:1px solid #FEE2E2;}
+  .pf{margin-top:14px;padding-top:8px;border-top:1px solid #E2E8F0;display:flex;justify-content:space-between;font-size:8.5px;color:#CBD5E1;}
+  .pf strong{color:#A78BFA;font-weight:700;}
 </style>
 </head>
 <body>
+<div class="cover"><div class="ci">
+  <div><div class="cl-logo">Compta<em>+</em></div><div class="cl-sub">Bilan Financier Personnel</div></div>
+  <div class="cr"><div class="cr-period">${esc(periodLabel)}</div><div class="cr-date">Généré le ${genDate}</div><div class="cr-chips">${users.map(u=>`<span class="chip">${esc(u.name)}</span>`).join('')}</div></div>
+</div></div>
 
-<!-- ══ COVER ══ -->
-<div class="cover">
-  <div class="cover-inner">
-    <div>
-      <div class="cover-logo">Compta<span>+</span></div>
-      <div class="cover-sub">Bilan Financier Personnel</div>
-    </div>
-    <div class="cover-right">
-      <div class="cover-period">${esc(periodLabel)}</div>
-      <div class="cover-date">Généré le ${genDate}</div>
-      <div class="cover-chips">
-        ${users.map(u=>`<span class="chip-cover">${esc(u.name)}</span>`).join('')}
-      </div>
-    </div>
-  </div>
-</div>
+<div class="ct">
 
-<!-- ══ CONTENT ══ -->
-<div class="content">
-
-<!-- KPI GRID -->
 ${yearKPI ? `
 <div class="kpi-grid">
-  <div class="kpi-card kpi-rev">
-    <span class="kc-icon">💰</span>
-    <div class="kc-lbl">Revenus nets</div>
-    <div class="kc-val">${fmt(yearKPI.revenus.total+(yearKPI.aides?.total??0))}</div>
-    <div class="kc-sub">Primes : ${fmt(yearKPI.primes.total)}</div>
-  </div>
-  <div class="kpi-card kpi-dep">
-    <span class="kc-icon">💸</span>
-    <div class="kc-lbl">Dépenses</div>
-    <div class="kc-val">${fmt(yearKPI.depenses.total)}</div>
-    <div class="kc-sub">Charges : ${fmt(yearKPI.charges.total)}</div>
-  </div>
-  <div class="kpi-card kpi-sol" style="--solbg:${Number(yearKPI.solde.total)>=0?'#ECFDF5':'#FEF2F2'};--solc:${clr(yearKPI.solde.total)};">
-    <span class="kc-icon">⚖️</span>
-    <div class="kc-lbl">Solde cumulé</div>
-    <div class="kc-val">${fmt(yearKPI.solde.total)}</div>
-    <div class="kc-sub">${Number(yearKPI.solde.total)>=0?'Positif ✓':'Négatif !'}</div>
-  </div>
-  <div class="kpi-card kpi-sav">
-    <span class="kc-icon">📈</span>
-    <div class="kc-lbl">Taux d'épargne</div>
-    <div class="kc-val">${fmtPct(yearKPI.txEpargne.total)}</div>
-    <div class="kc-sub">${yearKPI.txEpargne.total>=0.15?'Excellent ✓':yearKPI.txEpargne.total>=0.1?'Bon ✓':'Objectif : 10 %'}</div>
-  </div>
+  <div class="kc kr"><span class="kc-ico">💰</span><div class="kc-lbl">Revenus nets</div><div class="kc-val">${fmt(yearKPI.revenus.total+(yearKPI.aides?.total??0))}</div><div class="kc-sub">Primes : ${fmt(yearKPI.primes.total)}</div></div>
+  <div class="kc kd"><span class="kc-ico">💸</span><div class="kc-lbl">Dépenses</div><div class="kc-val">${fmt(yearKPI.depenses.total)}</div><div class="kc-sub">Charges : ${fmt(yearKPI.charges.total)}</div></div>
+  <div class="kc ks" style="--bg:${Number(yearKPI.solde.total)>=0?'#ECFDF5':'#FEF2F2'};--fc:${clr(yearKPI.solde.total)};"><span class="kc-ico">⚖️</span><div class="kc-lbl">Solde cumulé</div><div class="kc-val">${fmt(yearKPI.solde.total)}</div><div class="kc-sub">${Number(yearKPI.solde.total)>=0?'Positif ✓':'Négatif !'}</div></div>
+  <div class="kc ke"><span class="kc-ico">📈</span><div class="kc-lbl">Taux d'épargne</div><div class="kc-val">${fmtPct(yearKPI.txEpargne.total)}</div><div class="kc-sub">${yearKPI.txEpargne.total>=0.15?'Excellent ✓':yearKPI.txEpargne.total>=0.1?'Bon ✓':'Objectif : 10 %'}</div></div>
 </div>
-
-<!-- SCORE + SPARKLINE ROW -->
-<div style="display:grid;grid-template-columns:1fr 2fr;gap:14px;margin-bottom:22px;">
-  <div class="score-row" style="margin-bottom:0;">
-    <svg width="72" height="72" viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg">
+<div class="ss-row">
+  <div class="score-box">
+    <svg width="68" height="68" viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg">
       <circle cx="30" cy="30" r="26" fill="none" stroke="#EEF2FF" stroke-width="6"/>
-      <circle cx="30" cy="30" r="26" fill="none" stroke="${scoreColor}" stroke-width="6"
-        stroke-dasharray="${circumference.toFixed(2)}" stroke-dashoffset="${circumference.toFixed(2)}"
-        stroke-linecap="round" transform="rotate(-90 30 30)"
-        style="animation:none;stroke-dashoffset:${dashOffset.toFixed(2)};"/>
-      <text x="30" y="35" text-anchor="middle" font-family="Inter,sans-serif" font-size="14" font-weight="900" fill="${scoreColor}">${scoreVal}</text>
+      <circle cx="30" cy="30" r="26" fill="none" stroke="${scoreColor}" stroke-width="6" stroke-linecap="round" stroke-dasharray="${circ.toFixed(2)}" stroke-dashoffset="${dashOff}" transform="rotate(-90 30 30)"/>
+      <text x="30" y="35" text-anchor="middle" font-family="Inter,sans-serif" font-size="13" font-weight="900" fill="${scoreColor}">${scoreVal}</text>
     </svg>
-    <div class="score-text">
-      <h3 style="color:${scoreColor};">${scoreLabel}</h3>
-      <p>Score budgétaire<br>sur 100 points</p>
-    </div>
+    <div class="score-txt"><h3 style="color:${scoreColor};">${scoreLabel}</h3><p>Score budgétaire<br>sur 100 pts</p></div>
   </div>
-  ${sparkSVG ? `<div class="spark-wrap" style="margin-bottom:0;">
-    <div class="spark-meta">
-      <h4>Évolution du solde</h4>
-      <div class="sm-val" style="color:${clr(yearKPI.solde.total)}">${fmt(yearKPI.solde.total)}</div>
-      <div class="sm-sub">Solde cumulé ${year}</div>
-    </div>
-    ${sparkSVG}
-  </div>` : '<div></div>'}
-</div>` : '<p style="color:#94A3B8;text-align:center;padding:20px;">Aucune donnée pour cette période.</p>'}
-
-<!-- DÉTAIL PAR PERSONNE -->
-${users.length>1&&yearKPI?`
-<div class="sec-title">👤 Bilan par personne</div>
-<div class="user-grid" style="margin-bottom:22px;">
-  ${users.map(u=>{
-    const uc = u.color||'#6C63FF';
-    return `<div class="user-card">
-      <div class="user-name"><span class="user-dot" style="background:${uc};"></span>${esc(u.name)}</div>
-      <div class="urow"><span class="urow-lbl">Revenus</span><span class="urow-val" style="color:#4F46E5;">${fmt(yearKPI.revenus.byUser?.[u.id]??0)}</span></div>
-      <div class="urow"><span class="urow-lbl">Primes</span><span class="urow-val" style="color:#7C3AED;">${fmt(yearKPI.primes.byUser?.[u.id]??0)}</span></div>
-      <div class="urow"><span class="urow-lbl">Dépenses</span><span class="urow-val" style="color:#DC2626;">${fmt(yearKPI.depenses.byUser?.[u.id]??0)}</span></div>
-      <div class="urow"><span class="urow-lbl">Solde</span><span class="urow-val" style="color:${clr(yearKPI.solde.byUser?.[u.id]??0)};">${fmt(yearKPI.solde.byUser?.[u.id]??0)}</span></div>
-      <div class="urow"><span class="urow-lbl">Taux épargne</span><span class="urow-val">${fmtPct(yearKPI.txEpargne.byUser?.[u.id]??0)}</span></div>
-    </div>`;
-  }).join('')}
-</div>`:``}
-
-<!-- GRAPHE EN BARRES MENSUEL -->
-${!singleMonth&&barRows.length>1?`
-<div class="sec-title">📊 Revenus vs Dépenses par mois</div>
-<div class="bar-section">
-  <table class="bar-table">${barChartRows}</table>
-  <div class="bar-legend">
-    <span><span class="bl-dot" style="background:linear-gradient(90deg,#6C63FF,#8B85FF);"></span>Revenus</span>
-    <span><span class="bl-dot" style="background:linear-gradient(90deg,#EF4444,#F87171);"></span>Dépenses</span>
-  </div>
-</div>`:``}
-
-<!-- TABLEAU MENSUEL -->
-<div class="sec-title">📋 ${singleMonth?'Détail du mois':'Récapitulatif mensuel'}</div>
-<div class="month-table-wrap">
-  <table class="mt">
-    <thead><tr>
-      <th>Mois</th>
-      ${users.map(u=>`<th>Revenus ${esc(u.name)}</th>`).join('')}
-      <th>Charges fix.</th><th>Dépenses</th><th>Solde</th><th>Taux ép.</th>
-    </tr></thead>
-    <tbody>${tableRows}</tbody>
-    ${yearKPI?`<tfoot><tr>
-      <td>TOTAL / MOY.</td>
-      ${users.map(u=>`<td>${fmt(yearKPI.revenus.byUser?.[u.id]??0)}</td>`).join('')}
-      <td>${fmt(yearKPI.charges.total)}</td>
-      <td>${fmt(yearKPI.depenses.total)}</td>
-      <td style="color:#A5F3C4;">${fmt(yearKPI.solde.total)}</td>
-      <td style="color:#A5F3C4;">${fmtPct(yearKPI.txEpargne.total)}</td>
-    </tr></tfoot>`:''}
-  </table>
+  ${sparkSVG ? `<div class="spark-box"><h4>Évolution du solde mensuel</h4><div style="display:flex;align-items:center;gap:16px;"><div><div class="spark-val" style="color:${clr(yearKPI.solde.total)};">${fmt(yearKPI.solde.total)}</div><div class="spark-sub">cumul ${year}</div></div>${sparkSVG}</div></div>` : '<div></div>'}
 </div>
+${txSparkSVG ? `<div class="st">📉 Évolution du taux d'épargne</div>
+<div class="tx-box"><h4>Taux d'épargne — ${periodLabel}</h4>
+  <div class="tx-row"><div><div class="tx-val" style="color:${yearKPI.txEpargne.total>=0.1?'#10B981':'#F59E0B'};">${fmtPct(yearKPI.txEpargne.total)}</div><div style="font-size:9px;color:#64748B;margin-top:2px;">Moyenne période</div></div>${txSparkSVG}</div>
+  <div class="tx-leg"><span style="display:inline-flex;align-items:center;gap:4px;margin-right:12px;"><span style="display:inline-block;width:16px;height:1.5px;background:#F59E0B;border-radius:2px;margin-right:4px;"></span>Objectif 10 %</span><span style="display:inline-flex;align-items:center;gap:4px;"><span style="display:inline-block;width:16px;height:2.5px;background:#10B981;border-radius:2px;margin-right:4px;"></span>Taux réel</span></div>
+</div>` : ''}
+${(epObjectif > 0 || epTxObjectif > 0) ? `<div class="st">🎯 Objectifs &amp; progression</div>
+<div class="obj-box"><h4>Objectifs épargne ${year}</h4>
+  ${epObjectif>0 ? `<div class="obj-kv"><span class="ok">Objectif annuel</span><span class="ov" style="color:#059669;">${fmt(epObjectif)}</span></div><div class="obj-kv"><span class="ok">Réalisé</span><span class="ov" style="color:${clr(epActualTotal)};">${fmt(epActualTotal)}</span></div>${epProgressBar}` : ''}
+  ${epTxObjectif > 0 ? `<div class="obj-kv" style="margin-top:8px;"><span class="ok">Objectif taux d'épargne</span><span class="ov">${fmtPct(epTxObjectif)}</span></div><div class="obj-kv"><span class="ok">Taux actuel</span><span class="ov" style="color:${epActualTx>=epTxObjectif?'#10B981':'#F59E0B'};">${fmtPct(epActualTx)} ${epActualTx>=epTxObjectif?'✓':'— en dessous'}</span></div>` : ''}
+</div>` : ''}
+` : '<p style="color:#94A3B8;text-align:center;padding:24px 0;">Aucune donnée pour cette période.</p>'}
 
-<!-- ACHATS EXCEPTIONNELS -->
-${achatsForPDF.length>0?`
-<div class="sec-title">🛍️ Achats exceptionnels${achatsForPDF.length>25?' (25 premiers)':''}</div>
-<div class="ach-table-wrap">
-  <table class="at">
-    <thead><tr><th>Description</th><th>Date</th><th>Montant</th></tr></thead>
-    <tbody>${achatRows}</tbody>
-  </table>
-</div>`:''}
+${users.length > 1 && yearKPI ? `<div class="st">👤 Bilan par personne</div>
+<div class="ug">${users.map(u => { const uc=u.color||'#6C63FF'; return `<div class="uc"><div class="un"><span class="ud" style="background:${uc};"></span>${esc(u.name)}</div><div class="ur"><span class="ul">Revenus</span><span class="uv" style="color:#4F46E5;">${fmt(yearKPI.revenus.byUser?.[u.id]??0)}</span></div><div class="ur"><span class="ul">Primes</span><span class="uv" style="color:#7C3AED;">${fmt(yearKPI.primes.byUser?.[u.id]??0)}</span></div><div class="ur"><span class="ul">Dépenses</span><span class="uv" style="color:#DC2626;">${fmt(yearKPI.depenses.byUser?.[u.id]??0)}</span></div><div class="ur"><span class="ul">Solde</span><span class="uv" style="color:${clr(yearKPI.solde.byUser?.[u.id]??0)};">${fmt(yearKPI.solde.byUser?.[u.id]??0)}</span></div><div class="ur"><span class="ul">Taux épargne</span><span class="uv">${fmtPct(yearKPI.txEpargne.byUser?.[u.id]??0)}</span></div></div>`; }).join('')}
+</div>` : ''}
 
-<!-- FOOTER -->
-<div class="pdf-footer">
-  <span><strong>Compta+</strong> — Suivi budgétaire personnel</span>
-  <span>${esc(periodLabel)} · Généré le ${genDate}</span>
+${!singleMonth && barRows.length > 1 ? `<div class="st">📊 Revenus vs Dépenses par mois</div>
+<div class="bar-box"><table class="bt">${barChartRows}</table><div class="bleg"><span><span class="bld" style="background:linear-gradient(90deg,#4F46E5,#8B85FF);"></span>Revenus</span><span><span class="bld" style="background:linear-gradient(90deg,#DC2626,#F87171);"></span>Dépenses</span></div></div>` : ''}
+
+${Object.keys(chargesByCat).length > 0 ? `<div class="st">🏠 Charges fixes</div>
+<div class="ch-wrap"><table class="cht"><thead><tr><th>Catégorie</th><th>Moy. mensuelle</th><th>Total période</th></tr></thead><tbody>${chargesRows}</tbody></table></div>` : ''}
+
+<div class="pb"></div>
+<div class="st">📋 ${singleMonth ? 'Détail du mois' : 'Récapitulatif mensuel'}</div>
+<div class="mt-wrap"><table class="mt">
+  <thead><tr><th>Mois</th>${users.map(u=>`<th>Revenus ${esc(u.name)}</th>`).join('')}<th>Charges</th><th>Dépenses</th><th>Solde</th><th>Taux ép.</th></tr></thead>
+  <tbody>${tableRows}</tbody>
+  ${yearKPI ? `<tfoot><tr><td>TOTAL / CUMUL</td>${users.map(u=>`<td>${fmt(yearKPI.revenus.byUser?.[u.id]??0)}</td>`).join('')}<td>${fmt(yearKPI.charges.total)}</td><td>${fmt(yearKPI.depenses.total)}</td><td style="color:#A5F3C4;">${fmt(yearKPI.solde.total)}</td><td style="color:#A5F3C4;">${fmtPct(yearKPI.txEpargne.total)}</td></tr></tfoot>` : ''}
+</table></div>
+
+${achatsForPDF.length > 0 ? `<div class="st">🛍️ Achats exceptionnels${achatsForPDF.length>30?' (30 premiers)':''}</div>
+<div class="ac-wrap"><table class="ac"><thead><tr><th>Description</th><th>Date</th><th>Montant</th></tr></thead><tbody>${achatRows}</tbody></table></div>` : ''}
+
+<div class="pf"><span><strong>Compta+</strong> — Bilan Financier Personnel</span><span>${esc(periodLabel)} · Généré le ${genDate}</span></div>
 </div>
-
-</div><!-- /content -->
 </body></html>`;
 
     const iframe = document.createElement('iframe');
