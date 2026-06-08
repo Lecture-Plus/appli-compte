@@ -42,13 +42,14 @@ export function calcMonth(monthData, charges, achats, repartCfg, users) {
   const mode = N <= 1 ? 'solo' : (repartCfg?.mode || 'separe');
 
   // ── Données saisies par utilisateur ──
-  const revU = _mk(uids), priU = _mk(uids);
+  const revU = _mk(uids), priU = _mk(uids), aidesU = _mk(uids);
   const crsU = _mk(uids), extU = _mk(uids), impU = _mk(uids);
 
   for (const uid of uids) {
     const ud   = monthData?.users?.[uid] ?? {};
     revU[uid]  = Number(ud.revenus)  || 0;
     priU[uid]  = Number(ud.primes)   || 0;
+    aidesU[uid]= Number(ud.aides)    || 0;
     crsU[uid]  = Number(ud.courses)  || 0;
     extU[uid]  = Number(ud.extras)   || 0;
     impU[uid]  = Number(ud.imprevus) || 0;
@@ -103,9 +104,13 @@ export function calcMonth(monthData, charges, achats, repartCfg, users) {
       partSharedU[uid] = totalCommon * ((Number(pcts[uid]) || 0) / sumPcts);
     }
   } else if (mode === 'equitable') {
-    const base = totalRev || 1;
+    // Répartition selon revenus + aides (si coché par l'user)
+    const aidesRep = repartCfg?.aidesRepartition || {};
+    const revForDist = _mk(uids);
+    for (const uid of uids) revForDist[uid] = revU[uid] + (aidesRep[uid] ? aidesU[uid] : 0);
+    const base = _sum(revForDist) || 1;
     for (const uid of uids) {
-      partSharedU[uid] = totalCommon * (revU[uid] / base);
+      partSharedU[uid] = totalCommon * (revForDist[uid] / base);
     }
   } else {
     // 'separe' : coûts partagés divisés équitablement
@@ -128,9 +133,9 @@ export function calcMonth(monthData, charges, achats, repartCfg, users) {
   const aPayerU = _mk(uids);
   for (const uid of uids) aPayerU[uid] = partU[uid] + impU[uid];
 
-  // ── Solde = (revenus + primes) − aPayer ──
+  // ── Solde = (revenus + primes + aides) − aPayer ──
   const soldeU = _mk(uids);
-  for (const uid of uids) soldeU[uid] = revU[uid] + priU[uid] - aPayerU[uid];
+  for (const uid of uids) soldeU[uid] = revU[uid] + priU[uid] + aidesU[uid] - aPayerU[uid];
 
   // ── Dépenses = aPayer + charges perso (tracking complet) ──
   const depU = _mk(uids);
@@ -141,22 +146,22 @@ export function calcMonth(monthData, charges, achats, repartCfg, users) {
   for (const uid of uids) {
     const achP  = achPersonalU[uid];
     const shAch = mode === 'solo' ? totalSharedAch : totalSharedAch / N;
-    ecoU[uid]   = revU[uid] + priU[uid] - (aPayerU[uid] - impU[uid] - achP - shAch);
+    ecoU[uid]   = revU[uid] + priU[uid] + aidesU[uid] - (aPayerU[uid] - impU[uid] - achP - shAch);
   }
 
-  // ── Taux d'épargne (par user = solde/revenus ; total = agrégat réel) ──
+  // ── Taux d'épargne (par user = solde/revenus+aides+primes ; total = agrégat) ──
   const txU = _mk(uids);
   for (const uid of uids) {
-    const rp = revU[uid] + priU[uid];
+    const rp = revU[uid] + priU[uid] + aidesU[uid];
     txU[uid] = rp > 0 ? soldeU[uid] / rp : 0;
   }
-  const _totalRev = _sum(revU) + _sum(priU);
+  const _totalRev = _sum(revU) + _sum(priU) + _sum(aidesU);
   const txTotal   = _totalRev > 0 ? _sum(soldeU) / _totalRev : 0;
 
   // ── Taux d'épargne possible (sans imprévus ni achats exc.) ──
   const txEcoU = _mk(uids);
   for (const uid of uids) {
-    const rp = revU[uid] + priU[uid];
+    const rp = revU[uid] + priU[uid] + aidesU[uid];
     txEcoU[uid] = rp > 0 ? ecoU[uid] / rp : 0;
   }
   const txEcoTotal = _totalRev > 0 ? _sum(ecoU) / _totalRev : 0;
@@ -166,6 +171,7 @@ export function calcMonth(monthData, charges, achats, repartCfg, users) {
   return {
     revenus:      mkKPI(revU),
     primes:       mkKPI(priU),
+    aides:        mkKPI(aidesU),
     charges:      { total: totalSharedChg + _sum(chgPersonalU), byUser: Object.fromEntries(uids.map(uid => [uid, chgPersonalU[uid] + partSharedU[uid] * (totalSharedChg / (totalCommon || 1))])) },
     chargesPerso: mkKPI(chgPersoU),
     courses:      mkKPI(crsU),

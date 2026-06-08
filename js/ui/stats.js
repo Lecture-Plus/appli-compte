@@ -14,6 +14,7 @@ import { eur, pct, nomMoisCourt, escHtml, showToast,
          downloadBlob, buildCSV, MOIS_COURT, MOIS }        from '../utils.js';
 
 let _charts = [];
+let _statsTab = 'revenus'; // 'revenus' | 'epargne' | 'depenses'
 
 export async function render(container) {
   const [s, users, allUsers] = await Promise.all([getAllSettings(), getActiveUsers(), getAllUsers()]);
@@ -23,7 +24,7 @@ export async function render(container) {
 
   container.innerHTML = `
     <!-- Sélecteur année -->
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
       <select class="form-select" id="year-select" style="flex:1;">
         ${years.map(y => `<option value="${y}" ${y === State.year ? 'selected' : ''}>${y}</option>`).join('')}
         ${!years.length ? '<option value="">Aucune donnée</option>' : ''}
@@ -36,57 +37,69 @@ export async function render(container) {
       <div class="loading"><div class="spinner"></div></div>
     </div>
 
-    <!-- Graphique Revenus vs Dépenses -->
-    <div class="card" style="margin-bottom:12px;">
-      <div class="card-header"><span class="card-title">📊 Revenus vs Dépenses</span></div>
-      <div class="chart-wrap" style="height:200px;"><canvas id="chart-rev-dep"></canvas></div>
+    <!-- Onglets stats -->
+    <div class="tabs" id="stats-tabs" style="margin-bottom:12px;">
+      <button class="tab-btn ${_statsTab === 'revenus'  ? 'active' : ''}" data-stab="revenus">📊 Revenus</button>
+      <button class="tab-btn ${_statsTab === 'epargne'  ? 'active' : ''}" data-stab="epargne">💰 Épargne</button>
+      <button class="tab-btn ${_statsTab === 'depenses' ? 'active' : ''}" data-stab="depenses">💸 Dépenses</button>
     </div>
 
-    <!-- Graphique Revenus & Primes -->
-    <div class="card" style="margin-bottom:12px;">
-      <div class="card-header"><span class="card-title">💰 Revenus & Primes</span></div>
-      <div class="chart-wrap" style="height:200px;"><canvas id="chart-rev-primes"></canvas></div>
-    </div>
-
-    <!-- Graphique Épargne (mensuelle + cumulée + taux) -->
-    <div class="card" style="margin-bottom:12px;">
-      <div class="card-header"><span class="card-title">📈 Épargne mensuelle, cumulée & taux</span></div>
-      <div class="chart-wrap" style="height:220px;"><canvas id="chart-epargne"></canvas></div>
-    </div>
-
-    <!-- Graphique Solde épargne (evolution) -->
-    <div class="card" style="margin-bottom:12px;">
-      <div class="card-header">
-        <span class="card-title">💰 Évolution du solde épargne</span>
-        <label style="display:flex;align-items:center;gap:5px;font-size:0.75rem;cursor:pointer;">
-          <input type="checkbox" id="toggle-amounts" checked> Montants
-        </label>
+    <!-- Onglet Revenus -->
+    <div id="stab-revenus" style="${_statsTab !== 'revenus' ? 'display:none;' : ''}">
+      <div class="card" style="margin-bottom:12px;">
+        <div class="card-header"><span class="card-title">📊 Revenus vs Dépenses</span></div>
+        <div class="chart-wrap" style="height:200px;"><canvas id="chart-rev-dep"></canvas></div>
       </div>
-      <div class="chart-wrap" style="height:180px;"><canvas id="chart-savings-balance"></canvas></div>
-    </div>
-
-    <!-- Graphique répartition dépenses -->
-    <div class="card" style="margin-bottom:12px;">
-      <div class="card-header"><span class="card-title">🥧 Répartition des dépenses</span></div>
-      <div class="chart-wrap" style="height:200px;display:flex;align-items:center;justify-content:center;">
-        <canvas id="chart-repartition" style="max-width:200px;max-height:200px;"></canvas>
+      <div class="card" style="margin-bottom:12px;">
+        <div class="card-header"><span class="card-title">💰 Revenus, Aides & Primes</span></div>
+        <div class="chart-wrap" style="height:200px;"><canvas id="chart-rev-primes"></canvas></div>
+      </div>
+      <div class="card" style="margin-bottom:12px;">
+        <div class="card-header">
+          <span class="card-title">🔄 Comparaison N-1</span>
+          <span class="chip" style="font-size:0.7rem;">${State.year - 1} vs ${State.year}</span>
+        </div>
+        <div id="n1-content"><div class="loading"><div class="spinner"></div></div></div>
+      </div>
+      <div class="card" style="margin-bottom:12px;">
+        <div class="card-header"><span class="card-title">📋 Détail mensuel ${State.year}</span></div>
+        <div id="table-mensuel" style="overflow-x:auto;">
+          <div class="loading"><div class="spinner"></div></div>
+        </div>
       </div>
     </div>
 
-    <!-- Tableau mensuel détaillé -->
-    <div class="card" style="margin-bottom:12px;">
-      <div class="card-header"><span class="card-title">📋 Détail mensuel ${State.year}</span></div>
-      <div id="table-mensuel" style="overflow-x:auto;">
-        <div class="loading"><div class="spinner"></div></div>
+    <!-- Onglet Épargne -->
+    <div id="stab-epargne" style="${_statsTab !== 'epargne' ? 'display:none;' : ''}">
+      <div class="card" style="margin-bottom:12px;">
+        <div class="card-header"><span class="card-title">📈 Épargne mensuelle, cumulée & taux</span></div>
+        <div class="chart-wrap" style="height:220px;"><canvas id="chart-epargne"></canvas></div>
+      </div>
+      <div class="card" style="margin-bottom:12px;">
+        <div class="card-header">
+          <span class="card-title">💰 Évolution du solde épargne</span>
+          <label style="display:flex;align-items:center;gap:5px;font-size:0.75rem;cursor:pointer;">
+            <input type="checkbox" id="toggle-amounts" checked> Montants
+          </label>
+        </div>
+        <div class="chart-wrap" style="height:180px;"><canvas id="chart-savings-balance"></canvas></div>
       </div>
     </div>
 
-    <!-- Comparatif par utilisateur -->
-    ${users.length >= 2 ? `
-    <div class="card" style="margin-bottom:12px;">
-      <div class="card-header"><span class="card-title">👥 Comparatif par personne</span></div>
-      <div id="table-perso"><div class="loading"><div class="spinner"></div></div></div>
-    </div>` : ''}
+    <!-- Onglet Dépenses -->
+    <div id="stab-depenses" style="${_statsTab !== 'depenses' ? 'display:none;' : ''}">
+      <div class="card" style="margin-bottom:12px;">
+        <div class="card-header"><span class="card-title">🥧 Répartition des dépenses</span></div>
+        <div class="chart-wrap" style="height:200px;display:flex;align-items:center;justify-content:center;">
+          <canvas id="chart-repartition" style="max-width:200px;max-height:200px;"></canvas>
+        </div>
+      </div>
+      ${users.length >= 2 ? `
+      <div class="card" style="margin-bottom:12px;">
+        <div class="card-header"><span class="card-title">👥 Comparatif par personne</span></div>
+        <div id="table-perso"><div class="loading"><div class="spinner"></div></div></div>
+      </div>` : ''}
+    </div>
 
     <div style="height:16px;"></div>
   `;
@@ -109,6 +122,19 @@ export async function render(container) {
       chart.options.plugins.datalabels = { display: e.target.checked };
       chart.update();
     }
+  });
+
+  // Onglets
+  container.querySelectorAll('#stats-tabs .tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      container.querySelectorAll('#stats-tabs .tab-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      _statsTab = btn.dataset.stab;
+      ['revenus', 'epargne', 'depenses'].forEach(t => {
+        const el = container.querySelector(`#stab-${t}`);
+        if (el) el.style.display = t === _statsTab ? '' : 'none';
+      });
+    });
   });
 
   return () => destroyCharts();
@@ -177,6 +203,7 @@ async function loadAndRender(container, year, users, s) {
   renderChartRepartition(yearKPI);
   renderTableMensuel(container, displayResults);
   if (users.length >= 2) renderTablePerso(container, yearKPI, users);
+  await renderN1Comparison(container, year, users, s, displayResults);
 }
 
 function renderKPIAnnuel(container, kpi) {
@@ -188,8 +215,8 @@ function renderKPIAnnuel(container, kpi) {
   el.innerHTML = `
     <div class="kpi-card primary">
       <div class="kpi-label">Revenus annuels</div>
-      <div class="kpi-value neutral">${eur(kpi.revenus.total + kpi.primes.total)}</div>
-      <div class="kpi-sub">dont primes: ${eur(kpi.primes.total)}</div>
+      <div class="kpi-value neutral">${eur(kpi.revenus.total + (kpi.aides?.total ?? 0) + kpi.primes.total)}</div>
+      <div class="kpi-sub">dont aides: ${eur(kpi.aides?.total ?? 0)} · primes: ${eur(kpi.primes.total)}</div>
     </div>
     <div class="kpi-card danger">
       <div class="kpi-label">Dépenses annuelles</div>
@@ -204,7 +231,7 @@ function renderKPIAnnuel(container, kpi) {
     <div class="kpi-card warning">
       <div class="kpi-label">Moy. mensuelle épargnée</div>
       <div class="kpi-value neutral">${eur((kpi.epargne?.total ?? 0) / 12)}</div>
-      <div class="kpi-sub">Revenu moy: ${eur((kpi.revenus.total + kpi.primes.total) / 12)}</div>
+      <div class="kpi-sub">Revenu moy: ${eur((kpi.revenus.total + (kpi.aides?.total ?? 0) + kpi.primes.total) / 12)}</div>
     </div>
   `;
 }
@@ -217,8 +244,8 @@ function renderChartRevDep(displayResults) {
     data: {
       labels: MOIS_COURT,
       datasets: [
-        { label: 'Revenus + Primes', data: displayResults.map(r => r ? r.revenus.total + r.primes.total : 0), backgroundColor: 'rgba(108,99,255,0.7)', borderRadius: 4 },
-        { label: 'Dépenses',         data: displayResults.map(r => r ? r.depenses.total : 0),                 backgroundColor: 'rgba(255,71,87,0.7)',  borderRadius: 4 },
+        { label: 'Revenus + Aides + Primes', data: displayResults.map(r => r ? r.revenus.total + (r.aides?.total ?? 0) + r.primes.total : 0), backgroundColor: 'rgba(108,99,255,0.7)', borderRadius: 4 },
+        { label: 'Dépenses',                  data: displayResults.map(r => r ? r.depenses.total : 0),                                                    backgroundColor: 'rgba(255,71,87,0.7)',  borderRadius: 4 },
       ],
     },
     options: chartOptions({}),
@@ -246,8 +273,9 @@ function renderChartRevPrimes(displayResults, users = []) {
     data: {
       labels: MOIS_COURT,
       datasets: [
-        { label: 'Revenus total',   data: displayResults.map(r => r ? r.revenus.total : 0), backgroundColor: 'rgba(108,99,255,0.7)', borderRadius: 4 },
-        { label: 'Primes total',    data: displayResults.map(r => r ? r.primes.total  : 0), backgroundColor: 'rgba(0,200,150,0.65)', borderRadius: 4 },
+        { label: 'Revenus total',   data: displayResults.map(r => r ? r.revenus.total : 0),             backgroundColor: 'rgba(108,99,255,0.7)', borderRadius: 4 },
+        { label: 'Aides total',     data: displayResults.map(r => r ? (r.aides?.total ?? 0) : 0),       backgroundColor: 'rgba(0,200,200,0.6)',   borderRadius: 4 },
+        { label: 'Primes total',    data: displayResults.map(r => r ? r.primes.total  : 0),             backgroundColor: 'rgba(0,200,150,0.65)', borderRadius: 4 },
         ...userDatasets,
       ],
     },
@@ -581,6 +609,86 @@ async function exportCSV(year, users) {
 function destroyCharts() {
   _charts.forEach(c => { try { c.destroy(); } catch (e) {} });
   _charts = [];
+}
+
+async function renderN1Comparison(container, year, users, s, currentResults) {
+  const el = container.querySelector('#n1-content');
+  if (!el) return;
+  const prevYear = year - 1;
+  try {
+    const prevMonths = await getMonthsByYear(prevYear);
+    if (!prevMonths.length) {
+      el.innerHTML = `<p style="font-size:0.8rem;color:var(--text-3);padding:8px 0;">Aucune donnée pour ${prevYear}.</p>`;
+      return;
+    }
+    const prevMap = Object.fromEntries(prevMonths.map(m => [m.month, m]));
+    // Use same charge data as current year (simplified N-1)
+    const [allChargesRaw, allAchats, allRepartitions] = await Promise.all([
+      getAllCharges(), getAllAchats(), getAllRepartitions(),
+    ]);
+    const defaultRepartMode = s.defaultRepartMode ?? 'separe';
+    function chargesForMonth(m) {
+      const out = [];
+      for (const c of allChargesRaw) {
+        if (!c.active) continue;
+        const ok = c.months === 'all' || (Array.isArray(c.months) && c.months.includes(m));
+        if (!ok) continue;
+        if (c.lines?.length) {
+          for (const l of c.lines) out.push({ ...c, amount: Number(l.amount)||0, qui: l.qui ?? 'shared' });
+        } else out.push(c);
+      }
+      return out;
+    }
+    const repartMap = {};
+    for (const r of allRepartitions) { if (r.year === prevYear) repartMap[r.month] = r; }
+    const achatMap = {};
+    for (const a of allAchats) { if (a.year === prevYear) (achatMap[a.month] ??= []).push(a); }
+
+    const prevResults = [];
+    for (let m = 1; m <= 12; m++) {
+      const md  = prevMap[m] ?? null;
+      const chg = chargesForMonth(m);
+      const ach = achatMap[m]  ?? [];
+      const rp  = repartMap[m] ?? { year: prevYear, month: m, mode: defaultRepartMode, pcts: {} };
+      prevResults.push(md ? calcMonth(md, chg, ach, rp, users) : null);
+    }
+
+    const metrics = [
+      ['Revenus', r => r.revenus.total + (r.aides?.total ?? 0) + r.primes.total],
+      ['Dépenses', r => r.depenses.total],
+      ['Solde net', r => r.solde.total],
+      ["Taux d'épargne", r => r.txEpargne.total],
+    ];
+    const months = Array.from({ length: 12 }, (_, i) => i);
+    const prevTotals   = metrics.map(([, fn]) => months.reduce((s, i) => s + (prevResults[i] ? fn(prevResults[i]) : 0), 0));
+    const curTotals    = metrics.map(([, fn]) => months.reduce((s, i) => s + (currentResults[i] ? fn(currentResults[i]) : 0), 0));
+
+    el.innerHTML = `
+      <table class="data-table">
+        <thead><tr><th>Catégorie</th><th style="text-align:right">${prevYear}</th><th style="text-align:right">${year}</th><th style="text-align:right">Évolution</th></tr></thead>
+        <tbody>
+          ${metrics.map(([label], i) => {
+            const prev = prevTotals[i];
+            const cur  = curTotals[i];
+            const delta = cur - prev;
+            const isRate = label.includes('Taux');
+            const fmtPrev  = isRate ? pct(prev / 12, 1) : eur(prev);
+            const fmtCur   = isRate ? pct(cur  / 12, 1) : eur(cur);
+            const fmtDelta = isRate ? pct((cur - prev) / 12, 1) : eur(delta);
+            const color = delta >= 0 ? 'var(--success)' : 'var(--danger)';
+            return `<tr>
+              <td>${label}</td>
+              <td style="text-align:right;color:var(--text-3);">${fmtPrev}</td>
+              <td style="text-align:right;font-weight:600;">${fmtCur}</td>
+              <td style="text-align:right;font-weight:700;color:${color};">${delta >= 0 ? '+' : ''}${fmtDelta}</td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    `;
+  } catch (e) {
+    el.innerHTML = `<p style="font-size:0.78rem;color:var(--text-3);">Impossible de charger les données ${prevYear}.</p>`;
+  }
 }
 
 function chartOptions({ stacked = false } = {}) {

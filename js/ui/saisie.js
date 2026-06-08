@@ -109,17 +109,41 @@ export async function render(container) {
       <div id="mode-desc" style="font-size:0.78rem;color:var(--text-3);margin-top:6px;">${getModeDesc(_repCfg.mode)}</div>
     </div>` : ''}
 
-    <!-- Revenus -->
+    <!-- Revenus & Aides -->
     <div class="form-section">
-      <div class="form-section-title"><span class="section-icon">💰</span>Revenus</div>
-      <div class="form-grid-${Math.min(N, 4)}">
-        ${_users.map(u => inputField(`rev-${u.id}`, u, _md.users[String(u.id)]?.revenus, '€')).join('')}
+      <div class="form-section-title"><span class="section-icon">💰</span>Revenus & Aides</div>
+      <div class="form-grid-${Math.min(N, 4)}" style="margin-bottom:10px;">
+        ${_users.map(u => inputField(`rev-${u.id}`, u, _md.users[String(u.id)]?.revenus, '\u20ac')).join('')}
+      </div>
+      <div style="border-top:1px solid var(--border);padding-top:10px;">
+        <div style="font-size:0.75rem;font-weight:600;color:var(--text-3);margin-bottom:8px;">Aides (CAF, APL, allocations…)</div>
+        ${_users.map(u => {
+          const aidesVal  = _md.users[String(u.id)]?.aides ?? '';
+          const aidesRep  = (_repCfg.aidesRepartition || {})[String(u.id)] ?? false;
+          return `
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+              <span style="flex:1;font-size:0.8rem;font-weight:600;display:flex;align-items:center;gap:5px;">
+                <span style="width:8px;height:8px;border-radius:50%;background:${escHtml(u.color||'#6C63FF')};display:inline-block;"></span>
+                ${escHtml(u.name)}
+              </span>
+              <div class="input-wrap" style="width:110px;">
+                <input type="number" class="form-input input-euro" id="aid-${u.id}" min="0" step="1" placeholder="0" value="${Number(aidesVal)||''}" style="padding-right:22px;font-size:0.82rem;">
+                <span class="input-suffix">€</span>
+              </div>
+              <label style="display:flex;align-items:center;gap:4px;font-size:0.72rem;color:var(--text-2);cursor:pointer;white-space:nowrap;">
+                <input type="checkbox" id="aid-rep-${u.id}" ${aidesRep ? 'checked' : ''}> Répartition
+              </label>
+            </div>
+          `;
+        }).join('')}
+        <p style="font-size:0.7rem;color:var(--text-3);margin-top:2px;">ℹ️ Cocher « Répartition » = l'aide compte comme revenu pour le calcul des parts de charges.</p>
       </div>
     </div>
 
-    <!-- Primes -->
+    <!-- Primes (bonus personnels) -->
     <div class="form-section">
-      <div class="form-section-title"><span class="section-icon">⭐</span>Primes & Aides</div>
+      <div class="form-section-title"><span class="section-icon">⭐</span>Primes & Bonus</div>
+      <p style="font-size:0.72rem;color:var(--text-3);margin:-8px 0 10px;">Personnels — jamais comptabilisés dans la répartition des charges</p>
       <div class="form-grid-${Math.min(N, 4)}">
         ${_users.map(u => inputField(`pri-${u.id}`, u, _md.users[String(u.id)]?.primes, '€')).join('')}
       </div>
@@ -148,7 +172,7 @@ export async function render(container) {
         <div class="form-section-title" style="margin:0;"><span class="section-icon">⚡</span>Imprévus</div>
         <button class="btn btn-sm btn-secondary" id="btn-add-imprevu">+ Ajouter</button>
       </div>
-      <p style="font-size:0.78rem;color:var(--text-3);margin:0 0 8px;">S'ajoutent au fil du mois — séparés des dépenses planifiées</p>
+      <p style="font-size:0.78rem;color:var(--text-3);margin:0 0 8px;">Dépenses non planifiées survenant dans le mois — à ne pas confondre avec les <strong>achats exceptionnels</strong> (appareils, meubles…) qui se saisissent dans l'onglet <strong>Charges → Exceptionnels</strong>.</p>
       <div id="imprevu-list"></div>
     </div>
 
@@ -222,12 +246,22 @@ export async function render(container) {
 
   // ── Saisie des champs (auto-save debounced) ──
   const fieldSelectors = [
-    ...Array.from(container.querySelectorAll('input[id^="rev-"], input[id^="pri-"], input[id^="ext-"]')),
+    ...Array.from(container.querySelectorAll('input[id^="rev-"], input[id^="pri-"], input[id^="ext-"], input[id^="aid-"]:not([type="checkbox"])')),
     ...Array.from(container.querySelectorAll('.pct-field')),
   ];
 
   fieldSelectors.forEach(input => {
     input.addEventListener('input', () => {
+      syncFormToState(container);
+      updatePreview(container);
+      debouncedSave();
+      if (_repCfg.mode === 'equitable') _updateModeOptions(container);
+    });
+  });
+
+  // Checkboxes aides répartition
+  container.querySelectorAll('input[id^="aid-rep-"]').forEach(chk => {
+    chk.addEventListener('change', () => {
       syncFormToState(container);
       updatePreview(container);
       debouncedSave();
@@ -302,8 +336,14 @@ function syncFormToState(container) {
     if (!_md.users[uid]) _md.users[uid] = {};
     _md.users[uid].revenus  = _v(`rev-${u.id}`);
     _md.users[uid].primes   = _v(`pri-${u.id}`);
+    _md.users[uid].aides    = _v(`aid-${u.id}`);
     _md.users[uid].extras   = _v(`ext-${u.id}`);
     // imprevus is computed from imprévusList — not read from an input
+  });
+  // Aides répartition
+  if (!_repCfg.aidesRepartition) _repCfg.aidesRepartition = {};
+  _users.forEach(u => {
+    _repCfg.aidesRepartition[String(u.id)] = container.querySelector(`#aid-rep-${u.id}`)?.checked ?? false;
   });
   // Courses : mode foyer ou individuel
   if (_coursesFoyerMode && _users.length > 1) {
@@ -416,7 +456,8 @@ function updatePreview(container) {
 
   el.innerHTML = `
     <div class="calc-preview-row"><span>Revenus</span><span>${eur(kpi.revenus.total)}</span></div>
-    <div class="calc-preview-row"><span>Primes & Aides</span><span>${eur(kpi.primes.total)}</span></div>
+    ${kpi.aides.total > 0 ? `<div class="calc-preview-row"><span>Aides</span><span>${eur(kpi.aides.total)}</span></div>` : ''}
+    <div class="calc-preview-row"><span>Primes & Bonus</span><span>${eur(kpi.primes.total)}</span></div>
     <div class="calc-preview-row"><span>Charges récurrentes</span><span>${eur(kpi.charges.total)}</span></div>
     <div class="calc-preview-row"><span>Courses</span><span>${eur(kpi.courses.total)}</span></div>
     <div class="calc-preview-row"><span>Extras</span><span>${eur(kpi.extras.total)}</span></div>
@@ -685,9 +726,11 @@ function _updateModeOptions(container) {
       const revByUser = {};
       _users.forEach(u => {
         const r = Number(container.querySelector(`#rev-${u.id}`)?.value) || 0;
+        const a = Number(container.querySelector(`#aid-${u.id}`)?.value) || 0;
+        const aidInRep = container.querySelector(`#aid-rep-${u.id}`)?.checked ?? false;
         // Primes exclues du calcul équitable (elles appartiennent 100% à l'user)
-        revByUser[String(u.id)] = r;
-        totalRev += r;
+        revByUser[String(u.id)] = r + (aidInRep ? a : 0);
+        totalRev += r + (aidInRep ? a : 0);
       });
       const base = totalRev || 1;
       eqInfoEl.innerHTML = `

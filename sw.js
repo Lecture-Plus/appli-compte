@@ -1,7 +1,7 @@
 // Service Worker – Budget Foyer
 // Stratégie : Network First pour l'app shell (auto-update), Cache pour CDN
 
-const CACHE_NAME = 'budget-foyer-v11';
+const CACHE_NAME = 'budget-foyer-v12';
 
 const APP_SHELL = [
   './index.html',
@@ -54,6 +54,24 @@ self.addEventListener('activate', event => {
           .map(n => caches.delete(n))
       ))
       .then(() => self.clients.claim())
+  );
+});
+
+// Notification click : ouvrir l'app sur la page saisie
+self.addEventListener('notificationclick', event => {
+  event.notification.close();
+  const targetPage = event.notification.data?.page ?? 'saisie';
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(clients => {
+      for (const client of clients) {
+        if (client.url.includes(self.registration.scope)) {
+          client.focus();
+          client.postMessage({ type: 'navigate', page: targetPage });
+          return;
+        }
+      }
+      return self.clients.openWindow(self.registration.scope + '#' + targetPage);
+    })
   );
 });
 

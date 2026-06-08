@@ -5,6 +5,7 @@
 import { applyTheme, reloadUsers, State }                        from '../app.js';
 import { pushVersionedBackup, pullBackup, listBackups,
          isValidDriveUrl, DRIVE_URL_KEY, DRIVE_SYNC_KEY }        from '../drive.js';
+import { testDriveConnection }                                    from '../sync.js';
 import { getAllSettings, getSetting, setSetting,
          exportAllData, importAllData, resetAllData,
          getAvailableYears, getMonthsByYear, getChargesForMonth,
@@ -180,14 +181,21 @@ function buildHTML(s, users, N) {
 
     <!-- Section : Notifications -->
     <div class="card" style="margin-bottom:12px;">
-      <div class="card-header"><span class="card-title">🔔 Rappels</span></div>
+      <div class="card-header">
+        <span class="card-title">🔔 Rappels</span>
+        ${'Notification' in window && Notification.permission === 'granted'
+          ? `<span class="chip success" style="font-size:0.68rem;">✓ Autorisé</span>`
+          : 'Notification' in window && Notification.permission === 'denied'
+          ? `<span class="chip danger" style="font-size:0.68rem;">Bloqué – modifiez le navigateur</span>`
+          : `<span class="chip" style="font-size:0.68rem;">Non demandé</span>`}
+      </div>
       <div class="toggle-wrap">
         <div class="toggle-info">
-          <label for="s-notif">Notifications de rappel</label>
-          <p>Rappel si un mois n'est pas rempli</p>
+          <label for="s-notif">Notification de rappel mensuelle</label>
+          <p>Dans les 7 premiers jours du mois si la saisie n'est pas faite</p>
         </div>
         <label class="toggle">
-          <input type="checkbox" id="s-notif" ${s.notifEnabled ? 'checked' : ''}>
+          <input type="checkbox" id="s-notif" ${s.notifEnabled ? 'checked' : ''} ${'Notification' in window && Notification.permission === 'denied' ? 'disabled' : ''}>
           <span class="toggle-slider"></span>
         </label>
       </div>
@@ -225,6 +233,10 @@ function buildHTML(s, users, N) {
         <p class="form-hint">Partagez cette URL entre vos appareils pour synchroniser les données.</p>
       </div>
       <button class="btn btn-outline btn-full btn-sm" id="s-save-drive-url" style="margin-bottom:10px;">Enregistrer l'URL</button>
+      <div style="display:flex;gap:8px;margin-bottom:8px;">
+        <button class="btn btn-sm btn-secondary" style="flex:1;" id="btn-drive-test">🔍 Tester la connexion</button>
+      </div>
+      <div id="drive-test-result" style="display:none;font-size:0.75rem;padding:8px 10px;border-radius:8px;margin-bottom:10px;"></div>
       <div style="display:flex;gap:8px;">
         <button class="btn btn-secondary" style="flex:1;" id="btn-push-drive">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/><path d="M5 21h14"/></svg>
@@ -376,11 +388,27 @@ function bindEvents(container, s, users, N) {
   // ── Notifications ──
   container.querySelector('#s-notif')?.addEventListener('change', async (e) => {
     const enabled = e.target.checked;
-    if (enabled && 'Notification' in window && Notification.permission === 'default') {
-      const perm = await Notification.requestPermission();
-      if (perm !== 'granted') { e.target.checked = false; return; }
+    if (enabled && 'Notification' in window) {
+      if (Notification.permission === 'denied') {
+        e.target.checked = false;
+        showToast('Les notifications sont bloquées. Modifiez les permissions dans votre navigateur.', 'error');
+        return;
+      }
+      if (Notification.permission !== 'granted') {
+        const perm = await Notification.requestPermission();
+        if (perm !== 'granted') {
+          e.target.checked = false;
+          showToast('Permission refusée — notifications non activées', 'error');
+          return;
+        }
+        // Recharger la section pour afficher le nouveau statut
+        await render(container);
+        return;
+      }
     }
     await setSetting('notifEnabled', enabled);
+    // Reset lastNotifSent pour permettre une notification immmédiate
+    if (enabled) await setSetting('lastNotifSent', null);
     showToast(enabled ? 'Rappels activés ✅' : 'Rappels désactivés', 'success');
   });
 
@@ -468,6 +496,28 @@ function bindEvents(container, s, users, N) {
       </div>
     `, '<button class="btn btn-primary btn-full" id="close-help">Compris !</button>');
     document.getElementById('close-help')?.addEventListener('click', closeModal);
+  });
+
+  // ── Drive : tester la connexion ──
+  container.querySelector('#btn-drive-test')?.addEventListener('click', async () => {
+    const btn  = container.querySelector('#btn-drive-test');
+    const info = container.querySelector('#drive-test-result');
+    btn.disabled = true; btn.textContent = '⏳ Test en cours…';
+    info.style.display = 'none';
+    const res = await testDriveConnection();
+    btn.disabled = false; btn.textContent = '🔍 Tester la connexion';
+    info.style.display = 'block';
+    if (res.ok) {
+      info.style.background = 'var(--success-light, #d1fae5)';
+      info.style.color      = 'var(--success, #065f46)';
+      let msg = `✅ Connexion OK — ${res.count} sauvegarde${res.count !== 1 ? 's' : ''} trouvée${res.count !== 1 ? 's' : ''}`;
+      if (res.latest?.name) msg += ` · dernière : ${escHtml(res.latest.name)}`;
+      info.textContent = msg;
+    } else {
+      info.style.background = 'var(--danger-light, #fee2e2)';
+      info.style.color      = 'var(--danger, #991b1b)';
+      info.textContent = `❌ ${escHtml(res.error)}`;
+    }
   });
 
   // ── Drive : enregistrer URL ──

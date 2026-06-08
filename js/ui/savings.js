@@ -131,7 +131,30 @@ async function _renderPage(container) {
            <div class="empty-state-title">Aucune opération</div>
            <div class="empty-state-text">Commencez par confirmer votre solde actuel.</div>
          </div>`
-      : `<div class="item-list">${opsWithRunning.map(op => buildOpItem(op, users)).join('')}</div>`
+      : users.length > 1
+        ? `<div class="item-list" style="margin-bottom:16px;">${users.map(u => {
+            const uOps = opsWithRunning.filter(op => String(op.userId) === String(u.id));
+            if (!uOps.length) return '';
+            const uBal = userBalances.find(ub => String(ub.user.id) === String(u.id))?.balance ?? 0;
+            return `
+              <div style="margin-bottom:14px;">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+                  <span style="display:flex;align-items:center;gap:6px;font-size:0.78rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-3);">
+                    <span style="width:10px;height:10px;border-radius:50%;background:${escHtml(u.color||'#6C63FF')};display:inline-block;"></span>
+                    ${escHtml(u.name)}
+                  </span>
+                  <span class="chip ${uBal >= 0 ? 'success' : 'danger'}">${eur(uBal)}</span>
+                </div>
+                <div class="item-list">${uOps.map(op => buildOpItem(op, users)).join('')}</div>
+              </div>`;
+          }).join('')}
+          ${opsWithRunning.filter(op => !op.userId).length > 0 ? `
+            <div style="margin-bottom:14px;">
+              <div style="font-size:0.78rem;font-weight:700;color:var(--text-3);margin-bottom:6px;">Sans attribution</div>
+              <div class="item-list">${opsWithRunning.filter(op => !op.userId).map(op => buildOpItem(op, users)).join('')}</div>
+            </div>` : ''}
+         </div>`
+        : `<div class="item-list">${opsWithRunning.map(op => buildOpItem(op, users)).join('')}</div>`
     }
 
     <div style="height:24px;"></div>

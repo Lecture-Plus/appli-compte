@@ -1226,6 +1226,14 @@ svg { display: block; }
 /* ── Chip success ───────────────────────────────────────── */
 .chip.success { background: var(--success-bg); color: var(--success); }
 
+/* ── Nav au bas sur mobile ──────────────────────────────── */
+@media (max-width: 767px) {
+  #app { flex-direction: column; }
+  .main-wrapper { order: 1; }
+  #bottom-nav   { order: 2; }
+  .sidebar-brand { display: none; }
+}
+
 /* ── Indicateur Drive sync ──────────────────────────────── */
 #sync-dot {
   width: 10px;

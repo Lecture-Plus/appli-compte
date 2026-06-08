@@ -142,3 +142,34 @@ export function stopAutoSave() {
   if (_autoSaveTimer) clearInterval(_autoSaveTimer);
   _autoSaveTimer = null;
 }
+
+/**
+ * Teste la connexion Drive sans modifier les données.
+ * Retourne { ok, count, latest, error }.
+ */
+export async function testDriveConnection() {
+  const url = await getSetting(DRIVE_URL_KEY);
+  if (!isValidDriveUrl(url)) {
+    return { ok: false, error: 'URL non configurée ou invalide.' };
+  }
+  setSyncStatus('syncing');
+  try {
+    const backups = await listBackups(url);
+    setSyncStatus('ok');
+    const count  = backups?.length ?? 0;
+    const latest = count > 0 ? backups[0] : null;
+    return { ok: true, count, latest };
+  } catch (err) {
+    setSyncStatus('error');
+    // Fournir un message explicite selon le type d'erreur
+    let error = err.message || 'Erreur inconnue';
+    if (err.message?.includes('Failed to fetch') || err.message?.includes('NetworkError')) {
+      error = 'Impossible de joindre le serveur. Vérifiez votre connexion et que l\'URL est correcte.';
+    } else if (err.message?.includes('CORS') || err.message?.includes('403') || err.message?.includes('401')) {
+      error = 'Accès refusé. Le script Apps Script doit être déployé en accès "Tout le monde".';
+    } else if (err.message?.includes('404')) {
+      error = 'URL introuvable. Vérifiez que le script est bien déployé et que l\'URL est à jour.';
+    }
+    return { ok: false, error };
+  }
+}

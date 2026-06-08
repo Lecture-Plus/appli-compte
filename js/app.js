@@ -17,7 +17,7 @@ export const State = {
 };
 
 // ── Mapping pages → modules ──
-const _V = '?v=11';
+const _V = '?v=12';
 const PAGES = {
   dashboard: () => import('./ui/dashboard.js' + _V),
   saisie:    () => import('./ui/saisie.js'    + _V),
@@ -80,10 +80,10 @@ export async function reloadUsers() {
 /** @deprecated use reloadUsers */
 export async function reloadNames() { return reloadUsers(); }
 
-// ── Vérification des mois non remplis ──
+// ── Vérification des mois non remplis + notification push ──
 async function checkUnfilledMonths() {
   try {
-    const { getMonthsByYear } = await import('./db.js');
+    const { getMonthsByYear, getMonthlyData } = await import('./db.js');
     const { isMonthEmpty }    = await import('./utils.js');
     const { year, month }     = today();
 
@@ -101,14 +101,54 @@ async function checkUnfilledMonths() {
       badge.classList.toggle('hidden', unfilled === 0);
     }
 
+    await _checkAndFireNotification(year, month, monthMap[month]);
+  } catch (e) { /* silencieux */ }
+}
+
+// ── Notification push réelle (system) ──
+async function _checkAndFireNotification(year, month, md) {
+  try {
     const settings = await getAllSettings();
-    if (settings.notifEnabled && isMonthEmpty(monthMap[month])) {
-      if ('Notification' in window && Notification.permission === 'granted') {
-        new Notification('Budget Foyer', {
-          body: `Le mois de ${nomMois(month)} n'a pas encore été rempli.`,
-          icon: './icons/icon.svg',
-        });
-      }
+    if (!settings.notifEnabled) return;
+    if (!('Notification' in window)) return;
+
+    // Vérifier la permission
+    if (Notification.permission !== 'granted') return;
+
+    // Ne notifier que si le mois n'est pas rempli
+    const { isMonthEmpty } = await import('./utils.js');
+    if (!isMonthEmpty(md)) return;
+
+    // Éviter de notifier plusieurs fois le même mois
+    const lastNotifStr = await getSetting('lastNotifSent');
+    if (lastNotifStr) {
+      const d = new Date(lastNotifStr);
+      if (d.getFullYear() === year && d.getMonth() + 1 === month) return;
+    }
+
+    // Déclencher seulement dans les 7 premiers jours du mois
+    const day = new Date().getDate();
+    if (day > 7) return;
+
+    // Stocker la date de notification pour éviter les doublons
+    await setSetting('lastNotifSent', new Date().toISOString());
+
+    const { nomMois: nm } = await import('./utils.js');
+    const body = `Le mois de ${nm(month)} n'a pas encore été rempli. 📋`;
+
+    // Préférer la notification via Service Worker (reste visible hors focus)
+    if ('serviceWorker' in navigator) {
+      const reg = await navigator.serviceWorker.ready;
+      await reg.showNotification('Budget Foyer', {
+        body,
+        icon:  './icons/icon.svg',
+        badge: './icons/icon.svg',
+        tag:   'monthly-reminder',
+        data:  { page: 'saisie' },
+        actions: [{ action: 'open', title: 'Saisir' }],
+      });
+    } else {
+      new Notification('Budget Foyer', { body, icon: './icons/icon.svg' });
     }
   } catch (e) { /* silencieux */ }
 }
@@ -167,14 +207,19 @@ async function init() {
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('./sw.js')
       .then(reg => {
-        // Vérifier les mises à jour dès le chargement
         reg.update();
-        // Détecter quand un nouveau SW prend le contrôle → recharger
         navigator.serviceWorker.addEventListener('controllerchange', () => {
           window.location.reload();
         });
       })
       .catch(err => console.warn('[SW] Enregistrement échoué :', err));
+
+    // Gérer les messages du SW (ex: clic sur notification)
+    navigator.serviceWorker.addEventListener('message', event => {
+      if (event.data?.type === 'navigate' && event.data.page) {
+        navigateTo(event.data.page);
+      }
+    });
   }
 }
 

@@ -140,13 +140,13 @@ async function _renderResume(container, s, users) {
     <div class="kpi-grid" style="margin-bottom:12px;">
       <div class="kpi-card primary">
         <div class="kpi-label">Revenus</div>
-        <div class="kpi-value neutral">${eur(kpi.revenus.total)}</div>
-        <div class="kpi-sub">${byUserSub(kpi.revenus)}</div>
+        <div class="kpi-value neutral">${eur(kpi.revenus.total + (kpi.aides?.total ?? 0))}</div>
+        <div class="kpi-sub">${kpi.aides?.total > 0 ? `dont aides: ${eur(kpi.aides.total)}<br>` : ''}${byUserSub(kpi.revenus)}</div>
       </div>
       <div class="kpi-card warning">
-        <div class="kpi-label">Primes & Aides</div>
+        <div class="kpi-label">Primes & Bonus</div>
         <div class="kpi-value neutral">${eur(kpi.primes.total)}</div>
-        <div class="kpi-sub" style="font-size:0.68rem;">💡 Personnelles – non partagées${users.length > 1 ? '<br>' + users.map(u => `${escHtml(u.name)}: ${eur(kpi.primes.byUser?.[u.id] ?? 0)}`).join('<br>') : ''}</div>
+        <div class="kpi-sub">${users.length > 1 ? users.map(u => `${escHtml(u.name)}: ${eur(kpi.primes.byUser?.[u.id] ?? 0)}`).join('<br>') : 'Personnelles \u2013 non partag\u00e9es'}</div>
       </div>
       <div class="kpi-card danger">
         <div class="kpi-label">Dépenses</div>
@@ -196,6 +196,7 @@ async function _renderResume(container, s, users) {
           <div class="progress-bar ${pBarColor}" style="width:${Math.min(100, goalPct)}%"></div>
         </div>
       </div>
+      <div id="projection-objectif" style="margin-top:8px;font-size:0.75rem;color:var(--text-3);">Calcul projection…</div>
     </div>` : ''}
 
     <!-- Tableau détail -->
@@ -215,6 +216,7 @@ async function _renderResume(container, s, users) {
           </thead>
           <tbody>
             ${buildRow('Revenus',     kpi.revenus,  users)}
+            ${kpi.aides?.total > 0 ? buildRow('Aides',       kpi.aides,    users) : ''}
             ${buildRow('Primes',      kpi.primes,   users)}
             ${buildRow('Charges',     kpi.charges,  users)}
             ${buildRow('Courses',     kpi.courses,  users)}
@@ -284,6 +286,10 @@ async function _renderResume(container, s, users) {
 
   // ── Vue annuelle rapide (chargée en arrière-plan) ──
   _renderAnnualQuickView(el.querySelector('#annual-quick-view'), year, users);
+
+  // ── Projection objectif épargne ──
+  const projEl = el.querySelector('#projection-objectif');
+  if (projEl && goal > 0) _renderProjection(projEl, year, month, goal, savInfo.balance, users);
 }
 
 // ══════════════════════════════════════════════════
@@ -404,6 +410,48 @@ async function _renderPrevisionnel(container, s, users) {
     if (label) label.textContent = `Jour ${v}`;
     _renderPrevisionnel(container, s, users);
   });
+}
+
+// ── Projection "dans X mois l'objectif sera atteint" ──
+async function _renderProjection(el, year, month, goal, currentBalance, users) {
+  if (!el) return;
+  try {
+    const remaining = goal - currentBalance;
+    if (remaining <= 0) {
+      el.innerHTML = `<span style="color:var(--success);font-weight:700;">✅ Objectif déjà atteint !</span>`;
+      return;
+    }
+    // Calculer la moyenne des 3 derniers mois de solde
+    const months = [];
+    let y = year, m = month;
+    for (let i = 0; i < 3; i++) {
+      const prev = addMonth(y, m, -1);
+      y = prev.year; m = prev.month;
+      months.push({ year: y, month: m });
+    }
+    const soldes = await Promise.all(months.map(async ({ year: yr, month: mo }) => {
+      const [md, charges, achats, repCfg] = await Promise.all([
+        getMonthlyData(yr, mo),
+        getChargesForMonth(mo),
+        getAchatsForMonth(yr, mo),
+        getRepartition(yr, mo),
+      ]);
+      if (!md) return null;
+      return calcMonth(md, charges, achats, repCfg, users).solde.total;
+    }));
+    const validSoldes = soldes.filter(s => s !== null && s > 0);
+    if (!validSoldes.length) {
+      el.innerHTML = `<span style="color:var(--text-3);">Pas assez d'historique pour projeter.</span>`;
+      return;
+    }
+    const avgMonthly = validSoldes.reduce((s, v) => s + v, 0) / validSoldes.length;
+    const monthsNeeded = Math.ceil(remaining / avgMonthly);
+    const targetDate = new Date(year, month - 1 + monthsNeeded, 1);
+    const dateStr = targetDate.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+    el.innerHTML = `📈 À ce rythme (<strong>+${eur(Math.round(avgMonthly))}/mois</strong>), objectif atteint dans <strong>${monthsNeeded} mois</strong> (${dateStr})`;
+  } catch (e) {
+    el.innerHTML = '';
+  }
 }
 
 // ── Vue annuelle rapide ──
