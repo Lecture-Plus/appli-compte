@@ -3,7 +3,7 @@
 // ============================================================
 
 const DB_NAME    = 'budgetFoyer';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 let _db = null;
 
@@ -51,6 +51,18 @@ async function openDB() {
       // Archives des années clôturées (snapshot figé)
       if (!db.objectStoreNames.contains('archives')) {
         db.createObjectStore('archives', { keyPath: 'year' });
+      }
+
+      // Opérations sur l'épargne (versements, retraits, craquages couverts)
+      if (!db.objectStoreNames.contains('savings_operations')) {
+        const s = db.createObjectStore('savings_operations', { keyPath: 'id', autoIncrement: true });
+        s.createIndex('yearMonth', ['year', 'month'], { unique: false });
+        s.createIndex('year',      'year',            { unique: false });
+      }
+
+      // Confirmations mensuelles du solde épargne
+      if (!db.objectStoreNames.contains('savings_confirmed')) {
+        db.createObjectStore('savings_confirmed', { keyPath: ['year', 'month'] });
       }
     };
   });
@@ -121,17 +133,18 @@ async function _clear(store) {
 /* ── Settings ── */
 
 const SETTING_DEFAULTS = {
-  p1Name:             'Personne 1',
-  p2Name:             'Personne 2',
-  epargneThreshold:   100,
-  savingsGoal:        0,
-  savingsGoalLabel:   'Mon objectif',
-  savingsGoalYear:    new Date().getFullYear(),
-  defaultRepartMode:  'separe',
-  currency:           '€',
-  theme:              'auto',
-  lastBackup:         null,
-  notifEnabled:       false,
+  p1Name:                 'Personne 1',
+  p2Name:                 'Personne 2',
+  epargneThreshold:       100,
+  savingsGoal:            0,
+  savingsGoalLabel:       'Mon objectif',
+  savingsGoalYear:        new Date().getFullYear(),
+  weeklyCoursesEstimate:  85,
+  defaultRepartMode:      'separe',
+  currency:               '€',
+  theme:                  'auto',
+  lastBackup:             null,
+  notifEnabled:           false,
 };
 
 export async function getSetting(key) {
@@ -273,13 +286,16 @@ export async function saveArchive(archive) {
 
 /** Exporte toutes les données en un objet JSON */
 export async function exportAllData() {
-  const [settings, monthlyData, charges, achats, repartition, archives] = await Promise.all([
+  const [settings, monthlyData, charges, achats, repartition, archives,
+         savings_operations, savings_confirmed] = await Promise.all([
     _getAll('settings'),
     _getAll('monthlyData'),
     _getAll('charges'),
     _getAll('achats'),
     _getAll('repartition'),
     _getAll('archives'),
+    _getAll('savings_operations'),
+    _getAll('savings_confirmed'),
   ]);
 
   return {
@@ -292,6 +308,8 @@ export async function exportAllData() {
     achats,
     repartition,
     archives,
+    savings_operations,
+    savings_confirmed,
   };
 }
 
@@ -301,7 +319,8 @@ export async function importAllData(data) {
     throw new Error('Format de sauvegarde invalide ou version incompatible.');
   }
 
-  const stores = ['settings', 'monthlyData', 'charges', 'achats', 'repartition', 'archives'];
+  const stores = ['settings', 'monthlyData', 'charges', 'achats', 'repartition', 'archives',
+                  'savings_operations', 'savings_confirmed'];
   const db     = await openDB();
 
   for (const storeName of stores) {
@@ -321,7 +340,68 @@ export async function importAllData(data) {
 
 /** Efface toutes les données (remise à zéro) */
 export async function resetAllData() {
-  const stores = ['settings', 'monthlyData', 'charges', 'achats', 'repartition', 'archives'];
+  const stores = ['settings', 'monthlyData', 'charges', 'achats', 'repartition', 'archives',
+                  'savings_operations', 'savings_confirmed'];
   for (const s of stores) await _clear(s);
   _db = null;
+}
+
+/* ── Opérations d'épargne ── */
+
+export async function getAllSavingsOperations() {
+  return _getAll('savings_operations');
+}
+
+export async function getSavingsOperationsForMonth(year, month) {
+  return _getAllByIndex('savings_operations', 'yearMonth', [year, month]);
+}
+
+export async function saveSavingsOperation(op) {
+  return _put('savings_operations', op);
+}
+
+export async function deleteSavingsOperation(id) {
+  return _delete('savings_operations', id);
+}
+
+/* ── Confirmations mensuelles d'épargne ── */
+
+export async function getSavingsConfirmed(year, month) {
+  return _get('savings_confirmed', [year, month]);
+}
+
+export async function saveSavingsConfirmed(data) {
+  return _put('savings_confirmed', data);
+}
+
+/** Retourne la dernière confirmation enregistrée */
+export async function getLatestSavingsConfirmed() {
+  const all = await _getAll('savings_confirmed');
+  if (!all.length) return null;
+  return all.sort((a, b) => {
+    if (a.year !== b.year) return b.year - a.year;
+    return b.month - a.month;
+  })[0];
+}
+
+/** Calcule le solde actuel des économies :
+ *  = dernière confirmation + somme des opérations depuis */
+export async function computeCurrentSavingsBalance() {
+  const latest  = await getLatestSavingsConfirmed();
+  const allOps  = await getAllSavingsOperations();
+
+  const base = latest ? (Number(latest.amount) || 0) : 0;
+
+  const opsSince = latest
+    ? allOps.filter(op => {
+        if (op.year  > latest.year)  return true;
+        if (op.year  < latest.year)  return false;
+        if (op.month > latest.month) return true;
+        if (op.month < latest.month) return false;
+        return (op.day || 1) >= (latest.confirmedDay || 1);
+      })
+    : allOps;
+
+  const delta = opsSince.reduce((s, op) => s + (Number(op.amount) || 0), 0);
+  return { balance: base + delta, base, delta, latest, opsSince };
 }

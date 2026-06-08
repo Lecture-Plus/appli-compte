@@ -5,11 +5,11 @@
 import { State }                                      from '../app.js';
 import { getMonthlyData, saveMonthlyData,
          getChargesForMonth, getAchatsForMonth,
-         getRepartition, saveRepartition,
-         getAllSettings }                              from '../db.js';
+         saveAchat, getRepartition, saveRepartition,
+         getAllSettings, saveSavingsOperation }         from '../db.js';
 import { calcMonth, whatIf }                           from '../calculs.js';
 import { eur, pct, nomMois, addMonth, escHtml,
-         signClass, debounce, showToast,
+         signClass, debounce, showToast, uid,
          openModal, closeModal, MOIS }                 from '../utils.js';
 
 let _md     = null; // données du mois en cours d'édition
@@ -151,7 +151,7 @@ export async function render(container) {
     </div>
 
     <!-- Actions -->
-    <div style="display:flex; gap:10px; margin-bottom:24px;">
+    <div style="display:flex; gap:8px; margin-bottom:12px;">
       <button class="btn btn-primary btn-full" id="btn-save">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
         Enregistrer
@@ -160,6 +160,12 @@ export async function render(container) {
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
       </button>
     </div>
+
+    <!-- Craquage FAB -->
+    <button class="btn" id="btn-craquage"
+      style="width:100%;background:var(--danger);color:#fff;font-weight:700;font-size:1rem;padding:14px;border-radius:var(--radius);margin-bottom:24px;display:flex;align-items:center;justify-content:center;gap:10px;">
+      <span style="font-size:1.4rem;">💥</span> Enregistrer un craquage
+    </button>
   `;
 
   // Mise à jour immédiate de l'aperçu
@@ -224,6 +230,11 @@ export async function render(container) {
   // ── What-if ──
   container.querySelector('#btn-whatif')?.addEventListener('click', () => {
     showWhatIfModal(container, p1Name, p2Name, month, year);
+  });
+
+  // ── Craquage ──
+  container.querySelector('#btn-craquage')?.addEventListener('click', () => {
+    showCraquageModal(container, p1Name, p2Name, month, year);
   });
 
   // Couleur du bouton complet si déjà complet
@@ -393,4 +404,170 @@ function inputField(id, label, value, suffix) {
       </div>
     </div>
   `;
+}
+
+// ══════════════════════════════════════════════════
+// MODAL CRAQUAGE
+// ══════════════════════════════════════════════════
+// Chaque ligne de la modale représente une "source" (budget mensuel ou épargne)
+// avec un montant. La somme des lignes doit égaler le montant total.
+function showCraquageModal(container, p1Name, p2Name, month, year) {
+  const now  = new Date();
+  let rows   = [{ source: 'balance', amount: '' }];
+
+  function buildRows() {
+    return rows.map((r, i) => `
+      <div class="craquage-row" style="display:flex;gap:8px;align-items:center;margin-bottom:6px;" data-i="${i}">
+        <div class="input-wrap" style="flex:1.2;">
+          <input type="number" class="form-input input-euro crq-amount"
+            min="0" step="0.01" placeholder="0.00" value="${r.amount}"
+            style="font-size:0.9rem;">
+          <span class="input-suffix">€</span>
+        </div>
+        <select class="form-input crq-source" style="flex:1.5;font-size:0.85rem;padding:8px 10px;">
+          <option value="balance"  ${r.source === 'balance'  ? 'selected' : ''}>📊 Budget mensuel</option>
+          <option value="savings"  ${r.source === 'savings'  ? 'selected' : ''}>💰 Économies</option>
+        </select>
+        ${rows.length > 1
+          ? `<button class="btn-icon crq-del" data-i="${i}" style="flex-shrink:0;color:var(--danger);">
+               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+             </button>`
+          : '<div style="width:28px;"></div>'}
+      </div>
+    `).join('');
+  }
+
+  function buildBody() {
+    return `
+      <div class="form-group" style="margin-bottom:10px;">
+        <label class="form-label">Description du craquage</label>
+        <input type="text" class="form-input" id="crq-label"
+          placeholder="Ex: Restaurant, Vêtement impulsif…">
+      </div>
+      <div class="form-group" style="margin-bottom:10px;">
+        <label class="form-label">Qui a craqué ?</label>
+        <div class="tabs" id="crq-qui-tabs" style="margin-top:4px;">
+          <button class="tab-btn active" data-qui="les_deux">À deux</button>
+          <button class="tab-btn" data-qui="p1">${p1Name}</button>
+          <button class="tab-btn" data-qui="p2">${p2Name}</button>
+        </div>
+      </div>
+      <div class="form-group" style="margin-bottom:6px;">
+        <label class="form-label">Répartition par source</label>
+        <div id="crq-rows">${buildRows()}</div>
+        <button class="btn btn-outline btn-sm btn-full" id="crq-add-row" style="margin-top:4px;">
+          + Ajouter une source
+        </button>
+      </div>
+      <div id="crq-total-line" style="text-align:right;font-size:0.78rem;color:var(--text-3);margin-top:6px;"></div>
+    `;
+  }
+
+  openModal('💥 Craquage', buildBody(), `
+    <button class="btn btn-outline" id="crq-cancel">Annuler</button>
+    <button class="btn btn-danger"  id="crq-save">Enregistrer</button>
+  `);
+
+  // Variables locales modal
+  let _qui = 'les_deux';
+
+  function rebuildRows() {
+    const rowsEl = document.getElementById('crq-rows');
+    if (rowsEl) rowsEl.innerHTML = buildRows();
+    bindRowEvents();
+    updateTotal();
+  }
+
+  function updateTotal() {
+    const total = rows.reduce((s, r) => s + (Number(r.amount) || 0), 0);
+    const el = document.getElementById('crq-total-line');
+    if (el) el.textContent = `Total : ${eur(total)}`;
+  }
+
+  function syncRows() {
+    document.querySelectorAll('.craquage-row').forEach((row, i) => {
+      rows[i].amount = row.querySelector('.crq-amount')?.value ?? '';
+      rows[i].source = row.querySelector('.crq-source')?.value ?? 'balance';
+    });
+  }
+
+  function bindRowEvents() {
+    document.querySelectorAll('.craquage-row').forEach((row, i) => {
+      row.querySelector('.crq-amount')?.addEventListener('input', () => { syncRows(); updateTotal(); });
+      row.querySelector('.crq-source')?.addEventListener('change', () => syncRows());
+      row.querySelector('.crq-del')?.addEventListener('click', () => {
+        syncRows();
+        rows.splice(i, 1);
+        rebuildRows();
+      });
+    });
+  }
+
+  bindRowEvents();
+
+  document.querySelectorAll('#crq-qui-tabs .tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('#crq-qui-tabs .tab-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      _qui = btn.dataset.qui;
+    });
+  });
+
+  document.getElementById('crq-add-row')?.addEventListener('click', () => {
+    syncRows();
+    rows.push({ source: 'balance', amount: '' });
+    rebuildRows();
+  });
+
+  document.getElementById('crq-cancel')?.addEventListener('click', closeModal);
+
+  document.getElementById('crq-save')?.addEventListener('click', async () => {
+    syncRows();
+    const label = document.getElementById('crq-label')?.value.trim();
+    if (!label) { showToast('Ajoutez une description', 'error'); return; }
+
+    const validRows = rows.filter(r => Number(r.amount) > 0);
+    if (!validRows.length) { showToast('Montant invalide', 'error'); return; }
+
+    const total  = validRows.reduce((s, r) => s + Number(r.amount), 0);
+    const dayNum = now.getDate();
+
+    // Pour la répartition : si "à deux" → 50/50, sinon tout sur la personne
+    for (const r of validRows) {
+      const amt   = Number(r.amount);
+      let aP1, aP2;
+      if (_qui === 'p1')       { aP1 = amt;     aP2 = 0; }
+      else if (_qui === 'p2')  { aP1 = 0;       aP2 = amt; }
+      else                     { aP1 = amt / 2; aP2 = amt / 2; }
+
+      await saveAchat({
+        id: uid(),
+        year, month,
+        label,
+        amount_p1: aP1,
+        amount_p2: aP2,
+        qui: _qui,
+        category: 'craquage',
+        craquage_source: r.source,  // 'balance' ou 'savings'
+        day: dayNum,
+        createdAt: now.toISOString(),
+      });
+
+      // Si source = épargne → enregistre aussi dans savings_operations
+      if (r.source === 'savings') {
+        await saveSavingsOperation({
+          amount:    -amt,
+          label:     `Craquage : ${label}`,
+          type:      'craquage_cover',
+          year, month, day: dayNum,
+          createdAt: now.toISOString(),
+        });
+      }
+    }
+
+    closeModal();
+    showToast(`Craquage enregistré : ${eur(total)} 💥`, 'success');
+    // Recharge la prévisualisation
+    updatePreview(container, p1Name, p2Name, month, year);
+  });
 }

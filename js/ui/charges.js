@@ -151,7 +151,7 @@ function showChargeModal(charge, p1Name, p2Name, onSave) {
   const isNew    = !charge;
   const c        = charge ?? {
     label: '', category: 'logement', amount_p1: 0, amount_p2: 0,
-    qui: 'les_deux', months: 'all', active: true, notes: '',
+    qui: 'les_deux', months: 'all', active: true, notes: '', dayOfMonth: null,
   };
 
   const catOptions = CATEGORIES.map(cat =>
@@ -219,6 +219,16 @@ function showChargeModal(charge, p1Name, p2Name, onSave) {
         <span class="toggle-slider"></span>
       </label>
     </div>
+    <div class="form-group" style="margin-bottom:10px;">
+      <label class="form-label">Jour de prélèvement dans le mois</label>
+      <div class="input-wrap">
+        <input type="number" class="form-input" id="c-day"
+          min="1" max="31" step="1" placeholder="Ex: 5"
+          value="${c.dayOfMonth || ''}">
+        <span class="input-suffix">/ mois</span>
+      </div>
+      <p class="form-hint">Utilisé par le prévisionnel. Laissez vide si variable.</p>
+    </div>
   `;
 
   const footer = `
@@ -260,13 +270,14 @@ function showChargeModal(charge, p1Name, p2Name, onSave) {
     const updated = {
       ...(isNew ? {} : { id: charge.id }),
       label,
-      category:  document.getElementById('c-cat')?.value || 'autre',
-      amount_p1: Number(document.getElementById('c-p1')?.value) || 0,
-      amount_p2: Number(document.getElementById('c-p2')?.value) || 0,
-      qui:       document.getElementById('c-qui')?.value || 'les_deux',
+      category:   document.getElementById('c-cat')?.value || 'autre',
+      amount_p1:  Number(document.getElementById('c-p1')?.value) || 0,
+      amount_p2:  Number(document.getElementById('c-p2')?.value) || 0,
+      qui:        document.getElementById('c-qui')?.value || 'les_deux',
       months,
-      active:    document.getElementById('c-active')?.checked ?? true,
-      notes:     '',
+      active:     document.getElementById('c-active')?.checked ?? true,
+      dayOfMonth: Number(document.getElementById('c-day')?.value) || null,
+      notes:      '',
     };
 
     await saveCharge(updated);

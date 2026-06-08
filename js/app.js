@@ -20,6 +20,7 @@ const PAGES = {
   dashboard: () => import('./ui/dashboard.js'),
   saisie:    () => import('./ui/saisie.js'),
   charges:   () => import('./ui/charges.js'),
+  savings:   () => import('./ui/savings.js'),
   stats:     () => import('./ui/stats.js'),
   settings:  () => import('./ui/settings.js'),
 };
@@ -28,6 +29,7 @@ const PAGE_TITLES = {
   dashboard: 'Accueil',
   saisie:    'Saisie du mois',
   charges:   'Charges & Achats',
+  savings:   'Épargne',
   stats:     'Statistiques',
   settings:  'Réglages',
 };

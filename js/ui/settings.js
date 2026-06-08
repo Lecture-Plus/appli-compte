@@ -55,7 +55,7 @@ export async function render(container) {
           <input type="number" class="form-input" id="s-goal-year" min="2020" max="2099" value="${s.savingsGoalYear || today().year}">
         </div>
       </div>
-      <div class="form-group" style="margin-bottom:12px;">
+      <div class="form-group" style="margin-bottom:10px;">
         <label class="form-label">Seuil d'alerte mensuel (€)</label>
         <div class="input-wrap">
           <input type="number" class="form-input input-euro" id="s-threshold" min="0" step="10" value="${s.epargneThreshold || 100}">
@@ -63,7 +63,15 @@ export async function render(container) {
         </div>
         <p class="form-hint">Sous ce seuil d'épargne mensuelle, l'indicateur passe en rouge.</p>
       </div>
-      <button class="btn btn-primary btn-full" id="s-save-goal">Enregistrer l'objectif</button>
+      <div class="form-group" style="margin-bottom:12px;">
+        <label class="form-label">Budget courses hebdomadaire (€)</label>
+        <div class="input-wrap">
+          <input type="number" class="form-input input-euro" id="s-weekly-courses" min="0" step="5" value="${s.weeklyCoursesEstimate || 85}">
+          <span class="input-suffix">€/sem</span>
+        </div>
+        <p class="form-hint">Utilisé par le prévisionnel pour estimer les courses quotidiennes.</p>
+      </div>
+      <button class="btn btn-primary btn-full" id="s-save-goal">Enregistrer</button>
     </div>
 
     <!-- Section : Répartition par défaut -->
@@ -201,17 +209,19 @@ function bindEvents(container, s) {
 
   // ── Objectif épargne ──
   container.querySelector('#s-save-goal')?.addEventListener('click', async () => {
-    const goal      = Number(container.querySelector('#s-goal')?.value) || 0;
-    const goalLabel = container.querySelector('#s-goal-label')?.value.trim() || 'Mon objectif';
-    const goalYear  = Number(container.querySelector('#s-goal-year')?.value) || today().year;
-    const threshold = Number(container.querySelector('#s-threshold')?.value) || 100;
+    const goal        = Number(container.querySelector('#s-goal')?.value) || 0;
+    const goalLabel   = container.querySelector('#s-goal-label')?.value.trim() || 'Mon objectif';
+    const goalYear    = Number(container.querySelector('#s-goal-year')?.value) || today().year;
+    const threshold   = Number(container.querySelector('#s-threshold')?.value) || 100;
+    const weeklyCrs   = Number(container.querySelector('#s-weekly-courses')?.value) || 85;
     await Promise.all([
-      setSetting('savingsGoal',      goal),
-      setSetting('savingsGoalLabel', goalLabel),
-      setSetting('savingsGoalYear',  goalYear),
-      setSetting('epargneThreshold', threshold),
+      setSetting('savingsGoal',             goal),
+      setSetting('savingsGoalLabel',        goalLabel),
+      setSetting('savingsGoalYear',         goalYear),
+      setSetting('epargneThreshold',        threshold),
+      setSetting('weeklyCoursesEstimate',   weeklyCrs),
     ]);
-    showToast('Objectif enregistré ✅', 'success');
+    showToast('Paramètres enregistrés ✅', 'success');
   });
 
   // ── Mode répartition ──
