@@ -36,6 +36,8 @@ export async function render(container) {
 
   // Assurer que chaque user a ses données initialisées
   _users.forEach(u => getUserMonthData(_md, u.id));
+  // Initialiser la liste des imprévus si absente
+  if (!_md.imprévusList) _md.imprévusList = [];
 
   const modeHidden = N <= 1;
 
@@ -122,12 +124,14 @@ export async function render(container) {
       </div>
     </div>
 
-    <!-- Imprévus -->
+    <!-- Imprévus (liste dynamique) -->
     <div class="form-section">
-      <div class="form-section-title"><span class="section-icon">⚡</span>Imprévus</div>
-      <div class="form-grid-${Math.min(N, 4)}">
-        ${_users.map(u => inputField(`imp-${u.id}`, u, _md.users[String(u.id)]?.imprevus, '€')).join('')}
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+        <div class="form-section-title" style="margin:0;"><span class="section-icon">⚡</span>Imprévus</div>
+        <button class="btn btn-sm btn-secondary" id="btn-add-imprevu">+ Ajouter</button>
       </div>
+      <p style="font-size:0.78rem;color:var(--text-3);margin:0 0 8px;">S'ajoutent au fil du mois — séparés des dépenses planifiées</p>
+      <div id="imprevu-list"></div>
     </div>
 
     <!-- Notes -->
@@ -139,32 +143,26 @@ export async function render(container) {
 
     <!-- Aperçu calcul -->
     <div class="calc-preview" id="calc-preview">
-      <div class="calc-preview-title">⚡ Aperçu en temps réel</div>
+      <div class="calc-preview-title">📊 Récapitulatif du mois</div>
       <div id="calc-rows">Calcul en cours…</div>
     </div>
 
-    <!-- Simulateur What-if -->
-    <div class="card" style="margin-bottom:12px;">
-      <div class="card-header">
-        <span class="card-title">🧮 Simulateur What-if</span>
-        <button class="btn btn-sm btn-secondary" id="btn-whatif">Simuler</button>
-      </div>
-      <p style="font-size:0.78rem;color:var(--text-3);">Que se passerait-il si vous gagniez plus ce mois-ci ?</p>
-    </div>
-
-    <!-- Actions -->
-    <div style="display:flex;gap:8px;margin-bottom:12px;align-items:center;">
-      <span id="save-indicator" class="save-indicator hidden">✓ Sauvegardé</span>
-      <button class="btn btn-outline" id="btn-complete" title="Marquer comme complet" style="margin-left:auto;">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
+    <!-- Barre d'actions -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+      <button class="btn btn-danger" id="btn-craquage" style="font-size:0.9rem;gap:6px;">
+        💥 Craquage
+      </button>
+      <button class="btn btn-outline" id="btn-whatif" style="font-size:0.9rem;gap:6px;">
+        🧮 What-if
       </button>
     </div>
-
-    <!-- Craquage FAB -->
-    <button class="btn" id="btn-craquage"
-      style="width:100%;background:var(--danger);color:#fff;font-weight:700;font-size:1rem;padding:14px;border-radius:var(--radius);margin-bottom:24px;display:flex;align-items:center;justify-content:center;gap:10px;">
-      <span style="font-size:1.4rem;">💥</span> Enregistrer un craquage
-    </button>
+    <div style="display:flex;align-items:center;justify-content:flex-end;margin-bottom:24px;gap:8px;">
+      <span id="save-indicator" class="save-indicator hidden">✓ Sauvegardé</span>
+      <button class="btn btn-outline btn-sm" id="btn-complete" style="display:flex;align-items:center;gap:5px;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14"><path d="M20 6L9 17l-5-5"/></svg>
+        Marquer complet
+      </button>
+    </div>
     `}
   `;
 
@@ -207,7 +205,7 @@ export async function render(container) {
 
   // ── Saisie des champs (auto-save debounced) ──
   const fieldSelectors = [
-    ...Array.from(container.querySelectorAll('input[id^="rev-"], input[id^="pri-"], input[id^="crs-"], input[id^="ext-"], input[id^="imp-"]')),
+    ...Array.from(container.querySelectorAll('input[id^="rev-"], input[id^="pri-"], input[id^="crs-"], input[id^="ext-"]')),
     ...Array.from(container.querySelectorAll('.pct-field')),
   ];
 
@@ -222,6 +220,13 @@ export async function render(container) {
   container.querySelector('#notes-field')?.addEventListener('input', () => {
     _md.notes = container.querySelector('#notes-field').value;
     debouncedSave();
+  });
+
+  // ── Imprévus (liste dynamique) ──
+  _recomputeImprévus();
+  _renderImprévusList(container);
+  container.querySelector('#btn-add-imprevu')?.addEventListener('click', () => {
+    showImprévuModal(container, month, year);
   });
 
   // ── Marquer complet ──
@@ -261,12 +266,77 @@ function syncFormToState(container) {
     _md.users[uid].primes   = v(`pri-${u.id}`);
     _md.users[uid].courses  = v(`crs-${u.id}`);
     _md.users[uid].extras   = v(`ext-${u.id}`);
-    _md.users[uid].imprevus = v(`imp-${u.id}`);
+    // imprevus is computed from imprévusList — not read from an input
   });
 
   if (!_repCfg.pcts) _repCfg.pcts = {};
   container.querySelectorAll('.pct-field').forEach(input => {
     _repCfg.pcts[input.dataset.uid] = Number(input.value) || 0;
+  });
+}
+
+// ── Recompute imprevus per-user from the list ──
+function _recomputeImprévus() {
+  const N = _users.length || 1;
+  if (!_md.users) _md.users = {};
+  _users.forEach(u => {
+    if (!_md.users[String(u.id)]) _md.users[String(u.id)] = {};
+    _md.users[String(u.id)].imprevus = 0;
+  });
+  for (const item of (_md.imprévusList || [])) {
+    const amt = Number(item.amount) || 0;
+    if (item.qui === 'shared') {
+      _users.forEach(u => { _md.users[String(u.id)].imprevus += amt / N; });
+    } else {
+      const uid = String(item.qui);
+      if (_md.users[uid] !== undefined) _md.users[uid].imprevus += amt;
+    }
+  }
+}
+
+// ── Rendu de la liste des imprévus ──
+function _renderImprévusList(container) {
+  const el = container.querySelector('#imprevu-list');
+  if (!el) return;
+  const list = _md.imprévusList || [];
+  const total = list.reduce((s, i) => s + (Number(i.amount) || 0), 0);
+
+  if (!list.length) {
+    el.innerHTML = `<p style="font-size:0.78rem;color:var(--text-3);text-align:center;padding:8px 0;">Aucun imprévu ce mois-ci</p>`;
+    return;
+  }
+
+  el.innerHTML = `
+    <div style="margin-bottom:4px;">
+      ${list.map(item => {
+        const quiLabel = item.qui === 'shared' ? '🤝 Partagé' : (_users.find(u => String(u.id) === String(item.qui))?.name ?? item.qui);
+        return `
+          <div class="imprevu-item" data-iid="${item.id}" style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--danger-bg);border-radius:var(--radius-sm);margin-bottom:6px;">
+            <span style="font-size:1rem;">⚡</span>
+            <div style="flex:1;min-width:0;">
+              <div style="font-weight:600;font-size:0.85rem;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escHtml(item.label)}</div>
+              <div style="font-size:0.72rem;color:var(--text-3);">${escHtml(quiLabel)}${item.day ? ` · j.${item.day}` : ''}</div>
+            </div>
+            <span style="font-weight:700;font-size:0.95rem;color:var(--danger);flex-shrink:0;">${eur(Number(item.amount)||0)}</span>
+            <button class="btn-icon imp-del" data-iid="${item.id}" style="color:var(--text-3);width:28px;height:28px;flex-shrink:0;" title="Supprimer">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </div>
+        `;
+      }).join('')}
+    </div>
+    <div style="text-align:right;font-size:0.8rem;font-weight:700;color:var(--danger);">Total : ${eur(total)}</div>
+  `;
+
+  el.querySelectorAll('.imp-del').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const iid = btn.dataset.iid;
+      _md.imprévusList = (_md.imprévusList || []).filter(i => i.id !== iid);
+      _recomputeImprévus();
+      _renderImprévusList(container);
+      updatePreview(container);
+      await saveMonthlyData(_md);
+    });
   });
 }
 
@@ -374,6 +444,66 @@ function showWhatIfModal(container, month, year) {
       <div class="calc-preview-row"><span>Nouveau solde net</span><span style="font-weight:700;">${eur(sim.newSolde.total)}</span></div>
       <div class="calc-preview-row"><span>Nouveau taux d'épargne</span><span style="font-weight:700;">${pct(sim.newTxEpargne.total, 1)}</span></div>
     `;
+  });
+}
+
+// ── Modal Imprévu ──
+function showImprévuModal(container, month, year) {
+  const now  = new Date();
+  const quiOptions = `
+    <option value="shared">🤝 Partagé (tous)</option>
+    ${_users.map(u => `<option value="${u.id}">${escHtml(u.name)}</option>`).join('')}
+  `;
+
+  openModal('⚡ Ajouter un imprévu', `
+    <p style="font-size:0.82rem;color:var(--text-2);margin-bottom:14px;">
+      Dépense non prévue survenue ce mois-ci (panne, urgence, soin…)
+    </p>
+    <div class="form-group" style="margin-bottom:10px;">
+      <label class="form-label">Description</label>
+      <input type="text" class="form-input" id="imp-label" placeholder="Ex: Plombier, Médicaments, Pneu…" autofocus>
+    </div>
+    <div class="form-grid-2" style="margin-bottom:10px;">
+      <div class="form-group">
+        <label class="form-label">Montant (€)</label>
+        <div class="input-wrap">
+          <input type="number" class="form-input input-euro" id="imp-amount" min="0" step="0.01" placeholder="0.00">
+          <span class="input-suffix">€</span>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Jour du mois</label>
+        <input type="number" class="form-input" id="imp-day" min="1" max="31" placeholder="Ex: 15" value="${now.getDate()}">
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Qui est concerné ?</label>
+      <select class="form-select" id="imp-qui">${quiOptions}</select>
+    </div>
+  `, `
+    <button class="btn btn-outline" id="imp-cancel">Annuler</button>
+    <button class="btn btn-danger" id="imp-save">Enregistrer</button>
+  `);
+
+  document.getElementById('imp-cancel')?.addEventListener('click', closeModal);
+
+  document.getElementById('imp-save')?.addEventListener('click', async () => {
+    const label = document.getElementById('imp-label')?.value.trim();
+    if (!label) { showToast('La description est requise', 'error'); return; }
+    const amount = Number(document.getElementById('imp-amount')?.value);
+    if (!amount || amount <= 0) { showToast('Montant invalide', 'error'); return; }
+    const quiRaw = document.getElementById('imp-qui')?.value;
+    const qui = quiRaw === 'shared' ? 'shared' : Number(quiRaw);
+    const day = Number(document.getElementById('imp-day')?.value) || now.getDate();
+
+    if (!_md.imprévusList) _md.imprévusList = [];
+    _md.imprévusList.push({ id: uid(), label, amount, qui, day, createdAt: now.toISOString() });
+    _recomputeImprévus();
+    closeModal();
+    _renderImprévusList(container);
+    updatePreview(container);
+    await saveMonthlyData(_md);
+    showToast('Imprévu ajouté ✅', 'success');
   });
 }
 

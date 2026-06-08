@@ -127,6 +127,7 @@ function buildOpItem(op) {
     add:             '💰 Versement',
     withdraw:        '🏧 Retrait',
     craquage_cover:  '💥 Craquage couvert',
+    monthly_savings: '📅 Épargne mensuelle',
     confirm:         '✅ Confirmation',
   }[op.type] || '📌 Opération';
 

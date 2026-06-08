@@ -7,11 +7,14 @@ import { getMonthlyData, getChargesForMonth,
          getAchatsForMonth, getRepartition,
          getAllSettings, getMonthsByYear,
          computeCurrentSavingsBalance,
+         getAllSavingsOperations, saveSavingsOperation,
+         deleteSavingsOperation,
          getActiveUsers }                                  from '../db.js';
 import { calcMonth, calcPrevisionnel }                    from '../calculs.js';
 import { eur, pct, nomMois, addMonth, signClass,
          txEparClass, completenessStatus,
-         progressColor, escHtml, showToast }              from '../utils.js';
+         progressColor, escHtml, showToast,
+         openModal, closeModal }                          from '../utils.js';
 
 let _activeTab = 'resume';
 
@@ -76,16 +79,22 @@ async function _renderContent(container, s, users) {
 // ══════════════════════════════════════════════════
 async function _renderResume(container, s, users) {
   const { year, month } = State;
-  const [md, charges, achats, repCfg, savInfo] = await Promise.all([
+  const [md, charges, achats, repCfg, savInfo, allSavOps] = await Promise.all([
     getMonthlyData(year, month),
     getChargesForMonth(month),
     getAchatsForMonth(year, month),
     getRepartition(year, month),
     computeCurrentSavingsBalance(),
+    getAllSavingsOperations(),
   ]);
 
   const kpi    = calcMonth(md, charges, achats, repCfg, users);
   const status = completenessStatus(md);
+
+  // Transfert épargne déjà effectué ce mois ?
+  const monthlySavOp = allSavOps.find(op =>
+    op.type === 'monthly_savings' && op.year === year && op.month === month
+  );
 
   const goal     = Number(s.savingsGoal) || 0;
   const goalYear = s.savingsGoalYear ?? year;
@@ -224,17 +233,38 @@ async function _renderResume(container, s, users) {
       </div>
     </div>
 
-    ${kpi.ecoPossible.total > 0 ? `
+    <!-- Bilan Épargne du mois -->
     <div class="card" style="margin-bottom:12px;">
-      <div class="card-header"><span class="card-title">💡 Économie possible (sans imprévus)</span></div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;">
-        ${users.map(u => `
-          <div style="flex:1;min-width:80px;background:var(--success-bg);border-radius:var(--radius-sm);padding:12px;text-align:center;">
-            <div style="font-size:0.72rem;font-weight:700;color:var(--success);margin-bottom:4px;">${escHtml(u.name)}</div>
-            <div style="font-size:1.1rem;font-weight:800;color:var(--success);">${eur(kpi.ecoPossible.byUser?.[u.id] ?? 0)}</div>
-          </div>`).join('')}
+      <div class="card-header" style="margin-bottom:8px;">
+        <span class="card-title">💚 Bilan épargne du mois</span>
+        ${monthlySavOp
+          ? `<span class="chip success" style="font-size:0.68rem;padding:3px 8px;">✅ ${eur(monthlySavOp.amount)} mis de côté</span>`
+          : ''}
       </div>
-    </div>` : ''}
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
+        <div style="background:var(--success-bg);border-radius:var(--radius-sm);padding:12px;">
+          <div style="font-size:0.65rem;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:0.03em;margin-bottom:3px;">Possible</div>
+          <div style="font-size:0.7rem;color:var(--text-3);margin-bottom:5px;">Sans imprévus ni achats</div>
+          <div style="font-size:1.25rem;font-weight:800;color:var(--success);">${eur(Math.max(0, kpi.ecoPossible.total))}</div>
+          ${users.length > 1 ? `<div style="font-size:0.7rem;color:var(--text-3);margin-top:4px;">${users.map(u => `${escHtml(u.name)}: ${eur(kpi.ecoPossible.byUser?.[u.id] ?? 0)}`).join(' · ')}</div>` : ''}
+        </div>
+        <div style="background:${kpi.solde.total >= 0 ? 'var(--success-bg)' : 'var(--danger-bg)'};border-radius:var(--radius-sm);padding:12px;">
+          <div style="font-size:0.65rem;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:0.03em;margin-bottom:3px;">Réelle estimée</div>
+          <div style="font-size:0.7rem;color:var(--text-3);margin-bottom:5px;">Tout inclus</div>
+          <div style="font-size:1.25rem;font-weight:800;color:${kpi.solde.total >= 0 ? 'var(--success)' : 'var(--danger)'};">${eur(kpi.solde.total)}</div>
+          ${users.length > 1 ? `<div style="font-size:0.7rem;color:var(--text-3);margin-top:4px;">${users.map(u => `${escHtml(u.name)}: ${eur(kpi.solde.byUser?.[u.id] ?? 0)}`).join(' · ')}</div>` : ''}
+        </div>
+      </div>
+      ${!monthlySavOp
+        ? `<button class="btn btn-success" style="width:100%;font-weight:700;" id="btn-transfer-savings">
+             💰 Virer vers l'épargne ce mois
+           </button>`
+        : `<div style="display:flex;align-items:center;justify-content:space-between;font-size:0.78rem;color:var(--text-3);">
+             <span>Effectué le ${new Date(monthlySavOp.createdAt).toLocaleDateString('fr-FR')}</span>
+             <button class="btn btn-outline btn-sm" id="btn-transfer-savings">Modifier</button>
+           </div>`
+      }
+    </div>
 
     ${md?.notes ? `
     <div class="card" style="margin-bottom:12px;">
@@ -246,6 +276,9 @@ async function _renderResume(container, s, users) {
 
   el.querySelector('#btn-go-saisie')?.addEventListener('click', () => navigateTo('saisie'));
   el.querySelector('#btn-go-savings')?.addEventListener('click', () => navigateTo('savings'));
+  el.querySelector('#btn-transfer-savings')?.addEventListener('click', () => {
+    showTransferSavingsModal(year, month, kpi.ecoPossible.total, kpi.solde.total, monthlySavOp, () => render(container));
+  });
 }
 
 // ══════════════════════════════════════════════════
@@ -339,3 +372,87 @@ function mergeByUser(a, b, users) {
   return out;
 }
 
+// ══════════════════════════════════════════════════
+// MODAL : VIRER VERS L'ÉPARGNE
+// ══════════════════════════════════════════════════
+function showTransferSavingsModal(year, month, ecoPossible, soldeTotal, existingOp, onSave) {
+  const isEdit = !!existingOp;
+  const suggested = isEdit ? Math.abs(existingOp.amount) : Math.max(0, Math.round(ecoPossible));
+
+  openModal(
+    isEdit ? '💰 Modifier le virement épargne' : '💰 Virer vers l\'épargne',
+    `
+    <p style="font-size:0.82rem;color:var(--text-2);margin-bottom:14px;">
+      Indiquez le montant que vous souhaitez mettre de côté pour <strong>${nomMois(month)} ${year}</strong>.<br>
+      Une opération sera créée dans votre suivi d'épargne.
+    </p>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px;">
+      <button type="button" class="btn btn-outline trf-preset" data-val="${Math.max(0, Math.round(ecoPossible))}">
+        <div style="font-size:0.68rem;color:var(--text-3);margin-bottom:2px;">Possible</div>
+        <div style="font-weight:700;font-size:0.95rem;color:var(--success);">${eur(Math.max(0, ecoPossible))}</div>
+      </button>
+      <button type="button" class="btn btn-outline trf-preset" data-val="${Math.max(0, Math.round(soldeTotal))}">
+        <div style="font-size:0.68rem;color:var(--text-3);margin-bottom:2px;">Réelle</div>
+        <div style="font-weight:700;font-size:0.95rem;color:${soldeTotal >= 0 ? 'var(--success)' : 'var(--danger)'};">${eur(soldeTotal)}</div>
+      </button>
+    </div>
+    <div class="form-group" style="margin-bottom:10px;">
+      <label class="form-label">Montant à virer (€)</label>
+      <div class="input-wrap">
+        <input type="number" class="form-input input-euro" id="trf-amount" min="0" step="1" value="${suggested}">
+        <span class="input-suffix">€</span>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Libellé</label>
+      <input type="text" class="form-input" id="trf-label" value="Épargne ${nomMois(month)} ${year}" placeholder="Ex: Virement Livret A">
+    </div>
+    `,
+    `
+    ${isEdit ? `<button class="btn btn-danger btn-sm" id="trf-delete">Supprimer</button>` : ''}
+    <button class="btn btn-outline" id="trf-cancel">Annuler</button>
+    <button class="btn btn-success" id="trf-save" style="margin-left:auto;">Confirmer</button>
+    `
+  );
+
+  // Presets
+  document.querySelectorAll('.trf-preset').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const input = document.getElementById('trf-amount');
+      if (input) input.value = btn.dataset.val;
+    });
+  });
+
+  document.getElementById('trf-cancel')?.addEventListener('click', closeModal);
+
+  document.getElementById('trf-delete')?.addEventListener('click', async () => {
+    if (!confirm('Supprimer ce virement ?')) return;
+    await deleteSavingsOperation(existingOp.id);
+    closeModal();
+    showToast('Virement supprimé', 'success');
+    onSave();
+  });
+
+  document.getElementById('trf-save')?.addEventListener('click', async () => {
+    const amount = Number(document.getElementById('trf-amount')?.value);
+    if (!amount || amount <= 0) { showToast('Montant invalide', 'error'); return; }
+    const label = document.getElementById('trf-label')?.value.trim() || `Épargne ${nomMois(month)} ${year}`;
+    const now   = new Date();
+
+    if (isEdit) await deleteSavingsOperation(existingOp.id);
+
+    await saveSavingsOperation({
+      amount,
+      label,
+      type:      'monthly_savings',
+      year,
+      month,
+      day:       now.getDate(),
+      createdAt: now.toISOString(),
+    });
+
+    closeModal();
+    showToast(`${eur(amount)} mis de côté ✅`, 'success');
+    onSave();
+  });
+}
