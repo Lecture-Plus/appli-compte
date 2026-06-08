@@ -160,7 +160,7 @@ export async function render(container) {
 
     <!-- Extras -->
     <div class="form-section">
-      <div class="form-section-title"><span class="section-icon">🎉</span>Extras & Sorties</div>
+      <div class="form-section-title"><span class="section-icon">🎮</span>Loisirs &amp; Sorties</div>
       <div class="form-grid-${Math.min(N, 4)}">
         ${_users.map(u => inputField(`ext-${u.id}`, u, _md.users[String(u.id)]?.extras, '€')).join('')}
       </div>
@@ -460,7 +460,7 @@ function updatePreview(container) {
     <div class="calc-preview-row"><span>Primes & Bonus</span><span>${eur(kpi.primes.total)}</span></div>
     <div class="calc-preview-row"><span>Charges récurrentes</span><span>${eur(kpi.charges.total)}</span></div>
     <div class="calc-preview-row"><span>Courses</span><span>${eur(kpi.courses.total)}</span></div>
-    <div class="calc-preview-row"><span>Extras</span><span>${eur(kpi.extras.total)}</span></div>
+    <div class="calc-preview-row"><span>Loisirs</span><span>${eur(kpi.extras.total)}</span></div>
     <div class="calc-preview-row"><span>Imprévus</span><span>${eur(kpi.imprevus.total)}</span></div>
     ${byUserRows}
     <div class="calc-preview-row total" style="font-size:1rem;">
@@ -595,9 +595,17 @@ function showImprévuModal(container, month, year) {
 }
 
 // ── Modal Craquage et dépassement ──
-function showCraquageModal(container, month, year) {
-  const now  = new Date();
-  let rows   = [{ source: 'balance', amount: '' }];
+async function showCraquageModal(container, month, year) {
+  const now           = new Date();
+  const settings      = await getAllSettings();
+  const customBudgets = settings.customBudgets || [];
+  const budgetOpts    = [
+    { id: 'courses', label: '🛒 Courses' },
+    { id: 'extras',  label: '🎮 Loisirs' },
+    ...customBudgets.map(b => ({ id: b.id, label: `${b.icon || '📌'} ${escHtml(b.name)}` })),
+  ];
+
+  let rows = [{ source: 'balance', amount: '', subValue: 'courses' }];
 
   const sourceOptions = `
     <option value="balance">📅 Budget mensuel</option>
@@ -605,21 +613,42 @@ function showCraquageModal(container, month, year) {
     <option value="perso">🪙 Compte perso</option>
   `;
 
+  function buildSubField(r) {
+    if (r.source === 'balance') {
+      return `<select class="form-input crq-sub" style="width:100%;font-size:0.78rem;padding:6px 8px;">
+        ${budgetOpts.map(b => `<option value="${b.id}" ${r.subValue === b.id ? 'selected' : ''}>${b.label}</option>`).join('')}
+      </select>`;
+    }
+    if (r.source === 'savings' && _users.length > 1) {
+      return `<select class="form-input crq-sub" style="width:100%;font-size:0.78rem;padding:6px 8px;">
+        <option value="" ${!r.subValue ? 'selected' : ''}>— Épargne commune —</option>
+        ${_users.map(u => `<option value="${u.id}" ${r.subValue === String(u.id) ? 'selected' : ''}>${escHtml(u.name)}</option>`).join('')}
+      </select>`;
+    }
+    if (r.source === 'perso') {
+      return `<input type="text" class="form-input crq-sub" placeholder="Note (ex: compte courant, cash…)" value="${escHtml(r.subValue || '')}" style="width:100%;font-size:0.78rem;">`;
+    }
+    return '';
+  }
+
   function buildRows() {
     return rows.map((r, i) => `
-      <div class="craquage-row" style="display:flex;gap:8px;align-items:center;margin-bottom:6px;" data-i="${i}">
-        <div class="input-wrap" style="flex:1.2;">
-          <input type="number" class="form-input input-euro crq-amount" min="0" step="0.01" placeholder="0.00" value="${r.amount}" style="font-size:0.9rem;">
-          <span class="input-suffix">€</span>
+      <div class="craquage-row" style="padding:10px;background:var(--bg-2);border-radius:var(--radius-sm);margin-bottom:8px;" data-i="${i}">
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:${r.source !== 'savings' || _users.length <= 1 ? (r.source === 'balance' || r.source === 'perso' ? '6px' : '0') : '6px'}">
+          <div class="input-wrap" style="flex:1.2;">
+            <input type="number" class="form-input input-euro crq-amount" min="0" step="0.01" placeholder="0.00" value="${r.amount}" style="font-size:0.9rem;">
+            <span class="input-suffix">€</span>
+          </div>
+          <select class="form-input crq-source" style="flex:1.4;font-size:0.82rem;padding:8px;">
+            ${sourceOptions.replace(`value="${r.source}"`, `value="${r.source}" selected`)}
+          </select>
+          ${rows.length > 1
+            ? `<button class="btn-icon crq-del" data-i="${i}" style="flex-shrink:0;color:var(--danger);">
+                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+               </button>`
+            : '<div style="width:28px;"></div>'}
         </div>
-        <select class="form-input crq-source" style="flex:1.5;font-size:0.82rem;padding:8px 8px;">
-          ${sourceOptions.replace(`value="${r.source}"`, `value="${r.source}" selected`)}
-        </select>
-        ${rows.length > 1
-          ? `<button class="btn-icon crq-del" data-i="${i}" style="flex-shrink:0;color:var(--danger);">
-               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-             </button>`
-          : '<div style="width:28px;"></div>'}
+        ${buildSubField(r) ? `<div style="padding-left:2px;">${buildSubField(r)}</div>` : ''}
       </div>`).join('');
   }
 
@@ -666,14 +695,22 @@ function showCraquageModal(container, month, year) {
   }
   function syncRows() {
     document.querySelectorAll('.craquage-row').forEach((row, i) => {
-      rows[i].amount = row.querySelector('.crq-amount')?.value ?? '';
-      rows[i].source = row.querySelector('.crq-source')?.value ?? 'balance';
+      if (!rows[i]) return;
+      rows[i].amount   = row.querySelector('.crq-amount')?.value ?? '';
+      rows[i].source   = row.querySelector('.crq-source')?.value ?? 'balance';
+      rows[i].subValue = row.querySelector('.crq-sub')?.value ?? '';
     });
   }
   function bindRowEvents() {
     document.querySelectorAll('.craquage-row').forEach((row, i) => {
       row.querySelector('.crq-amount')?.addEventListener('input', () => { syncRows(); updateTotal(); });
-      row.querySelector('.crq-source')?.addEventListener('change', () => syncRows());
+      row.querySelector('.crq-source')?.addEventListener('change', () => {
+        syncRows();
+        rows[i].subValue = '';
+        rebuildRows();
+      });
+      row.querySelector('.crq-sub')?.addEventListener('change', () => syncRows());
+      row.querySelector('.crq-sub')?.addEventListener('input',  () => syncRows());
       row.querySelector('.crq-del')?.addEventListener('click', () => {
         syncRows(); rows.splice(i, 1); rebuildRows();
       });
@@ -682,7 +719,7 @@ function showCraquageModal(container, month, year) {
   bindRowEvents();
 
   document.getElementById('crq-add-row')?.addEventListener('click', () => {
-    syncRows(); rows.push({ source: 'balance', amount: '' }); rebuildRows();
+    syncRows(); rows.push({ source: 'balance', amount: '', subValue: 'courses' }); rebuildRows();
   });
   document.getElementById('crq-cancel')?.addEventListener('click', closeModal);
 
@@ -696,11 +733,22 @@ function showCraquageModal(container, month, year) {
 
     for (const r of validRows) {
       const amt = Number(r.amount);
-      await saveAchat({ year, month, label, amount: amt, qui, category: 'craquage',
-        craquage_source: r.source, day: now.getDate(), createdAt: now.toISOString() });
+      await saveAchat({
+        year, month, label, amount: amt, qui,
+        category:               'craquage',
+        craquage_source:        r.source,
+        craquage_budget:        r.source === 'balance' ? (r.subValue || 'courses') : null,
+        craquage_savings_user:  r.source === 'savings' ? (r.subValue || null)      : null,
+        craquage_note:          r.source === 'perso'   ? (r.subValue || null)      : null,
+        day: now.getDate(), createdAt: now.toISOString(),
+      });
       if (r.source === 'savings') {
-        await saveSavingsOperation({ amount: -amt, label: `Craquage : ${label}`,
-          type: 'craquage_cover', year, month, day: now.getDate(), createdAt: now.toISOString() });
+        await saveSavingsOperation({
+          amount: -amt, label: `Craquage : ${label}`,
+          type: 'craquage_cover',
+          userId: r.subValue || null,
+          year, month, day: now.getDate(), createdAt: now.toISOString(),
+        });
       }
     }
     closeModal();
@@ -710,6 +758,7 @@ function showCraquageModal(container, month, year) {
     updatePreview(container);
   });
 }
+
 
 // ── Helpers ──
 function _updateModeOptions(container) {

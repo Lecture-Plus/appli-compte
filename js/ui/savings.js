@@ -200,8 +200,8 @@ async function _renderPage(container) {
   `;
 
   // ── Événements ──
-  container.querySelector('#btn-confirm')?.addEventListener('click', () => showConfirmModal(() => _renderPage(container)));
-  container.querySelector('#btn-quick-confirm')?.addEventListener('click', () => showConfirmModal(() => _renderPage(container)));
+  container.querySelector('#btn-confirm')?.addEventListener('click', () => showConfirmModal(users, () => _renderPage(container)));
+  container.querySelector('#btn-quick-confirm')?.addEventListener('click', () => showConfirmModal(users, () => _renderPage(container)));
   container.querySelector('#btn-add-op')?.addEventListener('click', () => showOpModal('add', users, () => _renderPage(container)));
   container.querySelector('#btn-withdraw-op')?.addEventListener('click', () => showOpModal('withdraw', users, () => _renderPage(container)));
 

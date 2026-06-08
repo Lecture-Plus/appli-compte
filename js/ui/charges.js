@@ -515,7 +515,7 @@ async function renderBudgets(container) {
       </div>
     </div>
     ${_buildBudCatSection({ id:'courses', icon:'🛒', title:'Courses', budget:budgetCourses, spent:spent('courses'), ops:opsByCategory['courses']||[], users, hint:budgetCourses===0?'⚠️ Aucun budget courses dans la saisie mensuelle.':null })}
-    ${_buildBudCatSection({ id:'extras',  icon:'🎉', title:'Extras & loisirs', budget:budgetExtras,  spent:spent('extras'),  ops:opsByCategory['extras'] ||[], users, hint:budgetExtras ===0?'⚠️ Aucun budget extras dans la saisie mensuelle.' :null })}
+    ${_buildBudCatSection({ id:'extras',  icon:'�', title:'Loisirs', budget:budgetExtras,  spent:spent('extras'),  ops:opsByCategory['extras'] ||[], users, hint:budgetExtras ===0?'⚠️ Aucun budget loisirs dans la saisie mensuelle.' :null })}
     ${customBudgets.map(b => _buildBudCatSection({ id:b.id, icon:b.icon||'📌', title:b.name, budget:Number(b.amount)||0, spent:spent(b.id), ops:opsByCategory[b.id]||[], users })).join('')}
     <div class="card" style="margin-bottom:12px;">
       <div class="card-header">

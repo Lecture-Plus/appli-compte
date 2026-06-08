@@ -42,7 +42,7 @@ export async function render(container) {
     <div class="tabs" id="dash-tabs" style="margin-bottom:12px;">
       <button class="tab-btn ${_activeTab === 'resume'       ? 'active' : ''}" data-tab="resume">📊 Résumé</button>
       <button class="tab-btn ${_activeTab === 'previsionnel' ? 'active' : ''}" data-tab="previsionnel">📅 Prévisionnel</button>
-      <button class="tab-btn ${_activeTab === 'saisie'       ? 'active' : ''}" data-tab="saisie">✏️ Saisir</button>
+      <button class="tab-btn ${_activeTab === 'saisie'       ? 'active' : ''}" data-tab="saisie">✏️ Saisir les budgets</button>
     </div>
 
     <div id="dash-content"></div>
@@ -132,41 +132,42 @@ async function _renderResume(container, s, users) {
   const byUserSub = (kpiField) => users.length <= 1 ? '' :
     users.map(u => `${escHtml(u.name)}: ${eur(kpiField.byUser?.[u.id] ?? 0)}`).join('<br>');
 
+  const soldeColor = kpi.solde.total >= 0 ? 'var(--success)' : 'var(--danger)';
+  const txColor    = kpi.txEpargne.total >= 0.10 ? 'var(--success)' : kpi.txEpargne.total >= 0 ? 'var(--warning)' : 'var(--danger)';
+
   const el = container.querySelector('#dash-content');
   el.innerHTML = `
-    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
-      <span class="completeness-badge ${badgeClass}">${badgeIcon} ${badgeText}</span>
-      <button class="btn btn-sm btn-secondary" id="btn-go-saisie">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4z"/></svg>
-        Saisir
-      </button>
-    </div>
-
-    <div class="kpi-grid" style="margin-bottom:12px;">
-      <div class="kpi-card primary">
-        <div class="kpi-label">Revenus &amp; Aides</div>
-        <div class="kpi-value neutral">${eur(kpi.revenus.total + (kpi.aides?.total ?? 0))}</div>
-        <div class="kpi-sub">${kpi.aides?.total > 0 ? `dont aides: ${eur(kpi.aides.total)}<br>` : ''}${byUserSub(kpi.revenus)}</div>
+    <!-- ── HERO : Solde du mois ── -->
+    <div style="background:var(--bg-card);border:2px solid ${soldeColor};border-radius:var(--radius);padding:18px 16px 14px;margin-bottom:12px;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
+        <div>
+          <div style="font-size:0.68rem;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-3);font-weight:600;margin-bottom:4px;">Solde de ${nomMois(month)} ${year}</div>
+          <div style="font-size:2.4rem;font-weight:900;color:${soldeColor};line-height:1.05;">${eur(kpi.solde.total)}</div>
+          <div style="font-size:0.78rem;color:${txColor};margin-top:6px;font-weight:700;">Taux d'épargne : ${pct(kpi.txEpargne.total, 0)}</div>
+          ${users.length > 1 ? `<div style="font-size:0.7rem;color:var(--text-3);margin-top:3px;">${users.map(u => `${escHtml(u.name)}: ${eur(kpi.solde.byUser?.[u.id] ?? 0)}`).join(' · ')}</div>` : ''}
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;flex-shrink:0;">
+          <span class="completeness-badge ${badgeClass}">${badgeIcon} ${badgeText}</span>
+          <button class="btn btn-sm btn-primary" id="btn-go-saisie">✏️ Saisir</button>
+        </div>
       </div>
-      <div class="kpi-card warning">
-        <div class="kpi-label">Primes & Bonus</div>
-        <div class="kpi-value neutral">${eur(kpi.primes.total)}</div>
-        <div class="kpi-sub">${users.length > 1 ? users.map(u => `${escHtml(u.name)}: ${eur(kpi.primes.byUser?.[u.id] ?? 0)}`).join('<br>') : 'Personnelles \u2013 non partag\u00e9es'}</div>
-      </div>
-      <div class="kpi-card danger">
-        <div class="kpi-label">Dépenses</div>
-        <div class="kpi-value neutral">${eur(kpi.depenses.total)}</div>
-        <div class="kpi-sub">${byUserSub(kpi.depenses)}</div>
-      </div>
-      <div class="kpi-card ${kpi.solde.total >= 0 ? 'success' : 'danger'}">
-        <div class="kpi-label">Solde net</div>
-        <div class="kpi-value ${signClass(kpi.solde.total)}">${eur(kpi.solde.total)}</div>
-        <div class="kpi-sub">${byUserSub(kpi.solde)}</div>
-      </div>
-      <div class="kpi-card warning" style="grid-column:span 2;">
-        <div class="kpi-label">Taux d'épargne</div>
-        <div class="kpi-value ${txEparClass(kpi.txEpargne.total)}">${pct(kpi.txEpargne.total, 0)}</div>
-        <div class="kpi-sub">${users.length <= 1 ? '' : users.map(u => `${escHtml(u.name)}: ${pct(kpi.txEpargne.byUser?.[u.id] ?? 0, 0)}`).join('<br>')}</div>
+      <!-- 3 micro-stats -->
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:4px;margin-top:12px;padding-top:12px;border-top:1px solid var(--border);">
+        <div>
+          <div style="font-size:0.6rem;color:var(--text-3);font-weight:600;text-transform:uppercase;letter-spacing:0.04em;">Revenus</div>
+          <div style="font-size:0.95rem;font-weight:800;">${eur(kpi.revenus.total + (kpi.aides?.total ?? 0))}</div>
+          ${kpi.primes.total > 0 ? `<div style="font-size:0.65rem;color:var(--warning);">+${eur(kpi.primes.total)} primes</div>` : ''}
+        </div>
+        <div style="text-align:center;">
+          <div style="font-size:0.6rem;color:var(--text-3);font-weight:600;text-transform:uppercase;letter-spacing:0.04em;">Dépenses</div>
+          <div style="font-size:0.95rem;font-weight:800;color:var(--danger);">${eur(kpi.depenses.total)}</div>
+          ${byUserSub(kpi.depenses) ? `<div style="font-size:0.65rem;color:var(--text-3);">${users.map(u=>`${escHtml(u.name[0])}: ${eur(kpi.depenses.byUser?.[u.id]??0)}`).join(' · ')}</div>` : ''}
+        </div>
+        <div style="text-align:right;">
+          <div style="font-size:0.6rem;color:var(--text-3);font-weight:600;text-transform:uppercase;letter-spacing:0.04em;">Charges</div>
+          <div style="font-size:0.95rem;font-weight:800;">${eur(kpi.charges.total)}</div>
+          ${kpi.imprevus.total > 0 ? `<div style="font-size:0.65rem;color:var(--danger);">+${eur(kpi.imprevus.total)} imprévus</div>` : ''}
+        </div>
       </div>
     </div>
 
@@ -225,7 +226,7 @@ async function _renderResume(container, s, users) {
             ${buildRow('Primes',      kpi.primes,   users)}
             ${buildRow('Charges',     kpi.charges,  users)}
             ${buildRow('Courses',     kpi.courses,  users)}
-            ${buildRow('Extras',      kpi.extras,   users)}
+            ${buildRow('Loisirs',      kpi.extras,   users)}
             ${buildRow('Achats exc.', kpi.achats,   users)}
             ${buildRow('Imprévus',    kpi.imprevus, users)}
           </tbody>
@@ -286,7 +287,14 @@ async function _renderResume(container, s, users) {
     <div style="height:16px;"></div>
   `;
 
-  el.querySelector('#btn-go-saisie')?.addEventListener('click', () => navigateTo('saisie'));
+  el.querySelector('#btn-go-saisie')?.addEventListener('click', () => {
+    _activeTab = 'saisie';
+    const nav = container.querySelector('#dash-month-nav');
+    if (nav) nav.style.display = 'none';
+    container.querySelectorAll('#dash-tabs .tab-btn').forEach(b => b.classList.remove('active'));
+    container.querySelector('[data-tab="saisie"]')?.classList.add('active');
+    _renderContent(container, s, users);
+  });
   el.querySelector('#btn-go-savings')?.addEventListener('click', () => navigateTo('savings'));
 
   // ── Vue annuelle rapide (chargée en arrière-plan) ──
@@ -358,7 +366,7 @@ async function _renderPrevisionnel(container, s, users) {
       const totalImprSpent = (md?.imprévusList || []).reduce((s, i) => s + (Number(i.amount) || 0), 0);
       const cards = [
         budgCourses > 0 ? _buildBudgetCard('🛒 Courses',  budgCourses, spentCourses,  totalCourses > 0 ? 'Saisi' : 'Cible') : '',
-        budgExtras  > 0 ? _buildBudgetCard('🎉 Extras',   budgExtras,  spentExtras,   totalExtras  > 0 ? 'Saisi' : 'Cible') : '',
+        budgExtras  > 0 ? _buildBudgetCard('🎮 Loisirs',   budgExtras,  spentExtras,   totalExtras  > 0 ? 'Saisi' : 'Cible') : '',
         budgImpr    > 0 ? _buildBudgetCard('⚡ Imprévus', budgImpr,    totalImprSpent, 'Cible') : '',
       ].filter(Boolean);
       return cards.length > 0
@@ -370,7 +378,7 @@ async function _renderPrevisionnel(container, s, users) {
       <span class="section-label">Projection jour par jour</span>
       <div style="display:flex;align-items:center;gap:6px;">
         <span class="chip ${totalIncome > 0 ? 'primary' : 'danger'}">Base : ${eur(totalIncome)}</span>
-        ${totalDeductions > 0 ? `<span class="chip danger">−${eur(totalDeductions)} extras/imprévus</span>` : ''}
+        ${totalDeductions > 0 ? `<span class="chip danger">−${eur(totalDeductions)} loisirs/imprévus</span>` : ''}
         ${weeklyGroceries > 0 ? `<span class="chip warning">🛒 ${eur(weeklyGroceries)}/sem</span>` : ''}
       </div>
     </div>

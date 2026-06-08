@@ -561,7 +561,7 @@ function renderChartChargesCat(yearKPI, allCharges = []) {
 function renderChartRepartition(yearKPI) {
   const canvas = document.getElementById('chart-repartition');
   if (!canvas || !yearKPI) return;
-  const labels = ['Charges fixes', 'Courses', 'Extras', 'Achats exc.', 'Imprévus'];
+  const labels = ['Charges fixes', 'Courses', 'Loisirs', 'Achats exc.', 'Imprévus'];
   const data   = [yearKPI.charges.total, yearKPI.courses.total, yearKPI.extras.total, yearKPI.achats.total, yearKPI.imprevus.total];
   const total  = data.reduce((s, v) => s + v, 0);
   const chart  = new Chart(canvas, {
@@ -636,7 +636,7 @@ function renderTablePerso(container, yearKPI, users) {
     ['Primes',   kpi => kpi.primes],
     ['Charges',  kpi => kpi.charges],
     ['Courses',  kpi => kpi.courses],
-    ['Extras',   kpi => kpi.extras],
+    ['Loisirs',   kpi => kpi.extras],
     ['Imprévus', kpi => kpi.imprevus],
     ['Solde net',kpi => kpi.solde ?? kpi.epargne],
   ];
@@ -913,7 +913,7 @@ function renderScoreBudgetaire(container, result, s) {
   const budgE = cibles.extras || 0;
   const spentE = result.extras?.total ?? 0;
   const ePts = budgE > 0 ? (spentE <= budgE ? 20 : Math.max(0, 20 - Math.round((spentE - budgE) / budgE * 20))) : 10;
-  criteria.push({ label: 'Budget extras', pts: ePts, max: 20, detail: budgE > 0 ? `${eur(spentE)}/${eur(budgE)}` : 'Pas de cible' });
+  criteria.push({ label: 'Budget loisirs', pts: ePts, max: 20, detail: budgE > 0 ? `${eur(spentE)}/${eur(budgE)}` : 'Pas de cible' });
 
   const total = criteria.reduce((s, c) => s + c.pts, 0);
   const color = total >= 75 ? 'var(--success)' : total >= 50 ? 'var(--warning)' : 'var(--danger)';
