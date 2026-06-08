@@ -90,9 +90,10 @@ function buildHTML(s, users, archived, N) {
     <div class="card" style="margin-bottom:12px;">
       <div class="card-header"><span class="card-title">⚖️ Mode de répartition par défaut</span></div>
       <div class="tabs" id="repartition-tabs" style="margin-bottom:8px;">
-        <button class="tab-btn ${s.defaultRepartMode === 'separe'    ? 'active' : ''}" data-mode="separe">Séparé</button>
-        <button class="tab-btn ${s.defaultRepartMode === 'fixe'      ? 'active' : ''}" data-mode="fixe">Fixe %</button>
-        <button class="tab-btn ${s.defaultRepartMode === 'equitable' ? 'active' : ''}" data-mode="equitable">Équitable</button>
+        <button class="tab-btn ${s.defaultRepartMode === 'separe'       ? 'active' : ''}" data-mode="separe">Séparé</button>
+        <button class="tab-btn ${s.defaultRepartMode === 'fixe'         ? 'active' : ''}" data-mode="fixe">Fixe %</button>
+        <button class="tab-btn ${s.defaultRepartMode === 'equitable'    ? 'active' : ''}" data-mode="equitable">Équitable</button>
+        <button class="tab-btn ${s.defaultRepartMode === 'personnalise' ? 'active' : ''}" data-mode="personnalise">🎛 Perso</button>
       </div>
       <p style="font-size:0.78rem;color:var(--text-3);">Ce mode sera pré-sélectionné pour les nouveaux mois.</p>
     </div>` : ''}

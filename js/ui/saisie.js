@@ -674,6 +674,11 @@ function showImprévuModal(container, month, year) {
       if (impQuiSel.value === 'shared') updateImpSplitHint();
     });
     document.querySelectorAll('.imp-split-pct').forEach(i => i.addEventListener('input', updateImpSplitHint));
+    // Afficher si déjà sur Partagé au chargement
+    if (impQuiSel?.value === 'shared') {
+      impSplitSec.style.display = '';
+      updateImpSplitHint();
+    }
   }
 
   document.getElementById('imp-save')?.addEventListener('click', async () => {
@@ -798,7 +803,7 @@ export async function showCraquageModal(container, month, year, usersOverride = 
     <div class="form-group" style="margin-bottom:10px;">
       <label class="form-label">Qui a dépensé ?</label>
       <select class="form-select" id="crq-qui">
-        ${users.length > 1 ? `<option value="shared">À tous</option>` : ''}
+        ${users.length > 1 ? `<option value="shared">🤝 Partagé (tous)</option>` : ''}
         ${userOptions}
       </select>
     </div>

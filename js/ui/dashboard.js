@@ -707,7 +707,7 @@ function _showQuickAddBudgetOp(catId, catLabel, year, month, users, onSave) {
         <label class="form-label">Personne</label>
         <select class="form-input" id="qbop-user">
           <option value="">— Sans attribution —</option>
-          <option value="tous">👥 Tous (diviser en parts égales)</option>
+          <option value="shared">🤝 Partagé (tous)</option>
           ${users.map(u => `<option value="${u.id}">${escHtml(u.name)}</option>`).join('')}
         </select>
        </div>`
@@ -730,7 +730,7 @@ function _showQuickAddBudgetOp(catId, catLabel, year, month, users, onSave) {
     if (!label)            { showToast('Saisissez une description', 'error'); return; }
     if (!amount || amount <= 0) { showToast('Montant invalide', 'error'); return; }
     const userVal = document.getElementById('qbop-user')?.value || null;
-    if (userVal === 'tous' && users.length > 1) {
+    if (userVal === 'shared' && users.length > 1) {
       const share = amount / users.length;
       for (const u of users) {
         await saveBudgetOp({ category: catId, year, month, day, label, amount: share, userId: u.id });

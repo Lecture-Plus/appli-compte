@@ -254,7 +254,7 @@ function _renderLineRow(line, idx, container) {
   const _N = _users.length;
   const _defaultQui = _N === 1 ? String(_users[0]?.id ?? 'shared') : (line.qui === 'shared' || !line.qui ? 'shared' : String(line.qui));
   const quiOpts = (
-    (_N > 1 ? `<option value="shared" ${_defaultQui === 'shared' ? 'selected' : ''}>🤝 Partagé</option>` : '') +
+    (_N > 1 ? `<option value="shared" ${_defaultQui === 'shared' ? 'selected' : ''}>🤝 Partagé (tous)</option>` : '') +
     _users.map(u => `<option value="${u.id}" ${_defaultQui === String(u.id) ? 'selected' : ''}>${escHtml(u.name)}</option>`).join('')
   );
 
@@ -286,7 +286,7 @@ function _renderLineRow(line, idx, container) {
   const splitSection = document.createElement('div');
   splitSection.className = 'charge-line-split';
   const existingSplitPcts = line.splitPcts && typeof line.splitPcts === 'object' ? line.splitPcts : null;
-  const splitActive = !!existingSplitPcts && _N > 1 && _defaultQui === 'shared';
+  const splitActive = _N > 1 && _defaultQui === 'shared';
   splitSection.style.cssText = `display:${splitActive ? '' : 'none'};padding:6px 8px 8px;margin-top:2px;background:var(--bg-secondary);border-radius:var(--radius-sm);font-size:0.78rem;`;
   if (_N > 1) {
     const sumPctsSaved = existingSplitPcts ? Object.values(existingSplitPcts).reduce((s, v) => s + (Number(v) || 0), 0) : 0;
@@ -1109,7 +1109,7 @@ function showAchatModal(achat, onSave) {
       </select>
     </div>
     ${_users.length > 1 ? `
-    <div id="a-split-section" style="${(a.qui === 'shared' && a.splitPcts) ? '' : 'display:none;'}padding:8px;background:var(--bg-secondary);border-radius:var(--radius-sm);margin-bottom:10px;">
+    <div id="a-split-section" style="${a.qui === 'shared' ? '' : 'display:none;'}padding:8px;background:var(--bg-secondary);border-radius:var(--radius-sm);margin-bottom:10px;">
       <div style="font-size:0.7rem;color:var(--text-3);margin-bottom:6px;">Répartition personnalisée (%) — total doit faire 100%</div>
       ${_users.map(u => {
         const defPct = a.splitPcts ? (Number(a.splitPcts[String(u.id)]) || 0) : Math.round(100 / _users.length);
@@ -1159,8 +1159,11 @@ function showAchatModal(achat, onSave) {
   if (aSplitSec) {
     aQuiSel?.addEventListener('change', () => {
       aSplitSec.style.display = aQuiSel.value === 'shared' ? '' : 'none';
+      if (aQuiSel.value === 'shared') updateASplitHint();
     });
     document.querySelectorAll('.a-split-pct').forEach(i => i.addEventListener('input', updateASplitHint));
+    // Afficher si déjà sur Partagé au chargement
+    aSplitSec.style.display = (aQuiSel?.value === 'shared') ? '' : 'none';
     updateASplitHint();
   }
   document.getElementById('a-delete')?.addEventListener('click', async () => {
@@ -1202,7 +1205,7 @@ function showAchatModal(achat, onSave) {
 
 // ── Helper : libellé "qui" ──
 function getQuiLabel(qui) {
-  if (!qui || qui === 'shared') return '🤝 Partagé';
+  if (!qui || qui === 'shared') return '🤝 Partagé (tous)';
   const u = _users.find(u => String(u.id) === String(qui));
   return u ? u.name : String(qui);
 }

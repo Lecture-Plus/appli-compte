@@ -785,6 +785,7 @@ async function _renderSalariale(el, container) {
         <button class="btn btn-success" id="sal-btn-abon">🏦 Valider un abondement</button>
         <button class="btn btn-secondary" id="sal-btn-transfer">💸 Transférer vers économies</button>
       </div>
+      <button class="btn btn-outline btn-full" id="sal-btn-abon-recu" style="margin-top:8px;">✅ Abondement déjà perçu</button>
     </div>
 
     <!-- Historique versements -->
@@ -814,6 +815,7 @@ async function _renderSalariale(el, container) {
   // ── Événements ──
   el.querySelector('#sal-btn-add')?.addEventListener('click', () => _showSalAddModal(users, () => _renderPage(container)));
   el.querySelector('#sal-btn-abon')?.addEventListener('click', () => _showSalAbonModal(allOps, allAbons, users, () => _renderPage(container)));
+  el.querySelector('#sal-btn-abon-recu')?.addEventListener('click', () => _showSalAbonRecuModal(allAbons, () => _renderPage(container)));
   el.querySelector('#sal-btn-transfer')?.addEventListener('click', () => _showSalTransferModal(totalBrut, users, () => _renderPage(container)));
 
   el.querySelectorAll('.sal-op-delete').forEach(btn => {
@@ -962,6 +964,64 @@ function _showSalAbonModal(allOps, allAbons, users, onSave) {
     });
     closeModal();
     showToast(`Abondement de ${eur(amount)} validé ✅`, 'success');
+    onSave();
+  });
+}
+
+// ── Modal : abondement déjà perçu (saisie directe) ──
+function _showSalAbonRecuModal(allAbons, onSave) {
+  const { year } = today();
+  const yearAbonsConfirmed = allAbons.filter(a => a.year === year).reduce((s, a) => s + (Number(a.amount) || 0), 0);
+  const yearCapLeft = Math.max(0, ABON_MAX_YEAR - yearAbonsConfirmed);
+
+  openModal('✅ Abondement déjà perçu', `
+    <p style="font-size:0.82rem;color:var(--text-2);margin-bottom:12px;">
+      Enregistrez un abondement que vous avez déjà reçu. Il s'ajoutera directement au montant abondé total.
+    </p>
+    <div class="form-grid-2" style="margin-bottom:10px;">
+      <div class="form-group">
+        <label class="form-label">Période</label>
+        <select class="form-select" id="abon-recu-period">
+          <option value="mai">28 mai</option>
+          <option value="novembre">28 novembre</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Année</label>
+        <input type="number" class="form-input" id="abon-recu-year" min="2020" max="2099" value="${year}">
+      </div>
+    </div>
+    <div class="form-group" style="margin-bottom:10px;">
+      <label class="form-label">Montant perçu (€) *</label>
+      <div class="input-wrap">
+        <input type="number" class="form-input input-euro" id="abon-recu-amount" min="0" step="0.01" placeholder="0.00" autofocus>
+        <span class="input-suffix">€</span>
+      </div>
+      ${yearCapLeft > 0 ? `<p class="form-hint">Capacité restante cette année : ${eur(yearCapLeft)}</p>` : `<p class="form-hint" style="color:var(--warning);">⚠️ Le plafond annuel de ${eur(ABON_MAX_YEAR)} est déjà atteint pour ${year}.</p>`}
+    </div>
+    <div class="form-group" style="margin-bottom:10px;">
+      <label class="form-label">Note (optionnel)</label>
+      <input type="text" class="form-input" id="abon-recu-note" placeholder="Ex: Abondement PEE mai 2026…">
+    </div>
+  `, `
+    <button class="btn btn-outline" id="abon-recu-cancel">Annuler</button>
+    <button class="btn btn-success" id="abon-recu-save">✅ Enregistrer</button>
+  `);
+
+  document.getElementById('abon-recu-cancel')?.addEventListener('click', closeModal);
+  document.getElementById('abon-recu-save')?.addEventListener('click', async () => {
+    const amount = Number(document.getElementById('abon-recu-amount')?.value);
+    if (!amount || amount <= 0) { showToast('Montant invalide', 'error'); return; }
+    const period = document.getElementById('abon-recu-period')?.value || 'mai';
+    const abonYear = Number(document.getElementById('abon-recu-year')?.value) || year;
+    const note = document.getElementById('abon-recu-note')?.value.trim() || '';
+    await saveSalaryAbondement({
+      period, year: abonYear, amount, contributions: 0,
+      note: note || `Abondement perçu — ${period} ${abonYear}`,
+      confirmedAt: new Date().toISOString(),
+    });
+    closeModal();
+    showToast(`Abondement de ${eur(amount)} enregistré ✅`, 'success');
     onSave();
   });
 }
