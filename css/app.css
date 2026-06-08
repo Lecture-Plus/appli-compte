@@ -232,7 +232,6 @@ svg { display: block; }
   position: relative; overflow: hidden;
 }
 .card:hover { box-shadow: var(--shadow); }
-.card + .card { margin-top: 10px; }
 .card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
 .card-title { font-size: 0.7rem; font-weight: 700; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.08em; }
 

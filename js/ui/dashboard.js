@@ -368,10 +368,11 @@ async function _renderResume(container, s, users) {
 async function _renderPrevisionnel(container, s, users) {
   const { year, month } = State;
 
-  const [md, charges, achats] = await Promise.all([
+  const [md, charges, achats, budgetOps] = await Promise.all([
     getMonthlyData(year, month),
     getChargesForMonth(month),
     getAchatsForMonth(year, month),
+    getBudgetOpsForMonth(year, month),
   ]);
 
   // ── Revenus totaux ──
@@ -383,23 +384,51 @@ async function _renderPrevisionnel(container, s, users) {
     }
   }
 
-  // ── Budgets courses & extras & imprévus ──
+  // ── Budgets saisis ──
   const totalCourses  = users.reduce((s, u) => s + (Number(md?.users?.[String(u.id)]?.courses) || 0), 0);
   const totalExtras   = users.reduce((s, u) => s + (Number(md?.users?.[String(u.id)]?.extras) || 0), 0);
-  const totalImprévus = (md?.imprévusList || []).reduce((s, i) => s + (Number(i.amount) || 0), 0);
-  const spentCourses  = achats.filter(a => a.craquage_source === 'courses').reduce((s, a) => s + (Number(a.amount) || 0), 0);
-  const spentExtras   = achats.filter(a => a.craquage_source === 'extras').reduce((s, a) => s + (Number(a.amount) || 0), 0);
 
-  // ── Calcul prévisionnel ──
-  const now         = new Date();
-  const isCurrentM  = now.getFullYear() === year && now.getMonth() + 1 === month;
-  const daysInMonth = new Date(year, month, 0).getDate();
-  const simDay      = isCurrentM ? now.getDate() : 0;
-  // Courses : déduites chaque semaine (tous les 7 jours) plutôt qu'en une fois
-  const weeklyGroceries = totalCourses > 0 ? Math.round(totalCourses * 7 / daysInMonth) : 0;
-  const totalDeductions = totalImprévus; // Loisirs non déduits d'office : ils ont leur propre budget
+  // ── Dépenses réelles par jour (achats + budgetOps + imprévus) ──
+  const spentByDay = {};
+  const _addSpent = (day, label, amount) => {
+    const d = Number(day) || 0;
+    if (!spentByDay[d]) spentByDay[d] = [];
+    spentByDay[d].push({ label, amount: Number(amount) || 0 });
+  };
+  for (const a of achats) {
+    if (a.year === year && a.month === month)
+      _addSpent(a.day, '💥 ' + (a.label || a.category), Number(a.amount) || 0);
+  }
+  for (const op of budgetOps) {
+    _addSpent(op.day, op.label || op.category, Number(op.amount) || 0);
+  }
+  for (const imp of (md?.imprévusList || [])) {
+    _addSpent(imp.day || 0, '⚡ ' + (imp.label || 'Imprévu'), Number(imp.amount) || 0);
+  }
 
-  const { days, todayDay } = calcPrevisionnel({ totalIncome, charges, year, month, simDay, deductions: totalDeductions, weeklyGroceries });
+  // ── Totaux pour les cards suivi ──
+  const spentCourses    = budgetOps.filter(o => o.category === 'courses').reduce((s, o) => s + (Number(o.amount)||0), 0);
+  const spentExtras     = budgetOps.filter(o => o.category === 'extras').reduce((s, o) => s + (Number(o.amount)||0), 0);
+  const totalImprSpent  = (md?.imprévusList || []).reduce((s, i) => s + (Number(i.amount) || 0), 0);
+  const totalAchatSpent = achats.filter(a => a.year === year && a.month === month)
+                                .reduce((s, a) => s + (Number(a.amount)||0), 0);
+
+  // ── Calcul prévisionnel (charges récurrentes seulement) ──
+  const now        = new Date();
+  const isCurrentM = now.getFullYear() === year && now.getMonth() + 1 === month;
+  const simDay     = isCurrentM ? now.getDate() : 0;
+
+  const { days: baseDays } = calcPrevisionnel({ totalIncome, charges, year, month, simDay, deductions: 0, weeklyGroceries: 0 });
+
+  // Re-calculer le solde en intégrant toutes les dépenses réelles par jour
+  let _prevBalance = Number(totalIncome) || 0;
+  const adjustedDays = baseDays.map(d => {
+    const chargesAmt = d.chargeItems.reduce((s, c) => s + c.amount, 0);
+    const extraItems = spentByDay[d.day] || [];
+    const extraAmt   = extraItems.reduce((s, i) => s + i.amount, 0);
+    _prevBalance -= chargesAmt + extraAmt;
+    return { ...d, extraItems, balance: Math.round(_prevBalance * 100) / 100 };
+  });
 
   const timedCount = charges.filter(c => c.active && Number(c.dayOfMonth) > 0).length;
   const noTimedMsg = timedCount === 0
@@ -408,36 +437,30 @@ async function _renderPrevisionnel(container, s, users) {
        </div>`
     : '';
 
-  const displayDays = days; // Afficher tous les jours du mois
-
   const el = container.querySelector('#dash-content');
   el.innerHTML = `
     ${noTimedMsg}
 
-    <!-- Suivi des budgets courses & extras -->
+    <!-- Suivi des budgets -->
     ${(() => {
       const cibles = s.budgetCibles || {};
       const budgCourses = totalCourses > 0 ? totalCourses : (Number(cibles.courses) || 0);
       const budgExtras  = totalExtras  > 0 ? totalExtras  : (Number(cibles.extras)  || 0);
       const budgImpr    = Number(cibles.imprevus) || 0;
-      const totalImprSpent = (md?.imprévusList || []).reduce((s, i) => s + (Number(i.amount) || 0), 0);
       const cards = [
-        budgCourses > 0 ? _buildBudgetCard('🛒 Courses',  budgCourses, spentCourses,  totalCourses > 0 ? 'Saisi' : 'Cible') : '',
-        budgExtras  > 0 ? _buildBudgetCard('🎮 Loisirs',   budgExtras,  spentExtras,   totalExtras  > 0 ? 'Saisi' : 'Cible') : '',
-        budgImpr    > 0 ? _buildBudgetCard('⚡ Imprévus', budgImpr,    totalImprSpent, 'Cible') : '',
+        budgCourses > 0 ? _buildBudgetCard('🛒 Courses',      budgCourses, spentCourses,   totalCourses > 0 ? 'Saisi' : 'Cible') : '',
+        budgExtras  > 0 ? _buildBudgetCard('🎮 Loisirs',       budgExtras,  spentExtras,    totalExtras  > 0 ? 'Saisi' : 'Cible') : '',
+        budgImpr    > 0 ? _buildBudgetCard('⚡ Imprévus',     budgImpr,    totalImprSpent, 'Cible') : '',
+        totalAchatSpent > 0 ? _buildBudgetCard('💥 Exceptionnels', 0, totalAchatSpent, 'Réalisé') : '',
       ].filter(Boolean);
       return cards.length > 0
-        ? `<div style="display:grid;grid-template-columns:${cards.map(() => '1fr').join(' ')};gap:8px;margin-bottom:12px;align-items:stretch;">${cards.join('')}</div>`
+        ? `<div style="display:grid;grid-template-columns:repeat(${Math.min(cards.length, 2)},1fr);gap:8px;margin-bottom:12px;align-items:stretch;">${cards.join('')}</div>`
         : '';
     })()}
 
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
       <span class="section-label">Projection jour par jour</span>
-      <div style="display:flex;align-items:center;gap:6px;">
-        <span class="chip ${totalIncome > 0 ? 'primary' : 'danger'}">Base : ${eur(totalIncome)}</span>
-        ${totalDeductions > 0 ? `<span class="chip danger">−${eur(totalDeductions)} imprévus</span>` : ''}
-        ${weeklyGroceries > 0 ? `<span class="chip warning">🛒 ${eur(weeklyGroceries)}/sem</span>` : ''}
-      </div>
+      <span class="chip ${totalIncome > 0 ? 'primary' : 'danger'}">Base : ${eur(totalIncome)}</span>
     </div>
 
     ${totalIncome === 0
@@ -448,8 +471,8 @@ async function _renderPrevisionnel(container, s, users) {
          </div>`
       : `<div class="card" style="padding:0;overflow:hidden;">
            <table class="data-table">
-             <thead><tr><th>Jour</th><th>Charges</th><th style="text-align:right">Solde estimé</th></tr></thead>
-             <tbody>${displayDays.map(d => _buildPrevDay(d)).join('')}</tbody>
+             <thead><tr><th>Jour</th><th>Charges &amp; dépenses</th><th style="text-align:right">Solde estimé</th></tr></thead>
+             <tbody>${adjustedDays.map(d => _buildPrevDay(d)).join('')}</tbody>
            </table>
          </div>`
     }
@@ -568,6 +591,7 @@ function _showQuickAddBudgetOp(catId, catLabel, year, month, users, onSave) {
         <label class="form-label">Personne</label>
         <select class="form-input" id="qbop-user">
           <option value="">— Sans attribution —</option>
+          <option value="tous">👥 Tous (diviser en parts égales)</option>
           ${users.map(u => `<option value="${u.id}">${escHtml(u.name)}</option>`).join('')}
         </select>
        </div>`
@@ -587,10 +611,17 @@ function _showQuickAddBudgetOp(catId, catLabel, year, month, users, onSave) {
     const label  = document.getElementById('qbop-label')?.value.trim();
     const amount = parseFloat(document.getElementById('qbop-amount')?.value);
     const day    = parseInt(document.getElementById('qbop-day')?.value, 10) || null;
-    const userId = document.getElementById('qbop-user')?.value || null;
     if (!label)            { showToast('Saisissez une description', 'error'); return; }
     if (!amount || amount <= 0) { showToast('Montant invalide', 'error'); return; }
-    await saveBudgetOp({ category: catId, year, month, day, label, amount, userId });
+    const userVal = document.getElementById('qbop-user')?.value || null;
+    if (userVal === 'tous' && users.length > 1) {
+      const share = amount / users.length;
+      for (const u of users) {
+        await saveBudgetOp({ category: catId, year, month, day, label, amount: share, userId: u.id });
+      }
+    } else {
+      await saveBudgetOp({ category: catId, year, month, day, label, amount, userId: userVal });
+    }
     closeModal();
     showToast('Ajouté ✅', 'success');
     if (onSave) await onSave();
@@ -603,13 +634,13 @@ function _buildPrevDay(d) {
   const balColor   = d.balance >= 0 ? 'var(--success)' : 'var(--danger)';
   const todayBadge = d.isToday ? `<span class="chip primary" style="font-size:0.6rem;padding:1px 5px;margin-left:4px;">auj.</span>` : '';
 
-  const chargesHtml = d.chargeItems.length > 0
-    ? d.chargeItems.map(c => `<span class="chip danger" style="font-size:0.65rem;padding:1px 5px;">${escHtml(c.label)} −${eur(c.amount)}</span>`).join(' ')
-    : `<span style="color:var(--text-3);font-size:0.72rem;">—</span>`;
+  const chargesHtml = d.chargeItems.map(c => `<span class="chip danger" style="font-size:0.65rem;padding:1px 5px;">${escHtml(c.label)} −${eur(c.amount)}</span>`).join(' ');
+  const extraHtml   = (d.extraItems || []).map(e => `<span class="chip warning" style="font-size:0.65rem;padding:1px 5px;">${escHtml(e.label)} −${eur(e.amount)}</span>`).join(' ');
+  const allHtml     = [chargesHtml, extraHtml].filter(Boolean).join(' ') || `<span style="color:var(--text-3);font-size:0.72rem;">—</span>`;
 
   return `<tr style="${todayStyle}${pastStyle}">
     <td style="white-space:nowrap;"><strong>${d.day}</strong>${todayBadge}</td>
-    <td style="font-size:0.78rem;">${chargesHtml}</td>
+    <td style="font-size:0.78rem;">${allHtml}</td>
     <td style="text-align:right;font-weight:700;color:${balColor};">${eur(d.balance)}</td>
   </tr>`;
 }

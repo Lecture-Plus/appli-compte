@@ -532,6 +532,14 @@ async function renderBudgets(container) {
   const opsByCategory = {};
   for (const op of budgetOps) { (opsByCategory[op.category] ??= []).push(op); }
   const spent = cat => (opsByCategory[cat] || []).reduce((s, op) => s + (Number(op.amount) || 0), 0);
+
+  // Per-user extras for foyer/individuel toggle
+  const extrasPerUser = users.length > 1 ? users.map(u => ({
+    id: u.id, name: u.name, color: u.color,
+    budget: Number(md?.users?.[String(u.id)]?.extras) || 0,
+    spent:  (opsByCategory['extras'] || []).filter(op => String(op.userId) === String(u.id)).reduce((s, op) => s + (Number(op.amount)||0), 0),
+  })) : null;
+
   const totalAchats = achats.reduce((s, a) => s + (Number(a.amount) || 0), 0);
 
   tc.innerHTML = `
@@ -543,8 +551,8 @@ async function renderBudgets(container) {
         <button class="btn btn-outline btn-sm" id="bgt-next-month">›</button>
       </div>
     </div>
-    ${_buildBudCatSection({ id:'courses', icon:'🛒', title:'Courses', budget:budgetCourses, spent:spent('courses'), ops:opsByCategory['courses']||[], users, hint:budgetCourses===0?'⚠️ Aucun budget courses dans la saisie mensuelle.':null })}
-    ${_buildBudCatSection({ id:'extras',  icon:'�', title:'Loisirs', budget:budgetExtras,  spent:spent('extras'),  ops:opsByCategory['extras'] ||[], users, hint:budgetExtras ===0?'⚠️ Aucun budget loisirs dans la saisie mensuelle.' :null })}
+    ${_buildBudCatSection({ id:'courses', icon:'🛒', title:'Courses', budget:budgetCourses, spent:spent('courses'), ops:opsByCategory['courses']||[], users, hint:budgetCourses===0?'⚠️ Aucun budget courses dans la saisie mensuelle.':null, isPinned:pinnedBudgets.includes('courses') })}
+    ${_buildBudCatSection({ id:'extras',  icon:'�', title:'Loisirs', budget:budgetExtras,  spent:spent('extras'),  ops:opsByCategory['extras'] ||[], users, hint:budgetExtras ===0?'⚠️ Aucun budget loisirs dans la saisie mensuelle.' :null, isPinned:pinnedBudgets.includes('extras'), perUserBudgets:extrasPerUser })}
     ${customBudgets.map(b => _buildBudCatSection({ id:b.id, icon:b.icon||'📌', title:b.name, budget:Number(b.amount)||0, spent:spent(b.id), ops:opsByCategory[b.id]||[], users })).join('')}
     <div class="card" style="margin-bottom:12px;">
       <div class="card-header">
@@ -585,6 +593,17 @@ async function renderBudgets(container) {
       renderBudgets(container);
     });
   });
+  tc.querySelectorAll('[data-bgt-peruser]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const catId = btn.dataset.bgtPeruser;
+      const sec = tc.querySelector(`#bgt-peruser-${catId}`);
+      if (!sec) return;
+      const open = sec.style.display !== 'none';
+      sec.style.display = open ? 'none' : '';
+      btn.textContent = open ? '🏠 Foyer' : '👤 Par personne';
+    });
+  });
+
   tc.querySelectorAll('[data-bgt-pin]').forEach(btn => {
     btn.addEventListener('click', async () => {
       const catId = btn.dataset.bgtPin;
@@ -613,18 +632,43 @@ async function renderBudgets(container) {
   });
 }
 
-function _buildBudCatSection({ id, icon, title, budget, spent, ops, users, hint, isPinned = false }) {
+function _buildBudCatSection({ id, icon, title, budget, spent, ops, users, hint, isPinned = false, perUserBudgets = null }) {
   const remaining = budget - spent;
   const pct = budget > 0 ? Math.min(100, Math.round((spent / budget) * 100)) : (spent > 0 ? 100 : 0);
   const color = pct >= 100 ? 'danger' : pct >= 80 ? 'warning' : 'success';
   const sorted = [...ops].sort((a,b) => (b.day||0)-(a.day||0));
   const editBtn = (id !== 'courses' && id !== 'extras') ? `<button class="btn-icon" data-bgt-edit="${id}" title="Modifier" style="width:28px;height:28px;color:var(--text-3);">✏️</button>` : '';
-  const pinBtn  = `<button class="btn-icon" data-bgt-pin="${id}" title="${isPinned ? 'Désépingler de l\'accueil' : 'Épingler en accueil'}" style="width:28px;height:28px;color:${isPinned ? 'var(--primary)' : 'var(--text-3)'};">${
-isPinned ? '📌' : '📍'}</button>`;
+  const pinBtn  = `<button class="btn-icon" data-bgt-pin="${id}" title="${isPinned ? 'Désépingler de l\'accueil' : 'Épingler en accueil'}" style="width:28px;height:28px;color:${isPinned ? 'var(--primary)' : 'var(--text-3)'};background:${isPinned ? 'var(--primary-bg)' : 'transparent'};border-radius:6px;border:${isPinned ? '1.5px solid var(--primary)' : '1.5px solid var(--border)'};">${isPinned ? '📌' : '📍'}</button>`;
+
+  // Per-user view toggle (only for extras when N>1)
+  const showPerUserToggle = perUserBudgets && perUserBudgets.length > 1;
+  const perUserToggleBtn  = showPerUserToggle
+    ? `<button class="btn btn-sm btn-outline" data-bgt-peruser="${id}" style="font-size:0.72rem;padding:3px 8px;">🏠 Foyer</button>`
+    : '';
+  const perUserSection    = showPerUserToggle
+    ? `<div id="bgt-peruser-${id}" style="display:none;margin-top:8px;border-top:1px solid var(--border);padding-top:8px;">
+        ${perUserBudgets.map(u => {
+          const uPct   = u.budget > 0 ? Math.min(100, Math.round((u.spent / u.budget) * 100)) : 0;
+          const uColor = uPct >= 100 ? 'danger' : uPct >= 80 ? 'warning' : 'success';
+          return `<div style="margin-bottom:6px;">
+            <div style="display:flex;justify-content:space-between;font-size:0.75rem;margin-bottom:3px;">
+              <span style="display:flex;align-items:center;gap:5px;font-weight:600;">
+                <span style="width:7px;height:7px;border-radius:50%;background:${escHtml(u.color||'#6C63FF')};display:inline-block;"></span>
+                ${escHtml(u.name)}
+              </span>
+              <span style="color:var(--text-3);">${eur(u.spent)} / ${u.budget > 0 ? eur(u.budget) : '—'}</span>
+            </div>
+            <div class="progress-track" style="height:6px;"><div class="progress-bar ${uColor}" style="width:${uPct}%;"></div></div>
+          </div>`;
+        }).join('')}
+      </div>`
+    : '';
+
   return `<div class="card" style="margin-bottom:12px;">
     <div class="card-header">
       <span class="card-title">${icon} ${escHtml(title)}</span>
       <div style="display:flex;align-items:center;gap:4px;">
+        ${perUserToggleBtn}
         ${editBtn}
         ${pinBtn}
         <button class="btn btn-sm btn-primary" data-bgt-add-op="${id}" data-cat-name="${escHtml(title)}" data-cat-icon="${escHtml(icon)}">+ Ajouter</button>
@@ -639,6 +683,7 @@ isPinned ? '📌' : '📍'}</button>`;
       </div>
       ${budget > 0 ? `<div style="font-size:0.72rem;color:${remaining>=0?'var(--success)':'var(--danger)'};text-align:right;margin-top:3px;">${remaining>=0?`✅ Reste ${eur(remaining)}`:`⚠️ Dépassement ${eur(Math.abs(remaining))}`}</div>` : ''}
     </div>
+    ${perUserSection}
     ${sorted.length===0 ? `<div style="font-size:0.82rem;color:var(--text-3);text-align:center;padding:8px 0;">Aucune opération — cliquez sur <strong>+ Ajouter</strong></div>`
       : `<div class="item-list">${sorted.map(op => {
           const u = op.userId ? users.find(u => String(u.id)===String(op.userId)) : null;
@@ -659,7 +704,9 @@ isPinned ? '📌' : '📍'}</button>`;
 function _showAddBudgetOpModal({ catId, catLabel }, users, year, month, onSave) {
   const daysInMonth = new Date(year, month, 0).getDate();
   const todayDay    = new Date().getDate();
-  const userSelect  = users.length > 1 ? `<div class="form-group" style="margin-bottom:10px;"><label class="form-label">Personne</label><select class="form-input" id="bop-user"><option value="">— Sans attribution —</option>${users.map(u=>`<option value="${u.id}">${escHtml(u.name)}</option>`).join('')}</select></div>` : '';
+  const userSelect  = users.length > 1
+    ? `<div class="form-group" style="margin-bottom:10px;"><label class="form-label">Personne</label><select class="form-input" id="bop-user"><option value="">— Sans attribution —</option><option value="tous">👥 Tous (diviser en parts égales)</option>${users.map(u=>`<option value="${u.id}">${escHtml(u.name)}</option>`).join('')}</select></div>`
+    : '';
   openModal(`+ Opération ${catLabel}`, `
     <div class="form-group" style="margin-bottom:10px;"><label class="form-label">Enseigne / Description *</label><input type="text" class="form-input" id="bop-label" placeholder="Ex: Carrefour, restaurant…" autocomplete="off"></div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
@@ -674,10 +721,17 @@ function _showAddBudgetOpModal({ catId, catLabel }, users, year, month, onSave) 
     const label  = document.getElementById('bop-label')?.value.trim();
     const amount = parseFloat(document.getElementById('bop-amount')?.value);
     const day    = parseInt(document.getElementById('bop-day')?.value, 10) || null;
-    const userId = document.getElementById('bop-user')?.value || null;
+    const userVal = document.getElementById('bop-user')?.value || null;
     if (!label) { showToast('Saisissez une description', 'error'); return; }
     if (!amount || amount <= 0) { showToast('Montant invalide', 'error'); return; }
-    await saveBudgetOp({ category: catId, year, month, day, label, amount, userId });
+    if (userVal === 'tous' && users.length > 1) {
+      const share = amount / users.length;
+      for (const u of users) {
+        await saveBudgetOp({ category: catId, year, month, day, label, amount: share, userId: u.id });
+      }
+    } else {
+      await saveBudgetOp({ category: catId, year, month, day, label, amount, userId: userVal });
+    }
     closeModal(); showToast('Opération ajoutée ✅', 'success'); onSave();
   });
 }

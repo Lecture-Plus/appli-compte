@@ -16,7 +16,7 @@ export async function render(container, params = {}) {
     <div class="tabs" id="argent-tabs" style="margin-bottom:0;overflow-x:auto;-webkit-overflow-scrolling:touch;flex-wrap:nowrap;">
       <button class="tab-btn ${_arTab === 'saisir'      ? 'active' : ''}" data-artab="saisir"      style="white-space:nowrap;">✏️ Saisir</button>
       <button class="tab-btn ${_arTab === 'recurrentes' ? 'active' : ''}" data-artab="recurrentes" style="white-space:nowrap;">💳 Charges</button>
-      <button class="tab-btn ${_arTab === 'achats'      ? 'active' : ''}" data-artab="achats"      style="white-space:nowrap;">💥 Achats</button>
+      <button class="tab-btn ${_arTab === 'achats'      ? 'active' : ''}" data-artab="achats"      style="white-space:nowrap;">💥 Exceptionnel</button>
       <button class="tab-btn ${_arTab === 'budgets'     ? 'active' : ''}" data-artab="budgets"     style="white-space:nowrap;">📊 Budgets</button>
       <button class="tab-btn ${_arTab === 'epargne'     ? 'active' : ''}" data-artab="epargne"     style="white-space:nowrap;">💰 Épargne</button>
     </div>
