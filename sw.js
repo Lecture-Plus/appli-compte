@@ -1,7 +1,7 @@
 // Service Worker – Compta+
 // Stratégie : Network First pour l'app shell (auto-update), Cache pour CDN
 
-const CACHE_NAME = 'compta-plus-v35';
+const CACHE_NAME = 'compta-plus-v36';
 
 const APP_SHELL = [
   './index.html',
@@ -90,7 +90,8 @@ self.addEventListener('fetch', event => {
       // Revalider en arrière-plan (ne bloque pas la réponse)
       const revalidate = fetch(event.request).then(response => {
         if (response && response.status === 200) {
-          caches.open(CACHE_NAME).then(c => c.put(event.request, response.clone()));
+          const toCache = response.clone(); // Clone AVANT toute consommation async
+          caches.open(CACHE_NAME).then(c => c.put(event.request, toCache));
         }
         return response;
       }).catch(() => null);

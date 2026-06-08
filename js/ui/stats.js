@@ -8,7 +8,7 @@ import { getMonthsByYear, getAllCharges,
          getAllSettings, getAvailableYears,
          getActiveUsers, getAllUsers,
          getAllSavingsOperations, getAllRepartitions,
-         getAllAchats }                                     from '../db.js';
+         getAllAchats, getAllBudgetOps }                     from '../db.js';
 import { calcMonth, calcYear, calcSavingsBalance }         from '../calculs.js';
 import { resolveLineAmount, resolveChargeAmount }           from '../db.js';
 import { eur, pct, nomMoisCourt, escHtml, showToast,
@@ -183,12 +183,15 @@ export async function render(container) {
 
 async function loadAndRender(container, year, month, users, s) {
   // Charger toutes les données en parallèle
-  const [monthsData, allChargesRaw, allAchats, allRepartitions] = await Promise.all([
+  const [monthsData, allChargesRaw, allAchats, allRepartitions, allBudgetOpsYear] = await Promise.all([
     getMonthsByYear(year),
     getAllCharges(),
     getAllAchats(),
     getAllRepartitions(),
+    getAllBudgetOps(),
   ]);
+  const bopsMap = {};
+  for (const op of allBudgetOpsYear) { if (op.year === year) { (bopsMap[op.month] ??= []).push(op); } }
 
   const monthMap  = Object.fromEntries(monthsData.map(m => [m.month, m]));
   const achatMap  = {};
