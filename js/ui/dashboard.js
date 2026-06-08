@@ -15,6 +15,7 @@ import { eur, pct, nomMois, addMonth, signClass,
          txEparClass, completenessStatus,
          progressColor, escHtml, showToast,
          openModal, closeModal }                          from '../utils.js';
+import * as saisieModule                                  from './saisie.js';
 
 let _activeTab = 'resume';
 
@@ -23,8 +24,8 @@ export async function render(container) {
   const { year, month } = State;
 
   container.innerHTML = `
-    <!-- Navigation mois -->
-    <div class="month-nav" style="margin-bottom:12px;">
+    <!-- Navigation mois (cachée quand onglet Saisir actif) -->
+    <div class="month-nav" id="dash-month-nav" style="margin-bottom:12px;${_activeTab === 'saisie' ? 'display:none;' : ''}">
       <button class="month-btn" id="prev-month" aria-label="Mois précédent">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M15 18l-6-6 6-6"/></svg>
       </button>
@@ -41,6 +42,7 @@ export async function render(container) {
     <div class="tabs" id="dash-tabs" style="margin-bottom:12px;">
       <button class="tab-btn ${_activeTab === 'resume'       ? 'active' : ''}" data-tab="resume">📊 Résumé</button>
       <button class="tab-btn ${_activeTab === 'previsionnel' ? 'active' : ''}" data-tab="previsionnel">📅 Prévisionnel</button>
+      <button class="tab-btn ${_activeTab === 'saisie'       ? 'active' : ''}" data-tab="saisie">✏️ Saisir</button>
     </div>
 
     <div id="dash-content"></div>
@@ -62,6 +64,8 @@ export async function render(container) {
       container.querySelectorAll('#dash-tabs .tab-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       _activeTab = btn.dataset.tab;
+      const nav = container.querySelector('#dash-month-nav');
+      if (nav) nav.style.display = _activeTab === 'saisie' ? 'none' : '';
       _renderContent(container, s, users);
     });
   });
@@ -70,8 +74,9 @@ export async function render(container) {
 }
 
 async function _renderContent(container, s, users) {
-  if (_activeTab === 'resume') await _renderResume(container, s, users);
-  else                         await _renderPrevisionnel(container, s, users);
+  if (_activeTab === 'resume')       await _renderResume(container, s, users);
+  else if (_activeTab === 'saisie')  await saisieModule.render(container.querySelector('#dash-content'));
+  else                               await _renderPrevisionnel(container, s, users);
 }
 
 // ══════════════════════════════════════════════════

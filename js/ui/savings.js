@@ -146,6 +146,57 @@ async function _renderPage(container) {
     })()}
 
     <div style="height:24px;"></div>
+
+    <!-- Section : Objectif d'épargne -->
+    <div class="card" style="margin-bottom:12px;">
+      <div class="card-header"><span class="card-title">🎯 Objectif d'épargne</span></div>
+      <div class="form-group" style="margin-bottom:10px;">
+        <label class="form-label">Libellé de l'objectif</label>
+        <input type="text" class="form-input" id="sv-goal-label" value="${escHtml(s.savingsGoalLabel || '')}" placeholder="Ex: Vacances, Apport…">
+      </div>
+      <div class="form-grid-2" style="margin-bottom:10px;">
+        <div class="form-group">
+          <label class="form-label">Montant cible (€)</label>
+          <div class="input-wrap">
+            <input type="number" class="form-input input-euro" id="sv-goal" min="0" step="100" value="${s.savingsGoal || ''}">
+            <span class="input-suffix">€</span>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Année</label>
+          <input type="number" class="form-input" id="sv-goal-year" min="2020" max="2099" value="${s.savingsGoalYear || today().year}">
+        </div>
+      </div>
+      ${users.length >= 2 ? `
+      <div style="margin-bottom:10px;">
+        <label class="form-label" style="margin-bottom:6px;display:block;">Objectifs par utilisateur (€)</label>
+        <div class="form-grid-2">
+          ${users.map(u => `
+            <div class="form-group">
+              <label class="form-label" style="display:flex;align-items:center;gap:5px;">
+                <span style="width:8px;height:8px;border-radius:50%;background:${escHtml(u.color||'#6C63FF')};display:inline-block;"></span>
+                ${escHtml(u.name)}
+              </label>
+              <div class="input-wrap">
+                <input type="number" class="form-input input-euro sv-goal-user"
+                  data-uid="${u.id}" min="0" step="100"
+                  value="${(s.savingsGoalsByUser || {})[String(u.id)] || ''}">
+                <span class="input-suffix">€</span>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </div>` : ''}
+      <div class="form-group" style="margin-bottom:10px;">
+        <label class="form-label">Seuil d'alerte mensuel (€)</label>
+        <div class="input-wrap">
+          <input type="number" class="form-input input-euro" id="sv-threshold" min="0" step="10" value="${s.epargneThreshold || 100}">
+          <span class="input-suffix">€</span>
+        </div>
+        <p class="form-hint">Sous ce seuil, l'indicateur mensuel passe en rouge.</p>
+      </div>
+      <button class="btn btn-primary btn-full" id="sv-save-goal">Enregistrer</button>
+    </div>
   `;
 
   // ── Événements ──
@@ -153,6 +204,24 @@ async function _renderPage(container) {
   container.querySelector('#btn-quick-confirm')?.addEventListener('click', () => showConfirmModal(() => _renderPage(container)));
   container.querySelector('#btn-add-op')?.addEventListener('click', () => showOpModal('add', users, () => _renderPage(container)));
   container.querySelector('#btn-withdraw-op')?.addEventListener('click', () => showOpModal('withdraw', users, () => _renderPage(container)));
+
+  // ── Objectif épargne ──
+  container.querySelector('#sv-save-goal')?.addEventListener('click', async () => {
+    const goalsByUserNew = {};
+    container.querySelectorAll('.sv-goal-user').forEach(inp => {
+      const v = Number(inp.value);
+      if (v > 0) goalsByUserNew[inp.dataset.uid] = v;
+    });
+    await Promise.all([
+      setSetting('savingsGoal',        Number(container.querySelector('#sv-goal')?.value) || 0),
+      setSetting('savingsGoalLabel',   container.querySelector('#sv-goal-label')?.value.trim() || 'Mon objectif'),
+      setSetting('savingsGoalYear',    Number(container.querySelector('#sv-goal-year')?.value) || today().year),
+      setSetting('epargneThreshold',   Number(container.querySelector('#sv-threshold')?.value) || 100),
+      setSetting('savingsGoalsByUser', goalsByUserNew),
+    ]);
+    showToast('Objectif enregistré ✅', 'success');
+    _renderPage(container);
+  });
 
   container.querySelectorAll('[data-savings-tab]').forEach(btn => {
     btn.addEventListener('click', () => {

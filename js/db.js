@@ -183,6 +183,13 @@ export async function softDeleteUser(id) {
   await _put('users', { ...u, active: false, deletedAt: new Date().toISOString() });
 }
 
+/** Restaurer un utilisateur archivé */
+export async function restoreUser(id) {
+  const u = await getUser(id);
+  if (!u) return;
+  await _put('users', { ...u, active: true, deletedAt: null });
+}
+
 /* ══════════════════════════════════════════════════
    SETTINGS
 ══════════════════════════════════════════════════ */

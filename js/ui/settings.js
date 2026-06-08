@@ -11,20 +11,22 @@ import { getAllSettings, getSetting, setSetting,
          getAvailableYears, getMonthsByYear, getChargesForMonth,
          getAchatsForMonth, getRepartition, saveArchive,
          getAllArchives, getAllUsers, getActiveUsers,
-         saveUser, softDeleteUser, USER_COLORS }                  from '../db.js';
+         saveUser, softDeleteUser, restoreUser, USER_COLORS }                  from '../db.js';
 import { calcMonth, calcYear }                                    from '../calculs.js';
 import { eur, escHtml, showToast, downloadJSON, pickJSONFile,
          openModal, closeModal, today }                           from '../utils.js';
 
 export async function render(container) {
-  const [s, users] = await Promise.all([getAllSettings(), getActiveUsers()]);
+  const [s, allUsers] = await Promise.all([getAllSettings(), getAllUsers()]);
+  const users    = allUsers.filter(u => u.active !== false);
+  const archived = allUsers.filter(u => u.active === false);
   const N = users.length;
 
-  container.innerHTML = buildHTML(s, users, N);
-  bindEvents(container, s, users, N);
+  container.innerHTML = buildHTML(s, users, archived, N);
+  bindEvents(container, s, users, archived, N);
 }
 
-function buildHTML(s, users, N) {
+function buildHTML(s, users, archived, N) {
   const driveOk = s[DRIVE_URL_KEY] && isValidDriveUrl(s[DRIVE_URL_KEY]);
 
   return `
@@ -47,6 +49,26 @@ function buildHTML(s, users, N) {
       </p>
     </div>
 
+    <!-- Utilisateurs archivés -->
+    ${archived.length > 0 ? `
+    <div class="card" style="margin-bottom:12px;">
+      <div class="card-header">
+        <span class="card-title" style="color:var(--text-3);">🗄️ Utilisateurs archivés</span>
+        <span class="chip" style="font-size:0.68rem;">${archived.length}</span>
+      </div>
+      <div class="item-list">
+        ${archived.map(u => `
+          <div class="list-item">
+            <div class="list-item-icon" style="background:${escHtml(u.color||'#999')};opacity:0.5;">${escHtml((u.name||'?')[0].toUpperCase())}</div>
+            <div class="list-item-body">
+              <div class="list-item-title" style="color:var(--text-3);">${escHtml(u.name)}</div>
+              <div class="list-item-sub">Archivé le ${u.deletedAt ? new Date(u.deletedAt).toLocaleDateString('fr-FR') : '—'}</div>
+            </div>
+            <button class="btn btn-sm btn-outline btn-restore" data-uid="${u.id}" style="color:var(--success);border-color:var(--success);">Restaurer</button>
+          </div>`).join('')}
+      </div>
+    </div>` : ''}
+
     <!-- Section : Mon profil (cet appareil) -->
     <div class="card" style="margin-bottom:12px;">
       <div class="card-header"><span class="card-title">🪪 Mon profil (cet appareil)</span></div>
@@ -61,89 +83,6 @@ function buildHTML(s, users, N) {
         </select>
         <p class="form-hint">Ce réglage est propre à cet appareil et n'est pas synchronisé.</p>
       </div>
-    </div>
-
-    <!-- Section : Objectif d'épargne -->
-    <div class="card" style="margin-bottom:12px;">
-      <div class="card-header"><span class="card-title">🎯 Objectif d'épargne</span></div>
-      <div class="form-group" style="margin-bottom:10px;">
-        <label class="form-label">Libellé de l'objectif</label>
-        <input type="text" class="form-input" id="s-goal-label" value="${escHtml(s.savingsGoalLabel)}" placeholder="Ex: Vacances, Apport…">
-      </div>
-      <div class="form-grid-2" style="margin-bottom:10px;">
-        <div class="form-group">
-          <label class="form-label">Montant cible (€)</label>
-          <div class="input-wrap">
-            <input type="number" class="form-input input-euro" id="s-goal" min="0" step="100" value="${s.savingsGoal || ''}">
-            <span class="input-suffix">€</span>
-          </div>
-        </div>
-        <div class="form-group">
-          <label class="form-label">Année</label>
-          <input type="number" class="form-input" id="s-goal-year" min="2020" max="2099" value="${s.savingsGoalYear || today().year}">
-        </div>
-      </div>
-      ${N >= 2 ? `
-      <div style="margin-bottom:10px;">
-        <label class="form-label" style="margin-bottom:6px;display:block;">Objectifs par utilisateur (€)</label>
-        <div class="form-grid-2">
-          ${users.map(u => `
-            <div class="form-group">
-              <label class="form-label" style="display:flex;align-items:center;gap:5px;">
-                <span style="width:8px;height:8px;border-radius:50%;background:${escHtml(u.color||'#6C63FF')};display:inline-block;"></span>
-                ${escHtml(u.name)}
-              </label>
-              <div class="input-wrap">
-                <input type="number" class="form-input input-euro s-goal-user"
-                  data-uid="${u.id}" min="0" step="100"
-                  value="${(s.savingsGoalsByUser || {})[String(u.id)] || ''}">
-                <span class="input-suffix">€</span>
-              </div>
-            </div>
-          `).join('')}
-        </div>
-      </div>` : ''}
-      <div class="form-group" style="margin-bottom:10px;">
-        <label class="form-label">Seuil d'alerte mensuel (€)</label>
-        <div class="input-wrap">
-          <input type="number" class="form-input input-euro" id="s-threshold" min="0" step="10" value="${s.epargneThreshold || 100}">
-          <span class="input-suffix">€</span>
-        </div>
-        <p class="form-hint">Sous ce seuil, l'indicateur mensuel passe en rouge.</p>
-      </div>
-      <button class="btn btn-primary btn-full" id="s-save-goal">Enregistrer</button>
-    </div>
-
-    <!-- Section : Budget cibles par catégorie -->
-    <div class="card" style="margin-bottom:12px;">
-      <div class="card-header"><span class="card-title">📊 Budget cibles mensuels</span></div>
-      <p style="font-size:0.78rem;color:var(--text-3);margin-bottom:10px;">
-        Définissez des plafonds mensuels pour chaque catégorie. Affichés dans le prévisionnel.
-      </p>
-      <div class="form-grid-2" style="margin-bottom:12px;">
-        <div class="form-group">
-          <label class="form-label">🛒 Courses</label>
-          <div class="input-wrap">
-            <input type="number" class="form-input input-euro" id="s-budget-courses" min="0" step="10" value="${(s.budgetCibles || {}).courses || ''}">
-            <span class="input-suffix">€</span>
-          </div>
-        </div>
-        <div class="form-group">
-          <label class="form-label">🎉 Extras</label>
-          <div class="input-wrap">
-            <input type="number" class="form-input input-euro" id="s-budget-extras" min="0" step="10" value="${(s.budgetCibles || {}).extras || ''}">
-            <span class="input-suffix">€</span>
-          </div>
-        </div>
-        <div class="form-group">
-          <label class="form-label">⚡ Imprévus</label>
-          <div class="input-wrap">
-            <input type="number" class="form-input input-euro" id="s-budget-imprevus" min="0" step="10" value="${(s.budgetCibles || {}).imprevus || ''}">
-            <span class="input-suffix">€</span>
-          </div>
-        </div>
-      </div>
-      <button class="btn btn-primary btn-full" id="s-save-budgets">Enregistrer</button>
     </div>
 
     <!-- Section : Répartition par défaut (masqué si solo) -->
@@ -181,29 +120,49 @@ function buildHTML(s, users, N) {
           ? `<span class="chip danger" style="font-size:0.68rem;">Bloqué – modifiez le navigateur</span>`
           : `<span class="chip" style="font-size:0.68rem;">Non demandé</span>`}
       </div>
-      <div class="toggle-wrap">
+      <div class="toggle-wrap" style="margin-bottom:10px;">
         <div class="toggle-info">
           <label for="s-notif">Notification de rappel mensuelle</label>
-          <p>Dans les 7 premiers jours du mois si la saisie n'est pas faite</p>
+          <p>Si la saisie n'est pas faite avant le jour indiqué ci-dessous</p>
         </div>
         <label class="toggle">
           <input type="checkbox" id="s-notif" ${s.notifEnabled ? 'checked' : ''} ${'Notification' in window && Notification.permission === 'denied' ? 'disabled' : ''}>
           <span class="toggle-slider"></span>
         </label>
       </div>
+      <div class="form-group" style="margin-bottom:14px;display:flex;align-items:center;gap:10px;">
+        <label class="form-label" style="margin:0;white-space:nowrap;">Rappeler si pas saisi avant le</label>
+        <input type="number" class="form-input" id="s-notif-day" min="1" max="28" step="1" value="${s.notifDay || 7}" style="width:70px;">
+        <span style="font-size:0.82rem;color:var(--text-3);">du mois</span>
+      </div>
+
+      <!-- Rappels personnalisés -->
+      <div style="border-top:1px solid var(--border);padding-top:12px;margin-top:4px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+          <span style="font-weight:700;font-size:0.85rem;">Rappels personnalisés</span>
+          <button class="btn btn-sm btn-primary" id="btn-add-reminder">+ Ajouter</button>
+        </div>
+        ${(s.customReminders || []).length === 0
+          ? `<p style="font-size:0.78rem;color:var(--text-3);">Aucun rappel personnalisé. Cliquez sur <strong>+ Ajouter</strong>.</p>`
+          : `<div id="custom-reminders-list">${(s.customReminders || []).map(r => `
+              <div class="list-item" style="margin-bottom:6px;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius-sm);">
+                <div class="list-item-body">
+                  <div class="list-item-title" style="font-size:0.85rem;">${escHtml(r.label)}</div>
+                  <div class="list-item-sub">Chaque mois le ${r.dayOfMonth}</div>
+                </div>
+                <div style="display:flex;align-items:center;gap:8px;">
+                  <label class="toggle" style="transform:scale(0.85);">
+                    <input type="checkbox" class="reminder-toggle" data-rid="${r.id}" ${r.enabled ? 'checked' : ''}>
+                    <span class="toggle-slider"></span>
+                  </label>
+                  <button class="btn-icon reminder-del" data-rid="${r.id}" style="width:26px;height:26px;color:var(--text-3);">✕</button>
+                </div>
+              </div>`).join('')}</div>`}
+      </div>
     </div>
 
-    <!-- Section : Archivage -->
-    <div class="card" style="margin-bottom:12px;">
-      <div class="card-header">
-        <span class="card-title">🗂️ Archives</span>
-        <button class="btn btn-sm btn-secondary" id="btn-see-archives">Voir</button>
-      </div>
-      <p style="font-size:0.82rem;color:var(--text-2);margin-bottom:12px;">
-        L'archivage clôture une année et la sauvegarde en lecture seule.
-      </p>
-      <button class="btn btn-outline btn-full" id="btn-archive">Archiver une année…</button>
-    </div>
+    <!-- Section : Archivage (masqué) -->
+    <!-- <div class="card" ..>Archives</div> -->
 
     <!-- Section : Sync Google Drive -->
     <div class="card" style="margin-bottom:12px;">
@@ -289,7 +248,7 @@ function buildUserRow(u) {
   `;
 }
 
-function bindEvents(container, s, users, N) {
+function bindEvents(container, s, users, archived, N) {
   // ── Ajouter un utilisateur ──
   container.querySelector('#btn-add-user')?.addEventListener('click', () => {
     showUserModal(null, () => render(container));
@@ -324,40 +283,26 @@ function bindEvents(container, s, users, N) {
     });
   });
 
+  // ── Restaurer un utilisateur archivé ──
+  container.querySelectorAll('.btn-restore').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const uid  = Number(btn.dataset.uid);
+      const user = archived.find(u => u.id === uid);
+      if (!user) return;
+      if (!confirm(`Restaurer ${user.name} ?`)) return;
+      await restoreUser(uid);
+      await reloadUsers();
+      showToast(`${user.name} restauré ✅`, 'success');
+      render(container);
+    });
+  });
+
   // ── Mon profil (appareil) ──
   container.querySelector('#s-device-user')?.addEventListener('change', (e) => {
     const uid = e.target.value;
     localStorage.setItem('currentDeviceUserId', uid);
     State.currentUserId = uid || null;
     showToast('Profil de cet appareil mis à jour ✅', 'success');
-  });
-
-  // ── Objectif épargne ──
-  container.querySelector('#s-save-goal')?.addEventListener('click', async () => {
-    // Objectifs par user
-    const goalsByUser = {};
-    container.querySelectorAll('.s-goal-user').forEach(inp => {
-      const v = Number(inp.value);
-      if (v > 0) goalsByUser[inp.dataset.uid] = v;
-    });
-    await Promise.all([
-      setSetting('savingsGoal',           Number(container.querySelector('#s-goal')?.value) || 0),
-      setSetting('savingsGoalLabel',      container.querySelector('#s-goal-label')?.value.trim() || 'Mon objectif'),
-      setSetting('savingsGoalYear',       Number(container.querySelector('#s-goal-year')?.value) || today().year),
-      setSetting('epargneThreshold',      Number(container.querySelector('#s-threshold')?.value) || 100),
-      setSetting('savingsGoalsByUser',    goalsByUser),
-    ]);
-    showToast('Paramètres enregistrés ✅', 'success');
-  });
-
-  // ── Budget cibles par catégorie ──
-  container.querySelector('#s-save-budgets')?.addEventListener('click', async () => {
-    await setSetting('budgetCibles', {
-      courses:  Number(container.querySelector('#s-budget-courses')?.value) || 0,
-      extras:   Number(container.querySelector('#s-budget-extras')?.value)  || 0,
-      imprevus: Number(container.querySelector('#s-budget-imprevus')?.value) || 0,
-    });
-    showToast('Budgets cibles enregistrés ✅', 'success');
   });
 
   // ── Mode répartition ──
@@ -401,6 +346,48 @@ function bindEvents(container, s, users, N) {
     // Reset lastNotifSent pour permettre une notification immmédiate
     if (enabled) await setSetting('lastNotifSent', null);
     showToast(enabled ? 'Rappels activés ✅' : 'Rappels désactivés', 'success');
+  });
+
+  // ── Jour de rappel mensuel ──
+  container.querySelector('#s-notif-day')?.addEventListener('change', async (e) => {
+    const d = Math.min(28, Math.max(1, parseInt(e.target.value, 10) || 7));
+    e.target.value = d;
+    await setSetting('notifDay', d);
+    showToast(`Rappel fixé au ${d} du mois`, 'success');
+  });
+
+  // ── Rappels personnalisés ──
+  container.querySelector('#btn-add-reminder')?.addEventListener('click', () => {
+    openModal('+ Rappel personnalisé', `
+      <div class="form-group" style="margin-bottom:10px;"><label class="form-label">Libellé *</label><input type="text" class="form-input" id="rem-label" placeholder="Ex: Loyer dû, Assurance…" autocomplete="off"></div>
+      <div class="form-group"><label class="form-label">Jour du mois (1-28)</label><input type="number" class="form-input" id="rem-day" min="1" max="28" value="1"></div>
+    `, `<button class="btn btn-primary btn-full" id="rem-save">Créer</button>`);
+    document.getElementById('rem-label')?.focus();
+    document.getElementById('rem-save')?.addEventListener('click', async () => {
+      const label = document.getElementById('rem-label')?.value.trim();
+      const day   = Math.min(28, Math.max(1, parseInt(document.getElementById('rem-day')?.value, 10) || 1));
+      if (!label) { showToast('Saisissez un libellé', 'error'); return; }
+      const existing = s.customReminders || [];
+      await setSetting('customReminders', [...existing, { id: 'rem_' + Date.now(), label, dayOfMonth: day, enabled: true }]);
+      closeModal(); showToast('Rappel créé ✅', 'success'); render(container);
+    });
+  });
+
+  container.querySelectorAll('.reminder-toggle').forEach(inp => {
+    inp.addEventListener('change', async () => {
+      const rid = inp.dataset.rid;
+      const updated = (s.customReminders || []).map(r => r.id === rid ? { ...r, enabled: inp.checked } : r);
+      await setSetting('customReminders', updated);
+    });
+  });
+
+  container.querySelectorAll('.reminder-del').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const rid = btn.dataset.rid;
+      const updated = (s.customReminders || []).filter(r => r.id !== rid);
+      await setSetting('customReminders', updated);
+      showToast('Rappel supprimé', 'success'); render(container);
+    });
   });
 
   // ── Export JSON ──
