@@ -412,12 +412,3 @@ function chartOptions({ stacked = false } = {}) {
   };
 }
 
-import { getMonthsByYear, getChargesForMonth,
-         getAchatsForMonth, getRepartition,
-         getAllSettings, getAvailableYears }               from '../db.js';
-import { calcMonth, calcYear }                             from '../calculs.js';
-import { eur, pct, nomMoisCourt, escHtml, showToast,
-         downloadBlob, buildCSV, MOIS_COURT }              from '../utils.js';
-
-let _charts = []; // Référence aux charts Chart.js pour les détruire avant re-rendu
-

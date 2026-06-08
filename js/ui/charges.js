@@ -463,9 +463,3 @@ function getQuiLabel(qui) {
   return u ? u.name : String(qui);
 }
 
-import { eur, escHtml, nomMois, addMonth, showToast,
-         openModal, closeModal, getCategoryInfo,
-         CATEGORIES, QUI_OPTIONS, MOIS }                   from '../utils.js';
-
-let _tab = 'recurrentes'; // 'recurrentes' | 'achats'
-

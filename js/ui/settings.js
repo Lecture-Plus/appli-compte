@@ -569,19 +569,3 @@ async function _showImportConfirmModal(data) {
       setTimeout(() => location.reload(), 1200);
     } catch(e) { showToast('Erreur : ' + e.message, 'error'); }
   });
-}
-
-import { pushToDrive, pullFromDrive,
-         isValidDriveUrl, DRIVE_URL_KEY,
-         DRIVE_SYNC_KEY }                                  from '../drive.js';
-import { getAllSettings, getSetting, setSetting,
-         exportAllData, importAllData,
-         resetAllData, getAvailableYears,
-         getMonthsByYear, getChargesForMonth,
-         getAchatsForMonth, getRepartition,
-         saveArchive, getAllArchives }                     from '../db.js';
-import { calcMonth, calcYear }                             from '../calculs.js';
-import { eur, escHtml, showToast, downloadJSON,
-         pickJSONFile, openModal, closeModal,
-         today }                                           from '../utils.js';
-

@@ -360,8 +360,3 @@ function mergeByUser(a, b, users) {
   return out;
 }
 
-import { calcMonth, calcPrevisionnel }                    from '../calculs.js';
-import { eur, pct, nomMois, addMonth, signClass,
-         txEparClass, completenessStatus,
-         progressColor, escHtml, showToast }              from '../utils.js';
-

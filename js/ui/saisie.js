@@ -503,17 +503,3 @@ function inputField(id, user, value, suffix) {
     </div>`;
 }
 
-
-import { State }                                      from '../app.js';
-import { getMonthlyData, saveMonthlyData,
-         getChargesForMonth, getAchatsForMonth,
-         saveAchat, getRepartition, saveRepartition,
-         getAllSettings, saveSavingsOperation }         from '../db.js';
-import { calcMonth, whatIf }                           from '../calculs.js';
-import { eur, pct, nomMois, addMonth, escHtml,
-         signClass, debounce, showToast, uid,
-         openModal, closeModal, MOIS }                 from '../utils.js';
-
-let _md     = null; // données du mois en cours d'édition
-let _repCfg = null;
-
