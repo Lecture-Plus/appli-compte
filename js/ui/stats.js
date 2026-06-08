@@ -164,9 +164,9 @@ async function loadAndRender(container, year, users, s) {
 
   renderKPIAnnuel(container, yearKPI);
   destroyCharts();
-  renderChartRevDep(displayResults);
-  renderChartEpargne(displayResults);
-  await renderChartSavingsBalance(year, curYear, curMonth);
+  renderChartRevDep(displayResults, users);
+  renderChartEpargne(displayResults, users);
+  await renderChartSavingsBalance(year, curYear, curMonth, users);
   renderChartRepartition(yearKPI);
   renderTableMensuel(container, displayResults);
   if (users.length >= 2) renderTablePerso(container, yearKPI, users);
@@ -202,16 +202,38 @@ function renderKPIAnnuel(container, kpi) {
   `;
 }
 
-function renderChartRevDep(results) {
+function renderChartRevDep(displayResults, users = []) {
   const canvas = document.getElementById('chart-rev-dep');
   if (!canvas) return;
+
+  const userDatasets = users.length > 1 ? users.flatMap(u => [
+    {
+      type: 'line',
+      label: `Revenus ${escHtml(u.name)}`,
+      data: displayResults.map(r => r ? (r.revenus.byUser?.[u.id] ?? 0) + (r.primes.byUser?.[u.id] ?? 0) : null),
+      borderColor: u.color || '#6C63FF',
+      backgroundColor: 'transparent',
+      borderWidth: 2, pointRadius: 3, tension: 0.3, spanGaps: false,
+    },
+    {
+      type: 'line',
+      label: `Dépenses ${escHtml(u.name)}`,
+      data: displayResults.map(r => r ? (r.depenses.byUser?.[u.id] ?? 0) : null),
+      borderColor: u.color || '#FF4757',
+      borderDash: [5, 4],
+      backgroundColor: 'transparent',
+      borderWidth: 2, pointRadius: 3, tension: 0.3, spanGaps: false,
+    },
+  ]) : [];
+
   const chart = new Chart(canvas, {
     type: 'bar',
     data: {
       labels: MOIS_COURT,
       datasets: [
-        { label: 'Revenus + Primes', data: results.map(r => r ? r.revenus.total + r.primes.total : 0), backgroundColor: 'rgba(108,99,255,0.7)', borderRadius: 4 },
-        { label: 'Dépenses',         data: results.map(r => r ? r.depenses.total : 0),                 backgroundColor: 'rgba(255,71,87,0.7)',  borderRadius: 4 },
+        { label: 'Revenus + Primes', data: displayResults.map(r => r ? r.revenus.total + r.primes.total : 0), backgroundColor: 'rgba(108,99,255,0.7)', borderRadius: 4 },
+        { label: 'Dépenses',         data: displayResults.map(r => r ? r.depenses.total : 0),                 backgroundColor: 'rgba(255,71,87,0.7)',  borderRadius: 4 },
+        ...userDatasets,
       ],
     },
     options: chartOptions({}),
@@ -219,27 +241,40 @@ function renderChartRevDep(results) {
   _charts.push(chart);
 }
 
-function renderChartEpargne(results) {
+function renderChartEpargne(displayResults, users = []) {
   const canvas = document.getElementById('chart-epargne');
   if (!canvas) return;
-  const soldes = results.map(r => r ? r.solde.total : null);
+  const soldes = displayResults.map(r => r ? r.solde.total : null);
+
+  const userDatasets = users.length > 1 ? users.map(u => ({
+    type: 'line',
+    label: escHtml(u.name),
+    data: displayResults.map(r => r ? (r.solde.byUser?.[u.id] ?? null) : null),
+    borderColor: u.color || '#6C63FF',
+    backgroundColor: 'transparent',
+    borderWidth: 2, pointRadius: 3, tension: 0.3, spanGaps: false,
+  })) : [];
+
   const chart  = new Chart(canvas, {
     type: 'bar',
     data: {
       labels: MOIS_COURT,
-      datasets: [{
-        label: 'Épargne mensuelle',
-        data: soldes,
-        backgroundColor: soldes.map(v => v === null ? 'transparent' : v >= 0 ? 'rgba(0,200,150,0.7)' : 'rgba(255,71,87,0.7)'),
-        borderRadius: 4,
-      }],
+      datasets: [
+        {
+          label: 'Total',
+          data: soldes,
+          backgroundColor: soldes.map(v => v === null ? 'transparent' : v >= 0 ? 'rgba(0,200,150,0.7)' : 'rgba(255,71,87,0.7)'),
+          borderRadius: 4,
+        },
+        ...userDatasets,
+      ],
     },
     options: chartOptions({}),
   });
   _charts.push(chart);
 }
 
-async function renderChartSavingsBalance(year, curYear, curMonth) {
+async function renderChartSavingsBalance(year, curYear, curMonth, users = []) {
   const canvas = document.getElementById('chart-savings-balance');
   if (!canvas) return;
 
@@ -247,10 +282,16 @@ async function renderChartSavingsBalance(year, curYear, curMonth) {
   const pointsByMonth = [];
   let runningBalance = 0;
 
+  // Per-user running balances (ops with userId, no confirmed_balance support per user)
+  const userRunning = {};
+  users.forEach(u => { userRunning[String(u.id)] = 0; });
+  const userPoints = {};
+  users.forEach(u => { userPoints[String(u.id)] = []; });
+
   for (let m = 1; m <= 12; m++) {
-    // Ne pas afficher les mois futurs
     if (year > curYear || (year === curYear && m > curMonth)) {
       pointsByMonth.push(null);
+      users.forEach(u => userPoints[String(u.id)].push(null));
       continue;
     }
     const monthOps = ops.filter(o => o.year === year && o.month === m);
@@ -262,28 +303,53 @@ async function renderChartSavingsBalance(year, curYear, curMonth) {
       runningBalance += delta;
     }
     pointsByMonth.push(runningBalance || null);
+
+    users.forEach(u => {
+      const uDelta = monthOps
+        .filter(o => String(o.userId) === String(u.id))
+        .reduce((s, o) => s + (o.amount || 0), 0);
+      userRunning[String(u.id)] += uDelta;
+      userPoints[String(u.id)].push(userRunning[String(u.id)] || null);
+    });
   }
+
+  const userDatasets = users.length > 1 ? users.map(u => ({
+    label: escHtml(u.name),
+    data: userPoints[String(u.id)],
+    borderColor: u.color || '#6C63FF',
+    backgroundColor: 'transparent',
+    borderWidth: 2,
+    fill: false,
+    tension: 0.3,
+    pointRadius: 4,
+    pointBackgroundColor: u.color || '#6C63FF',
+    spanGaps: false,
+  })) : [];
 
   const chart = new Chart(canvas, {
     type: 'line',
     data: {
       labels: MOIS_COURT,
-      datasets: [{
-        label: 'Solde épargne',
-        data: pointsByMonth,
-        borderColor: '#00C896',
-        backgroundColor: 'rgba(0,200,150,0.15)',
-        fill: true,
-        tension: 0.3,
-        pointRadius: 5,
-        pointBackgroundColor: pointsByMonth.map(v => v !== null ? '#00C896' : 'transparent'),
-      }],
+      datasets: [
+        {
+          label: 'Total',
+          data: pointsByMonth,
+          borderColor: '#00C896',
+          backgroundColor: 'rgba(0,200,150,0.15)',
+          fill: true,
+          tension: 0.3,
+          pointRadius: 5,
+          pointBackgroundColor: pointsByMonth.map(v => v !== null ? '#00C896' : 'transparent'),
+          spanGaps: false,
+        },
+        ...userDatasets,
+      ],
     },
     options: {
       ...chartOptions({}),
       plugins: {
         ...chartOptions({}).plugins,
-        tooltip: { callbacks: { label: ctx => `Solde: ${eur(ctx.raw)}` } },
+        tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${eur(ctx.raw)}` } },
       },
     },
   });
