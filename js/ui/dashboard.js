@@ -447,11 +447,20 @@ async function _renderPrevisionnel(container, s, users) {
       const budgCourses = totalCourses > 0 ? totalCourses : (Number(cibles.courses) || 0);
       const budgExtras  = totalExtras  > 0 ? totalExtras  : (Number(cibles.extras)  || 0);
       const budgImpr    = Number(cibles.imprevus) || 0;
+      const customBudgets = s.customBudgets || [];
+      const spentCustom = id => budgetOps.filter(o => o.category === id).reduce((sum, o) => sum + (Number(o.amount)||0), 0);
+      const customCards = customBudgets.length > 0
+        ? customBudgets.map(b => _buildBudgetCard(`${b.icon||'📌'} ${b.name}`, Number(b.amount)||0, spentCustom(b.id), 'Budget'))
+        : [`<div class="card" id="btn-prev-add-budget" style="padding:12px;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;cursor:pointer;min-height:80px;">
+             <div style="width:30px;height:30px;border-radius:50%;background:var(--primary-bg);display:flex;align-items:center;justify-content:center;font-size:1.2rem;color:var(--primary);font-weight:700;">+</div>
+             <div style="font-size:0.72rem;color:var(--text-3);text-align:center;">Ajouter un budget</div>
+           </div>`];
       const cards = [
         budgCourses > 0 ? _buildBudgetCard('🛒 Courses',      budgCourses, spentCourses,   totalCourses > 0 ? 'Saisi' : 'Cible') : '',
         budgExtras  > 0 ? _buildBudgetCard('🎮 Loisirs',       budgExtras,  spentExtras,    totalExtras  > 0 ? 'Saisi' : 'Cible') : '',
         budgImpr    > 0 ? _buildBudgetCard('⚡ Imprévus',     budgImpr,    totalImprSpent, 'Cible') : '',
         totalAchatSpent > 0 ? _buildBudgetCard('💥 Exceptionnels', 0, totalAchatSpent, 'Réalisé') : '',
+        ...customCards,
       ].filter(Boolean);
       return cards.length > 0
         ? `<div style="display:grid;grid-template-columns:repeat(${Math.min(cards.length, 2)},1fr);gap:8px;margin-bottom:12px;align-items:stretch;">${cards.join('')}</div>`
@@ -478,6 +487,8 @@ async function _renderPrevisionnel(container, s, users) {
     }
     <div style="height:16px;"></div>
   `;
+
+  el.querySelector('#btn-prev-add-budget')?.addEventListener('click', () => navigateTo('argent', { tab: 'budgets' }));
 
 }
 
