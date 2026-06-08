@@ -19,7 +19,7 @@ export const State = {
 };
 
 // ── Mapping pages → modules ──
-const _V = '?v=14';
+const _V = '?v=20';
 const PAGES = {
   dashboard: () => import('./ui/dashboard.js' + _V),
   argent:    () => import('./ui/argent.js'    + _V),
@@ -291,6 +291,7 @@ async function init() {
   startAutoSave();
 
   // ── Drive warning banner ──
+  State.settings = await getAllSettings(); // refresh after initDriveSync
   showDriveWarningBanner(State.settings);
 
   // ── First-run: "Qui utilise cet appareil ?" ──
@@ -364,39 +365,30 @@ async function showFirstRunModal() {
 }
 
 // ── Drive warning banner ──
-let _driveBannerDismissed = false; // reset on every app boot
+let _driveBannerDismissed = false;
 
 function showDriveWarningBanner(s) {
-  if (s[DRIVE_URL_KEY] && isValidDriveUrl(s[DRIVE_URL_KEY])) return; // déjà configuré
-  if (_driveBannerDismissed) return; // fermé pendant cette session
+  if (s[DRIVE_URL_KEY] && isValidDriveUrl(s[DRIVE_URL_KEY])) return;
+  if (_driveBannerDismissed) return;
 
-  // Remove any stale banner before adding a fresh one
   document.getElementById('drive-banner')?.remove();
 
   const banner = document.createElement('div');
-  banner.id    = 'drive-banner';
+  banner.id = 'drive-banner';
+  banner.style.cssText = 'background:var(--warning-bg);border-bottom:2px solid var(--warning);padding:10px 16px;display:flex;align-items:center;gap:10px;position:fixed;top:0;left:0;right:0;z-index:10000;box-sizing:border-box;';
   banner.innerHTML = `
-    <div style="background:var(--warning-bg);border-bottom:2px solid var(--warning);padding:10px 16px;display:flex;align-items:center;gap:10px;position:fixed;top:0;left:0;right:0;z-index:10000;">
-      <span style="font-size:1.1rem;">☁️</span>
-      <div style="flex:1;font-size:0.82rem;color:var(--text-2);">
-        <strong>Sync Drive non configurée</strong> — vos données ne sont sauvegardées que sur cet appareil.
-      </div>
-      <button id="drive-banner-go" class="btn btn-sm btn-primary" style="white-space:nowrap;">Configurer</button>
-      <button id="drive-banner-close" class="btn-icon" style="width:28px;height:28px;flex-shrink:0;font-size:1.1rem;" aria-label="Fermer">✕</button>
-    </div>`;
+    <span style="font-size:1.1rem;flex-shrink:0;">☁️</span>
+    <div style="flex:1;font-size:0.82rem;color:var(--text-2);">
+      <strong>Sync Drive non configurée</strong> — vos données ne sont sauvegardées que sur cet appareil.
+    </div>
+    <button id="drive-banner-go" class="btn btn-sm btn-primary" style="white-space:nowrap;flex-shrink:0;">Configurer</button>
+    <button id="drive-banner-close" class="btn-icon" style="width:28px;height:28px;flex-shrink:0;font-size:1.1rem;" aria-label="Fermer">✕</button>`;
 
   document.body.appendChild(banner);
 
-  const closeBanner = () => {
-    _driveBannerDismissed = true;
-    banner.remove();
-  };
-
+  const closeBanner = () => { _driveBannerDismissed = true; banner.remove(); };
   document.getElementById('drive-banner-close')?.addEventListener('click', closeBanner);
-  document.getElementById('drive-banner-go')?.addEventListener('click', () => {
-    closeBanner();
-    _showDriveConfigModal(s);
-  });
+  document.getElementById('drive-banner-go')?.addEventListener('click', () => { closeBanner(); _showDriveConfigModal(s); });
 }
 
 // ── Modal de configuration Drive ──
