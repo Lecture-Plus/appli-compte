@@ -2,10 +2,11 @@
 // js/app.js – Application principale : router, navigation, état global
 // ============================================================
 
-import { getAllSettings, getSetting, setSetting, getActiveUsers } from './db.js';
+import { getAllSettings, getSetting, setSetting, getActiveUsers, getMonthsByYear } from './db.js';
 import { initDriveSync, startAutoSave, initActivityTracking,
          testDriveConnection }                                     from './sync.js';
-import { today, showToast, closeModal, openModal, nomMois }      from './utils.js';
+import { today, showToast, closeModal, openModal, nomMois,
+         isMonthEmpty }                                           from './utils.js';
 import { DRIVE_URL_KEY, isValidDriveUrl }                         from './drive.js';
 
 // ── État global de l'application ──
@@ -19,14 +20,13 @@ export const State = {
 };
 
 // ── Mapping pages → modules ──
-const _V = '?v=20';
 const PAGES = {
-  dashboard: () => import('./ui/dashboard.js' + _V),
-  argent:    () => import('./ui/argent.js'    + _V),
-  charges:   () => import('./ui/charges.js'   + _V),  // toujours accessible (utilisé par argent.js)
-  savings:   () => import('./ui/savings.js'   + _V),  // toujours accessible (utilisé par argent.js)
-  stats:     () => import('./ui/stats.js'     + _V),
-  settings:  () => import('./ui/settings.js'  + _V),
+  dashboard: () => import('./ui/dashboard.js'),
+  argent:    () => import('./ui/argent.js'),
+  charges:   () => import('./ui/charges.js'),  // toujours accessible (utilisé par argent.js)
+  savings:   () => import('./ui/savings.js'),  // toujours accessible (utilisé par argent.js)
+  stats:     () => import('./ui/stats.js'),
+  settings:  () => import('./ui/settings.js'),
 };
 
 const PAGE_TITLES = {
@@ -65,9 +65,8 @@ export async function navigateTo(page, params = {}) {
     const mod = await PAGES[page]();
     _currentCleanup = await mod.render(content, params) ?? null;
     content.classList.remove('page-enter');
-    // Force reflow then add class for animation
-    void content.offsetWidth;
-    content.classList.add('page-enter');
+    // Double rAF : garantit un cycle de layout entre les deux états CSS
+    requestAnimationFrame(() => requestAnimationFrame(() => content.classList.add('page-enter')));
     _initCounters(content);
   } catch (err) {
     console.error('[App] Erreur lors du rendu de la page :', err);
@@ -91,9 +90,7 @@ export async function reloadNames() { return reloadUsers(); }
 // ── Vérification des mois non remplis + notification push ──
 async function checkUnfilledMonths() {
   try {
-    const { getMonthsByYear, getMonthlyData } = await import('./db.js');
-    const { isMonthEmpty }    = await import('./utils.js');
-    const { year, month }     = today();
+    const { year, month } = today();
 
     const monthsData = await getMonthsByYear(year);
     const monthMap   = Object.fromEntries(monthsData.map(m => [m.month, m]));
@@ -124,7 +121,6 @@ async function _checkAndFireNotification(year, month, md) {
     if (Notification.permission !== 'granted') return;
 
     // Ne notifier que si le mois n'est pas rempli
-    const { isMonthEmpty } = await import('./utils.js');
     if (!isMonthEmpty(md)) return;
 
     // Éviter de notifier plusieurs fois le même mois
@@ -142,8 +138,7 @@ async function _checkAndFireNotification(year, month, md) {
     // Stocker la date de notification pour éviter les doublons
     await setSetting('lastNotifSent', new Date().toISOString());
 
-    const { nomMois: nm } = await import('./utils.js');
-    const body = `Le mois de ${nm(month)} n'a pas encore été rempli. 📋`;
+    const body = `Le mois de ${nomMois(month)} n'a pas encore été rempli. 📋`;
 
     // Préférer la notification via Service Worker (reste visible hors focus)
     if ('serviceWorker' in navigator) {

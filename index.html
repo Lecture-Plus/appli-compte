@@ -3,9 +3,6 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-  <meta http-equiv="Pragma" content="no-cache">
-  <meta http-equiv="Expires" content="0">
 
   <!-- PWA -->
   <meta name="theme-color" content="#7C5CFC" media="(prefers-color-scheme: light)">
@@ -19,6 +16,18 @@
   <link rel="apple-touch-icon" href="icons/icon.svg">
 
   <title>Compta+</title>
+
+  <!-- Fonts : preconnect + chargement non-bloquant -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" media="print" onload="this.media='all'">
+  <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap"></noscript>
+
+  <!-- Preload du module principal -->
+  <link rel="modulepreload" href="./js/app.js">
+  <link rel="modulepreload" href="./js/db.js">
+  <link rel="modulepreload" href="./js/utils.js">
+
   <link rel="stylesheet" href="css/app.css">
 </head>
 <body>
@@ -231,8 +240,8 @@
 
 </div>
 
-<!-- Chart.js via CDN -->
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<!-- Chart.js via CDN (defer : ne bloque pas le rendu HTML) -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js" defer></script>
 
 <!-- Application principale (ES Module) -->
 <script type="module">

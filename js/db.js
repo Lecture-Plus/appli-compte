@@ -7,6 +7,13 @@ const DB_VERSION = 4;  // v4 : budget_ops store
 
 let _db = null;
 
+// ── Cache mémoire (évite les lectures IDB répétées) ──
+let _settingsCache = null; // invalidé par setSetting / importAllData / resetAllData
+let _usersCache    = null; // invalidé par saveUser / softDeleteUser / restoreUser / importAllData / resetAllData
+
+/** Invalider les deux caches (ex: après import/reset) */
+export function invalidateCache() { _settingsCache = null; _usersCache = null; }
+
 /** Ouvre (ou réutilise) la connexion IndexedDB */
 async function openDB() {
   if (_db) return _db;
@@ -164,8 +171,10 @@ export async function getAllUsers() {
 
 /** Retourne les utilisateurs actifs uniquement */
 export async function getActiveUsers() {
+  if (_usersCache) return _usersCache;
   const all = await _getAll('users');
-  return all.filter(u => u.active !== false);
+  _usersCache = all.filter(u => u.active !== false);
+  return _usersCache;
 }
 
 export async function getUser(id) {
@@ -173,11 +182,13 @@ export async function getUser(id) {
 }
 
 export async function saveUser(user) {
+  _usersCache = null;
   return _put('users', user);
 }
 
 /** Soft delete : conserve les données historiques */
 export async function softDeleteUser(id) {
+  _usersCache = null;
   const u = await getUser(id);
   if (!u) return;
   await _put('users', { ...u, active: false, deletedAt: new Date().toISOString() });
@@ -185,6 +196,7 @@ export async function softDeleteUser(id) {
 
 /** Restaurer un utilisateur archivé */
 export async function restoreUser(id) {
+  _usersCache = null;
   const u = await getUser(id);
   if (!u) return;
   await _put('users', { ...u, active: true, deletedAt: null });
@@ -216,13 +228,16 @@ export async function getSetting(key) {
 }
 
 export async function setSetting(key, value) {
+  _settingsCache = null;
   await _put('settings', { key, value });
 }
 
 export async function getAllSettings() {
+  if (_settingsCache) return _settingsCache;
   const items = await _getAll('settings');
   const map   = Object.fromEntries(items.map(i => [i.key, i.value]));
-  return { ...SETTING_DEFAULTS, ...map };
+  _settingsCache = { ...SETTING_DEFAULTS, ...map };
+  return _settingsCache;
 }
 
 /* ══════════════════════════════════════════════════
@@ -401,6 +416,7 @@ export async function importAllData(data) {
     });
   }
 
+  _settingsCache = null; _usersCache = null; // invalider après import
   await setSetting('lastBackup', new Date().toISOString());
 }
 
@@ -408,7 +424,7 @@ export async function resetAllData() {
   const stores = ['users', 'settings', 'monthlyData', 'charges', 'achats',
                   'repartition', 'archives', 'savings_operations', 'savings_confirmed'];
   for (const s of stores) await _clear(s);
-  _db = null;
+  _settingsCache = null; _usersCache = null; _db = null;
 }
 
 /* ══════════════════════════════════════════════════

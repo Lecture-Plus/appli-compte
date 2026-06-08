@@ -32,15 +32,22 @@ export const QUI_OPTIONS = [
   { id: '50_50',    label: '50 / 50' },
 ];
 
+/** Formatters singleton — instanciés une seule fois, réutilisés à chaque appel */
+const _eurFmt = new Intl.NumberFormat('fr-FR', {
+  style:    'currency',
+  currency: 'EUR',
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+const _pctFmt = new Intl.NumberFormat('fr-FR', {
+  style:               'percent',
+  minimumFractionDigits: 1,
+  maximumFractionDigits: 1,
+});
+
 /** Formate un montant en euros */
 export function eur(value) {
-  const v = Number(value) || 0;
-  return new Intl.NumberFormat('fr-FR', {
-    style:    'currency',
-    currency: 'EUR',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(v);
+  return _eurFmt.format(Number(value) || 0);
 }
 
 /** Formate un pourcentage */

@@ -1,7 +1,7 @@
 // Service Worker – Compta+
 // Stratégie : Network First pour l'app shell (auto-update), Cache pour CDN
 
-const CACHE_NAME = 'compta-plus-v31';
+const CACHE_NAME = 'compta-plus-v32';
 
 const APP_SHELL = [
   './index.html',
@@ -77,39 +77,26 @@ self.addEventListener('notificationclick', event => {
   );
 });
 
-// Fetch : Network First pour l'app shell, Cache First pour CDN
+// Fetch : Cache First + revalidation en arrière-plan (Stale-While-Revalidate)
+// → 1ère visite : réseau. Visites suivantes : cache immédiat + mise à jour silencieuse.
 self.addEventListener('fetch', event => {
   if (event.request.method !== 'GET') return;
 
   const url = new URL(event.request.url);
   const isCDN = CDN_ORIGINS.some(o => url.hostname.includes(o));
 
-  if (isCDN) {
-    // Cache First pour les libs CDN (elles ne changent pas)
-    event.respondWith(
-      caches.match(event.request).then(cached => {
-        if (cached) return cached;
-        return fetch(event.request).then(response => {
-          if (response && response.status === 200) {
-            const clone = response.clone();
-            caches.open(CACHE_NAME).then(c => c.put(event.request, clone));
-          }
-          return response;
-        });
-      }).catch(() => caches.match('./index.html'))
-    );
-  } else {
-    // Network First pour l'app shell : met à jour le cache à chaque requête réussie
-    event.respondWith(
-      fetch(new Request(event.request, { cache: 'no-store' }))
-        .then(response => {
-          if (response && response.status === 200) {
-            const clone = response.clone();
-            caches.open(CACHE_NAME).then(c => c.put(event.request, clone));
-          }
-          return response;
-        })
-        .catch(() => caches.match(event.request).then(cached => cached || caches.match('./index.html')))
-    );
-  }
+  event.respondWith(
+    caches.match(event.request).then(cached => {
+      // Revalider en arrière-plan (ne bloque pas la réponse)
+      const revalidate = fetch(event.request).then(response => {
+        if (response && response.status === 200) {
+          caches.open(CACHE_NAME).then(c => c.put(event.request, response.clone()));
+        }
+        return response;
+      }).catch(() => null);
+
+      // Servir depuis le cache immédiatement si disponible, sinon attendre le réseau
+      return cached || revalidate;
+    })
+  );
 });
