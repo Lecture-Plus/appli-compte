@@ -17,7 +17,7 @@ export const State = {
 };
 
 // ── Mapping pages → modules ──
-const _V = '?v=9';
+const _V = '?v=10';
 const PAGES = {
   dashboard: () => import('./ui/dashboard.js' + _V),
   saisie:    () => import('./ui/saisie.js'    + _V),
@@ -166,6 +166,14 @@ async function init() {
   // Service Worker
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('./sw.js')
+      .then(reg => {
+        // Vérifier les mises à jour dès le chargement
+        reg.update();
+        // Détecter quand un nouveau SW prend le contrôle → recharger
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+          window.location.reload();
+        });
+      })
       .catch(err => console.warn('[SW] Enregistrement échoué :', err));
   }
 }

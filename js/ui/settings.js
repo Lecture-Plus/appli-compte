@@ -210,6 +210,7 @@ function buildHTML(s, users, N) {
     <!-- Section : Danger -->
     <div class="card" style="margin-bottom:24px; border-color:var(--danger);">
       <div class="card-header"><span class="card-title" style="color:var(--danger);">⚠️ Zone dangereuse</span></div>
+      <button class="btn btn-outline btn-full" style="margin-bottom:8px;" id="btn-clear-cache">🔄 Vider le cache et recharger l'application</button>
       <button class="btn btn-danger btn-full" id="btn-reset">Effacer toutes les données…</button>
     </div>
 
@@ -439,6 +440,23 @@ function bindEvents(container, s, users, N) {
       _showPickBackupModal(url, backups);
     } catch(e) { showToast('Erreur : ' + e.message, 'error'); }
     finally { btn.disabled = false; btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><polyline points="7 16 12 21 17 16"/><line x1="12" y1="21" x2="12" y2="9"/><path d="M5 3h14"/></svg> Récupérer ⬇️'; }
+  });
+
+  // ── Reset cache ──
+  container.querySelector('#btn-clear-cache')?.addEventListener('click', async () => {
+    const btn = container.querySelector('#btn-clear-cache');
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ Nettoyage…'; }
+    try {
+      const keys = await caches.keys();
+      await Promise.all(keys.map(k => caches.delete(k)));
+      const regs = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(regs.map(r => r.unregister()));
+      showToast('Cache vidé, rechargement…', 'success');
+      setTimeout(() => window.location.reload(), 800);
+    } catch(e) {
+      showToast('Erreur lors du nettoyage', 'error');
+      if (btn) { btn.disabled = false; btn.textContent = '🔄 Vider le cache et recharger l\'application'; }
+    }
   });
 
   // ── Reset ──

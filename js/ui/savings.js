@@ -91,19 +91,21 @@ async function _renderPage(container) {
     ` : ''}
 
     <!-- Actions -->
-    <div style="display:flex; gap:8px; margin-bottom:16px;">
-      <button class="btn btn-success" style="flex:1;" id="btn-confirm">
+    <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px;">
+      <button class="btn btn-success" style="width:100%;" id="btn-confirm">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="16" height="16"><path d="M20 6L9 17l-5-5"/></svg>
         Confirmer le solde
       </button>
-      <button class="btn btn-secondary" id="btn-add-op">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="16" height="16"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-        Versement
-      </button>
-      <button class="btn btn-outline" id="btn-withdraw-op">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="16" height="16"><line x1="5" y1="12" x2="19" y2="12"/></svg>
-        Retrait
-      </button>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-secondary" style="flex:1;" id="btn-add-op">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="16" height="16"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Versement
+        </button>
+        <button class="btn btn-outline" style="flex:1;" id="btn-withdraw-op">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="16" height="16"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Retrait
+        </button>
+      </div>
     </div>
 
     <!-- Historique -->
