@@ -582,7 +582,7 @@ async function renderBudgets(container) {
 
   tc.querySelector('#bgt-prev-month')?.addEventListener('click', () => { const d=addMonth(year,month,-1); State.year=d.year;State.month=d.month; renderBudgets(container); });
   tc.querySelector('#bgt-next-month')?.addEventListener('click', () => { const d=addMonth(year,month, 1); State.year=d.year;State.month=d.month; renderBudgets(container); });
-  tc.querySelector('#bgt-add-custom')?.addEventListener('click', () => _showEditBudgetModal(null, customBudgets, () => renderBudgets(container)));
+  tc.querySelector('#bgt-add-custom')?.addEventListener('click', () => showEditBudgetModal(null, customBudgets, () => renderBudgets(container)));
   tc.querySelector('#bgt-manage')?.addEventListener('click', () => _showManageBudgetsModal(customBudgets, () => renderBudgets(container)));
 
   tc.querySelectorAll('[data-bgt-add-op]').forEach(btn => {
@@ -635,7 +635,7 @@ async function renderBudgets(container) {
   tc.querySelectorAll('[data-bgt-edit]').forEach(btn => {
     btn.addEventListener('click', () => {
       const b = customBudgets.find(b => b.id === btn.dataset.bgtEdit);
-      if (b) _showEditBudgetModal(b, customBudgets, () => renderBudgets(container));
+      if (b) showEditBudgetModal(b, customBudgets, () => renderBudgets(container));
     });
   });
 
@@ -773,7 +773,7 @@ function _showAddBudgetOpModal({ catId, catLabel }, users, year, month, onSave) 
   });
 }
 
-function _showEditBudgetModal(existing, customBudgets, onSave) {
+export function showEditBudgetModal(existing, customBudgets, onSave) {
   const isNew = !existing;
   const selIcon = existing?.icon || '📌';
   openModal(isNew ? '📌 Nouveau budget' : `✏️ Modifier "${existing.name}"`, `
@@ -811,9 +811,9 @@ function _showManageBudgetsModal(customBudgets, onSave) {
     ? `<p style="color:var(--text-3);font-size:0.85rem;text-align:center;padding:12px 0;">Aucun budget personnalisé.<br>Utilisez <strong>+ Nouveau budget</strong>.</p>`
     : `<div class="item-list">${customBudgets.map(b=>`<div class="list-item" style="padding:10px 12px;"><div class="list-item-icon" style="font-size:1.2rem;background:var(--bg-2);">${b.icon||'📌'}</div><div class="list-item-body"><div class="list-item-title">${escHtml(b.name)}</div><div class="list-item-sub">${b.amount>0?eur(b.amount)+'/mois':'Suivi libre'}</div></div><div style="display:flex;gap:6px;"><button class="btn btn-sm btn-outline manage-edit" data-id="${b.id}">Modifier</button><button class="btn btn-sm btn-outline manage-del" data-id="${b.id}" style="color:var(--danger);border-color:var(--danger);">Supprimer</button></div></div>`).join('')}</div>`
   , `<button class="btn btn-primary btn-full" id="manage-add-new">+ Nouveau budget</button>`);
-  document.getElementById('manage-add-new')?.addEventListener('click', () => { closeModal(); _showEditBudgetModal(null, customBudgets, onSave); });
+  document.getElementById('manage-add-new')?.addEventListener('click', () => { closeModal(); showEditBudgetModal(null, customBudgets, onSave); });
   document.querySelectorAll('.manage-edit').forEach(btn => {
-    btn.addEventListener('click', () => { const b=customBudgets.find(b=>b.id===btn.dataset.id); if(b){closeModal();_showEditBudgetModal(b,customBudgets,onSave);} });
+    btn.addEventListener('click', () => { const b=customBudgets.find(b=>b.id===btn.dataset.id); if(b){closeModal();showEditBudgetModal(b,customBudgets,onSave);} });
   });
   document.querySelectorAll('.manage-del').forEach(btn => {
     btn.addEventListener('click', async () => {
@@ -827,6 +827,7 @@ function _showManageBudgetsModal(customBudgets, onSave) {
 
 function showAchatModal(achat, onSave) {
   const now = new Date();
+  const isNew = !achat;
   const a = achat ?? { year: State.year, month: State.month, day: now.getDate(), label: '', category: 'loisirs', amount: 0, qui: 'shared' };
 
   const catOptions = CATEGORIES.map(cat =>
@@ -874,7 +875,7 @@ function showAchatModal(achat, onSave) {
     </div>
     <div class="form-group">
       <label class="form-label">Année</label>
-      <input type="number" class="form-input" id="a-year" min="2020" max="2099" value="${a.year || year}">
+      <input type="number" class="form-input" id="a-year" min="2020" max="2099" value="${a.year || State.year}">
     </div>
   `;
 
@@ -907,12 +908,12 @@ function showAchatModal(achat, onSave) {
       category: document.getElementById('a-cat')?.value || 'autre',
       amount:   Number(document.getElementById('a-amount')?.value) || 0,
       qui,
-      month:    Number(document.getElementById('a-month')?.value) || month,
-      year:     Number(document.getElementById('a-year')?.value) || year,
+      month:    Number(document.getElementById('a-month')?.value) || State.month,
+      year:     Number(document.getElementById('a-year')?.value) || State.year,
       day:      Number(document.getElementById('a-day')?.value)   || now.getDate(),
     });
-    State.year  = Number(document.getElementById('a-year')?.value) || year;
-    State.month = Number(document.getElementById('a-month')?.value) || month;
+    State.year  = Number(document.getElementById('a-year')?.value) || State.year;
+    State.month = Number(document.getElementById('a-month')?.value) || State.month;
     closeModal();
     showToast(isNew ? 'Achat ajouté ✅' : 'Achat mis à jour ✅', 'success');
     onSave();

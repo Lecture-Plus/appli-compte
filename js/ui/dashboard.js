@@ -17,6 +17,7 @@ import { eur, pct, nomMois, addMonth, signClass,
          progressColor, escHtml, showToast,
          openModal, closeModal }                          from '../utils.js';
 import { showCraquageModal }                              from './saisie.js';
+import { showEditBudgetModal }                            from './charges.js';
 
 let _activeTab = 'resume';
 
@@ -488,7 +489,13 @@ async function _renderPrevisionnel(container, s, users) {
     <div style="height:16px;"></div>
   `;
 
-  el.querySelector('#btn-prev-add-budget')?.addEventListener('click', () => navigateTo('argent', { tab: 'budgets' }));
+  el.querySelector('#btn-prev-add-budget')?.addEventListener('click', async () => {
+    const currentCustom = (await getAllSettings()).customBudgets || [];
+    showEditBudgetModal(null, currentCustom, async () => {
+      const newS = await getAllSettings();
+      await _renderPrevisionnel(container, newS, users);
+    });
+  });
 
 }
 

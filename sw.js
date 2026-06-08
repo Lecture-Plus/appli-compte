@@ -1,7 +1,7 @@
-// Service Worker – Budget Foyer
+// Service Worker – Compta+
 // Stratégie : Network First pour l'app shell (auto-update), Cache pour CDN
 
-const CACHE_NAME = 'budget-foyer-v14';
+const CACHE_NAME = 'compta-plus-v15';
 
 const APP_SHELL = [
   './index.html',

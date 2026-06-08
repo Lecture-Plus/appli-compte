@@ -1,6 +1,6 @@
 {
-  "name": "Budget Foyer",
-  "short_name": "Budget",
+  "name": "Compta+",
+  "short_name": "Compta+",
   "description": "Suivi de budget familial – Revenus, Dépenses, Épargne",
   "start_url": "./index.html",
   "display": "standalone",

@@ -239,7 +239,7 @@ function buildHTML(s, users, archived, N) {
     </div><!-- /adv-section -->
 
     <div style="text-align:center;color:var(--text-3);font-size:0.75rem;margin-bottom:24px;">
-      Budget Foyer · Données stockées localement sur cet appareil
+      Compta+ · Données stockées localement sur cet appareil
     </div>
   `;
 }
@@ -414,7 +414,7 @@ function bindEvents(container, s, users, archived, N) {
     try {
       const data = await exportAllData();
       const date = new Date().toISOString().slice(0, 10);
-      downloadJSON(data, `budget-foyer-backup-${date}.json`);
+      downloadJSON(data, `compta-plus-backup-${date}.json`);
       await setSetting('lastBackup', new Date().toISOString());
       showToast('Données exportées ✅', 'success');
     } catch (e) { showToast('Erreur lors de l\'export', 'error'); }
@@ -481,7 +481,7 @@ function bindEvents(container, s, users, archived, N) {
       <div style="font-size:0.875rem;line-height:1.7;">
         <ol style="padding-left:20px;display:flex;flex-direction:column;gap:8px;">
           <li>Aller sur <a href="https://script.google.com" target="_blank" style="color:var(--primary);">script.google.com</a></li>
-          <li>Nouveau projet → nom : <strong>Budget Foyer Sync</strong></li>
+          <li>Nouveau projet → nom : <strong>Compta+ Sync</strong></li>
           <li>Coller le contenu du fichier <code>setup/Code.gs</code></li>
           <li>Déployer → Application Web → Exécuter en tant que : Moi → Accès : Tout le monde</li>
           <li>Copier l'URL et la coller dans le champ ci-dessus</li>
@@ -689,7 +689,7 @@ async function _showImportConfirmModal(data) {
   openModal('Importer des données', `
     <div style="padding:4px 0;">
       <p style="margin-bottom:10px;">Fichier de sauvegarde :</p>
-      <div class="chip primary" style="margin-bottom:10px;">${escHtml(data.appName || 'Budget Foyer')}</div>
+      <div class="chip primary" style="margin-bottom:10px;">${escHtml(data.appName || 'Compta+')}</div>
       <p>Exporté le : <strong>${data.exportedAt ? new Date(data.exportedAt).toLocaleString('fr-FR') : 'Inconnu'}</strong></p>
       <p style="margin-top:8px;color:var(--danger);font-size:0.82rem;">⚠️ Toutes vos données actuelles seront remplacées.</p>
     </div>

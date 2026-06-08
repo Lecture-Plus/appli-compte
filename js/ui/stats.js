@@ -706,7 +706,7 @@ async function exportCSV(year, month, users) {
 
     const csv  = buildCSV(rows, headers);
     const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
-    const fname = month > 0 ? `budget-foyer-${year}-${String(month).padStart(2,'0')}.csv` : `budget-foyer-${year}.csv`;
+    const fname = month > 0 ? `compta-plus-${year}-${String(month).padStart(2,'0')}.csv` : `compta-plus-${year}.csv`;
     downloadBlob(blob, fname);
     showToast('Fichier CSV téléchargé ✅', 'success');
   } catch (e) {

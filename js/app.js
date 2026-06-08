@@ -54,7 +54,7 @@ export async function navigateTo(page, params = {}) {
     btn.classList.toggle('active', btn.dataset.page === page);
   });
 
-  document.getElementById('page-title').textContent = PAGE_TITLES[page] ?? 'Budget Foyer';
+  document.getElementById('page-title').textContent = PAGE_TITLES[page] ?? 'Compta+';
   window.location.hash = page;
 
   const content = document.getElementById('app-content');
@@ -148,7 +148,7 @@ async function _checkAndFireNotification(year, month, md) {
     // Préférer la notification via Service Worker (reste visible hors focus)
     if ('serviceWorker' in navigator) {
       const reg = await navigator.serviceWorker.ready;
-      await reg.showNotification('Budget Foyer', {
+      await reg.showNotification('Compta+', {
         body,
         icon:  './icons/icon.svg',
         badge: './icons/icon.svg',
@@ -157,7 +157,7 @@ async function _checkAndFireNotification(year, month, md) {
         actions: [{ action: 'open', title: 'Saisir' }],
       });
     } else {
-      new Notification('Budget Foyer', { body, icon: './icons/icon.svg' });
+      new Notification('Compta+', { body, icon: './icons/icon.svg' });
     }
 
     // Rappels personnalisés
@@ -174,7 +174,7 @@ async function _checkAndFireNotification(year, month, md) {
       await setSetting(lastKey, new Date().toISOString());
       if ('serviceWorker' in navigator) {
         const reg = await navigator.serviceWorker.ready;
-        await reg.showNotification('Budget Foyer – Rappel', {
+        await reg.showNotification('Compta+ – Rappel', {
           body: r.label,
           icon:  './icons/icon.svg',
           badge: './icons/icon.svg',
@@ -182,7 +182,7 @@ async function _checkAndFireNotification(year, month, md) {
           data:  { page: 'dashboard' },
         });
       } else {
-        new Notification('Budget Foyer – Rappel', { body: r.label, icon: './icons/icon.svg' });
+        new Notification('Compta+ – Rappel', { body: r.label, icon: './icons/icon.svg' });
       }
     }
   } catch (e) { /* silencieux */ }
@@ -410,7 +410,7 @@ async function _showDriveConfigModal(s) {
       <div style="font-size:0.78rem;font-weight:700;color:var(--text);margin-bottom:8px;">&#x1F4CB; Étapes de configuration :</div>
       <ol style="font-size:0.78rem;color:var(--text-2);padding-left:18px;margin:0;line-height:2;">
         <li>Aller sur <a href="https://script.google.com" target="_blank" rel="noopener" style="color:var(--primary);text-decoration:underline;">script.google.com</a></li>
-        <li>Créer un projet → nom : <strong>Budget Foyer Sync</strong></li>
+        <li>Créer un projet → nom : <strong>Compta+ Sync</strong></li>
         <li>Copier-coller le contenu de <strong>setup/Code.gs</strong></li>
         <li>Cliquer <strong>Déployer → Application Web</strong></li>
         <li>Accès : <strong>Tout le monde</strong> → Copier l'URL</li>

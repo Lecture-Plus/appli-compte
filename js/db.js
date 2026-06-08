@@ -374,7 +374,7 @@ export async function exportAllData() {
 
   return {
     version:    2,   // v2 du format JSON (multi-users)
-    appName:    'Budget Foyer',
+    appName:    'Compta+',
     exportedAt: new Date().toISOString(),
     users, settings, monthlyData, charges, achats,
     repartition, archives, savings_operations, savings_confirmed,
