@@ -288,7 +288,7 @@ function showOpModal(type, users, onSave) {
   const userSection = N > 1 ? `
     <div class="form-group" style="margin-bottom:10px;">
       <label class="form-label">Répartition par personne</label>
-      <p style="font-size:0.72rem;color:var(--text-3);margin-bottom:8px;">Laissez vide pour ne pas affecter un user précis</p>
+      <p style="font-size:0.72rem;color:var(--text-3);margin-bottom:8px;">Attribuez le montant total à au moins une personne</p>
       <div style="display:flex;flex-direction:column;gap:6px;" id="op-user-rows">
         ${users.map(u => `
           <div style="display:flex;align-items:center;gap:8px;">
@@ -384,6 +384,11 @@ function showOpModal(type, users, onSave) {
           .filter(u => u.amt > 0)
       : [];
 
+    if (N > 1 && userAmounts.length === 0) {
+      showToast('Attribuez le montant à au moins une personne', 'error');
+      return;
+    }
+
     if (userAmounts.length > 0) {
       // Enregistrer une op par user
       for (const { uid, amt } of userAmounts) {
@@ -399,7 +404,7 @@ function showOpModal(type, users, onSave) {
         });
       }
     } else {
-      // Op globale sans user
+      // Op globale sans user (N === 1)
       await saveSavingsOperation({
         amount:  isAdd ? amount : -amount,
         label,

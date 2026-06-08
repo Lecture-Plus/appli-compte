@@ -251,7 +251,7 @@ async function _renderResume(container, s, users) {
         <div style="background:${realSavings >= 0 ? 'var(--primary-bg)' : 'var(--danger-bg)'};border-radius:var(--radius-sm);padding:12px;">
           <div style="font-size:0.65rem;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:0.03em;margin-bottom:2px;">Réelle mise de côté</div>
           <div style="font-size:0.68rem;color:var(--text-3);margin-bottom:5px;">Total des économies</div>
-          <div style="font-size:1.15rem;font-weight:800;color:${realSavings >= 0 ? 'var(--primary)' : 'var(--danger)'};">$\{eur(realSavings)}</div>
+          <div style="font-size:1.15rem;font-weight:800;color:${realSavings >= 0 ? 'var(--primary)' : 'var(--danger)'}">${eur(realSavings)}</div>
           <div style="font-size:0.68rem;color:var(--text-3);margin-top:2px;">${allSavOps.length} opération(s)</div>
           ${users.length > 1 && savingsByUser.some(([,v]) => v > 0) ? `<div style="font-size:0.7rem;color:var(--text-3);margin-top:4px;">${savingsByUser.filter(([,v]) => v > 0).map(([name, v]) => `${escHtml(name)}: ${eur(v)}`).join(' · ')}</div>` : ''}
         </div>
