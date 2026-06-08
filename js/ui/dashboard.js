@@ -163,12 +163,6 @@ async function _renderResume(container, s, users) {
   const sR = 22, sCirc = 2 * Math.PI * sR;
   const sOffset   = sCirc - (score / 100) * sCirc;
 
-  // ── Suivi budgets rapide (résumé) ──
-  const budgCourses = users.reduce((acc, u) => acc + (Number(md?.users?.[String(u.id)]?.courses) || 0), 0) || (Number(s.budgetCibles?.courses) || 0);
-  const budgExtras  = users.reduce((acc, u) => acc + (Number(md?.users?.[String(u.id)]?.extras)  || 0), 0) || (Number(s.budgetCibles?.extras)  || 0);
-  const spentCourses = achats.filter(a => a.craquage_source === 'courses').reduce((acc, a) => acc + (Number(a.amount) || 0), 0);
-  const spentExtras  = achats.filter(a => a.craquage_source === 'extras').reduce((acc, a) => acc + (Number(a.amount) || 0), 0);
-
   const el = container.querySelector('#dash-content');
   el.innerHTML = `
     <!-- ── HERO compact + score ring ── -->
