@@ -498,6 +498,7 @@ async function renderChartSavingsBalance(year, curYear, curMonth, users = []) {
   canvas.setAttribute('role', 'img');
   canvas.setAttribute('aria-label', 'Évolution du solde d\'épargne cumulé');
   const chart = new Chart(canvas, {
+    type: 'line',
     data: {
       labels: MOIS_COURT,
       datasets: [
@@ -553,6 +554,7 @@ function renderChartChargesCat(yearKPI, allCharges = []) {
   canvas.setAttribute('role', 'img');
   canvas.setAttribute('aria-label', 'Graphique répartition des charges par catégorie');
   const chart  = new Chart(canvas, {
+    type: 'doughnut',
     data: {
       labels,
       datasets: [{ data, backgroundColor: COLORS.slice(0, entries.length), borderWidth: 0 }],
@@ -1024,6 +1026,7 @@ function renderChartTendances(results, allCharges) {
   canvas.setAttribute('role', 'img');
   canvas.setAttribute('aria-label', 'Graphique tendances mensuelle des catégories de dépenses');
   const chart = new Chart(canvas, {
+    type: 'line',
     options: {
       responsive: true, maintainAspectRatio: false,
       interaction: { mode: 'index', intersect: false },
