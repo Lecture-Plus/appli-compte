@@ -111,14 +111,6 @@ function buildHTML(s, users, N) {
         </div>
         <p class="form-hint">Sous ce seuil, l'indicateur mensuel passe en rouge.</p>
       </div>
-      <div class="form-group" style="margin-bottom:12px;">
-        <label class="form-label">Budget courses hebdomadaire (€)</label>
-        <div class="input-wrap">
-          <input type="number" class="form-input input-euro" id="s-weekly-courses" min="0" step="5" value="${s.weeklyCoursesEstimate || 85}">
-          <span class="input-suffix">€/sem</span>
-        </div>
-        <p class="form-hint">Utilisé par le prévisionnel pour estimer les courses quotidiennes.</p>
-      </div>
       <button class="btn btn-primary btn-full" id="s-save-goal">Enregistrer</button>
     </div>
 
@@ -353,7 +345,6 @@ function bindEvents(container, s, users, N) {
       setSetting('savingsGoalLabel',      container.querySelector('#s-goal-label')?.value.trim() || 'Mon objectif'),
       setSetting('savingsGoalYear',       Number(container.querySelector('#s-goal-year')?.value) || today().year),
       setSetting('epargneThreshold',      Number(container.querySelector('#s-threshold')?.value) || 100),
-      setSetting('weeklyCoursesEstimate', Number(container.querySelector('#s-weekly-courses')?.value) || 85),
       setSetting('savingsGoalsByUser',    goalsByUser),
     ]);
     showToast('Paramètres enregistrés ✅', 'success');

@@ -14,6 +14,9 @@ export async function render(container) {
   await _renderPage(container);
 }
 
+let _savingsHistTab = 'all';
+}
+
 async function _renderPage(container) {
   const [allOps, latest, users, s] = await Promise.all([
     getAllSavingsOperations(),
@@ -125,37 +128,23 @@ async function _renderPage(container) {
       <span class="chip">${sortedOps.length}</span>
     </div>
 
-    ${opsWithRunning.length === 0
-      ? `<div class="empty-state">
+    ${users.length > 1 ? `
+    <div class="tabs" style="margin-bottom:10px;">
+      <button class="tab-btn ${_savingsHistTab === 'all' ? 'active' : ''}" data-savings-tab="all">Toutes</button>
+      ${users.map(u => `<button class="tab-btn ${_savingsHistTab === String(u.id) ? 'active' : ''}" data-savings-tab="${u.id}" style="display:flex;align-items:center;gap:5px;"><span style="width:8px;height:8px;border-radius:50%;background:${escHtml(u.color||'#6C63FF')};display:inline-block;"></span>${escHtml(u.name)}</button>`).join('')}
+    </div>` : ''}
+
+    ${(() => {
+      const filteredOps = users.length > 1 && _savingsHistTab !== 'all'
+        ? opsWithRunning.filter(op => String(op.userId) === _savingsHistTab)
+        : opsWithRunning;
+      if (filteredOps.length === 0) return `<div class="empty-state">
            <div class="empty-state-icon">💰</div>
            <div class="empty-state-title">Aucune opération</div>
-           <div class="empty-state-text">Commencez par confirmer votre solde actuel.</div>
-         </div>`
-      : users.length > 1
-        ? `<div class="item-list" style="margin-bottom:16px;">${users.map(u => {
-            const uOps = opsWithRunning.filter(op => String(op.userId) === String(u.id));
-            if (!uOps.length) return '';
-            const uBal = userBalances.find(ub => String(ub.user.id) === String(u.id))?.balance ?? 0;
-            return `
-              <div style="margin-bottom:14px;">
-                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
-                  <span style="display:flex;align-items:center;gap:6px;font-size:0.78rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-3);">
-                    <span style="width:10px;height:10px;border-radius:50%;background:${escHtml(u.color||'#6C63FF')};display:inline-block;"></span>
-                    ${escHtml(u.name)}
-                  </span>
-                  <span class="chip ${uBal >= 0 ? 'success' : 'danger'}">${eur(uBal)}</span>
-                </div>
-                <div class="item-list">${uOps.map(op => buildOpItem(op, users)).join('')}</div>
-              </div>`;
-          }).join('')}
-          ${opsWithRunning.filter(op => !op.userId).length > 0 ? `
-            <div style="margin-bottom:14px;">
-              <div style="font-size:0.78rem;font-weight:700;color:var(--text-3);margin-bottom:6px;">Sans attribution</div>
-              <div class="item-list">${opsWithRunning.filter(op => !op.userId).map(op => buildOpItem(op, users)).join('')}</div>
-            </div>` : ''}
-         </div>`
-        : `<div class="item-list">${opsWithRunning.map(op => buildOpItem(op, users)).join('')}</div>`
-    }
+           <div class="empty-state-text">${_savingsHistTab === 'all' ? 'Commencez par confirmer votre solde actuel.' : 'Aucune opération pour cet utilisateur.'}</div>
+         </div>`;
+      return `<div class="item-list">${filteredOps.map(op => buildOpItem(op, users)).join('')}</div>`;
+    })()}
 
     <div style="height:24px;"></div>
   `;
@@ -165,6 +154,13 @@ async function _renderPage(container) {
   container.querySelector('#btn-quick-confirm')?.addEventListener('click', () => showConfirmModal(() => _renderPage(container)));
   container.querySelector('#btn-add-op')?.addEventListener('click', () => showOpModal('add', users, () => _renderPage(container)));
   container.querySelector('#btn-withdraw-op')?.addEventListener('click', () => showOpModal('withdraw', users, () => _renderPage(container)));
+
+  container.querySelectorAll('[data-savings-tab]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      _savingsHistTab = btn.dataset.savingsTab;
+      _renderPage(container);
+    });
+  });
 
   container.querySelectorAll('.op-delete').forEach(btn => {
     btn.addEventListener('click', async (e) => {

@@ -223,10 +223,10 @@ function renderKPIAnnuel(container, kpi) {
       <div class="kpi-value neutral">${eur(kpi.depenses.total)}</div>
       <div class="kpi-sub">Imprévus: ${eur(kpi.imprevus.total)}</div>
     </div>
-    <div class="kpi-card ${kpi.epargne?.total >= 0 ? 'success' : 'danger'}">
-      <div class="kpi-label">Épargne totale</div>
-      <div class="kpi-value ${kpi.epargne?.total >= 0 ? 'positive' : 'negative'}">${eur(kpi.epargne?.total ?? 0)}</div>
-      <div class="kpi-sub">Taux: ${pct(kpi.txEpargne?.total ?? 0, 0)}</div>
+    <div class="kpi-card danger">
+      <div class="kpi-label">Moy. mensuelle dépensés</div>
+      <div class="kpi-value neutral">${eur(kpi.depenses.total / 12)}</div>
+      <div class="kpi-sub">Total année : ${eur(kpi.depenses.total)}</div>
     </div>
     <div class="kpi-card warning">
       <div class="kpi-label">Moy. mensuelle épargnée</div>

@@ -246,10 +246,9 @@ export function calcYear(monthsResults) {
 /**
  * Calcul prévisionnel jour par jour pour un mois.
  */
-export function calcPrevisionnel({ totalIncome, charges, year, month, simDay, deductions = 0 }) {
+export function calcPrevisionnel({ totalIncome, charges, year, month, simDay, deductions = 0, weeklyGroceries = 0 }) {
   const daysInMonth = new Date(year, month, 0).getDate();
   const today       = new Date();
-  // simDay permet de visualiser le prévisionnel à une date passée précise
   const todayDay    = simDay != null
     ? Number(simDay)
     : (today.getFullYear() === year && today.getMonth() + 1 === month ? today.getDate() : 0);
@@ -266,6 +265,14 @@ export function calcPrevisionnel({ totalIncome, charges, year, month, simDay, de
     if (!applicable) continue;
     if (!chargesByDay[day]) chargesByDay[day] = [];
     chargesByDay[day].push({ label: c.label, amount: amt });
+  }
+
+  // Courses hebdomadaires : déduire tous les 7 jours à partir du jour 1
+  if (weeklyGroceries > 0) {
+    for (let d = 1; d <= daysInMonth; d += 7) {
+      if (!chargesByDay[d]) chargesByDay[d] = [];
+      chargesByDay[d].push({ label: '🛒 Courses', amount: weeklyGroceries });
+    }
   }
 
   // Le solde de départ est le revenu net des dépenses déjà connues (courses, extras, imprévus)

@@ -295,8 +295,6 @@ async function _renderResume(container, s, users) {
 // ══════════════════════════════════════════════════
 // ONGLET PRÉVISIONNEL
 // ══════════════════════════════════════════════════
-let _prevSimDay = null; // null = aujourd'hui, numéro = jour simulé
-
 async function _renderPrevisionnel(container, s, users) {
   const { year, month } = State;
 
@@ -322,14 +320,16 @@ async function _renderPrevisionnel(container, s, users) {
   const spentCourses  = achats.filter(a => a.craquage_source === 'courses').reduce((s, a) => s + (Number(a.amount) || 0), 0);
   const spentExtras   = achats.filter(a => a.craquage_source === 'extras').reduce((s, a) => s + (Number(a.amount) || 0), 0);
 
-  // ── Calcul prévisionnel (déduction courses + extras + imprévus) ──
-  const totalDeductions = totalCourses + totalExtras + totalImprévus;
-  const now        = new Date();
-  const isCurrentM = now.getFullYear() === year && now.getMonth() + 1 === month;
+  // ── Calcul prévisionnel ──
+  const now         = new Date();
+  const isCurrentM  = now.getFullYear() === year && now.getMonth() + 1 === month;
   const daysInMonth = new Date(year, month, 0).getDate();
-  const simDay = _prevSimDay !== null ? _prevSimDay : (isCurrentM ? now.getDate() : 0);
+  const simDay      = isCurrentM ? now.getDate() : 0;
+  // Courses : déduites chaque semaine (tous les 7 jours) plutôt qu'en une fois
+  const weeklyGroceries = totalCourses > 0 ? Math.round(totalCourses * 7 / daysInMonth) : 0;
+  const totalDeductions = totalExtras + totalImprévus;
 
-  const { days, todayDay } = calcPrevisionnel({ totalIncome, charges, year, month, simDay, deductions: totalDeductions });
+  const { days, todayDay } = calcPrevisionnel({ totalIncome, charges, year, month, simDay, deductions: totalDeductions, weeklyGroceries });
 
   const timedCount = charges.filter(c => c.active && Number(c.dayOfMonth) > 0).length;
   const noTimedMsg = timedCount === 0
@@ -343,22 +343,6 @@ async function _renderPrevisionnel(container, s, users) {
   const el = container.querySelector('#dash-content');
   el.innerHTML = `
     ${noTimedMsg}
-
-    <!-- Sélecteur de date (simulation passée) -->
-    <div class="card" style="margin-bottom:12px;padding:12px 16px;">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
-        <span style="font-size:0.78rem;font-weight:600;color:var(--text-2);">📅 Voir au jour</span>
-        <span id="prev-day-label" style="font-size:0.85rem;font-weight:700;color:var(--primary);">
-          ${simDay > 0 ? `Jour ${simDay}` : 'Aujourd\'hui'}
-        </span>
-      </div>
-      <input type="range" id="prev-day-slider" min="1" max="${daysInMonth}"
-        value="${simDay > 0 ? simDay : now.getDate()}"
-        style="width:100%;accent-color:var(--primary);">
-      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--text-3);margin-top:2px;">
-        <span>1</span><span>${daysInMonth}</span>
-      </div>
-    </div>
 
     <!-- Suivi des budgets courses & extras -->
     ${(() => {
@@ -381,7 +365,8 @@ async function _renderPrevisionnel(container, s, users) {
       <span class="section-label">Projection jour par jour</span>
       <div style="display:flex;align-items:center;gap:6px;">
         <span class="chip ${totalIncome > 0 ? 'primary' : 'danger'}">Base : ${eur(totalIncome)}</span>
-        ${totalDeductions > 0 ? `<span class="chip danger">−${eur(totalDeductions)}</span>` : ''}
+        ${totalDeductions > 0 ? `<span class="chip danger">−${eur(totalDeductions)} extras/imprévus</span>` : ''}
+        ${weeklyGroceries > 0 ? `<span class="chip warning">🛒 ${eur(weeklyGroceries)}/sem</span>` : ''}
       </div>
     </div>
 
@@ -401,15 +386,6 @@ async function _renderPrevisionnel(container, s, users) {
     <div style="height:16px;"></div>
   `;
 
-  // ── Slider date ──
-  const slider = el.querySelector('#prev-day-slider');
-  const label  = el.querySelector('#prev-day-label');
-  slider?.addEventListener('input', () => {
-    const v = Number(slider.value);
-    _prevSimDay = v;
-    if (label) label.textContent = `Jour ${v}`;
-    _renderPrevisionnel(container, s, users);
-  });
 }
 
 // ── Projection "dans X mois l'objectif sera atteint" ──
@@ -499,7 +475,7 @@ function _buildBudgetCard(title, budget, spent, budgetLabel = 'Budget') {
   const pctUsed   = budget > 0 ? Math.min(100, Math.round((spent / budget) * 100)) : 0;
   const color     = pctUsed >= 90 ? 'danger' : pctUsed >= 70 ? 'warning' : 'success';
   return `
-    <div class="card" style="padding:12px;">
+    <div class="card" style="padding:12px;height:100%;box-sizing:border-box;display:flex;flex-direction:column;justify-content:space-between;">
       <div style="font-size:0.72rem;font-weight:600;color:var(--text-3);margin-bottom:6px;">${title}</div>
       <div class="progress-track" style="height:6px;margin-bottom:6px;">
         <div class="progress-bar ${color}" style="width:${pctUsed}%;"></div>
