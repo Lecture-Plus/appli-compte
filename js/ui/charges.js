@@ -770,7 +770,15 @@ function _showAddBudgetOpModal({ catId, catLabel, catBudget = 0, catSpent = 0 },
   const userSelect  = users.length > 1
     ? `<div class="form-group" style="margin-bottom:10px;"><label class="form-label">Personne</label><select class="form-input" id="bop-user"><option value="">— Sans attribution —</option><option value="tous">👥 Tous (diviser en parts égales)</option>${users.map(u=>`<option value="${u.id}">${escHtml(u.name)}</option>`).join('')}</select></div>`
     : '';
+  const budgetInfo = catBudget > 0
+    ? `<div style="background:var(--bg-2);border-radius:var(--radius-sm);padding:8px 10px;margin-bottom:10px;font-size:0.78rem;display:flex;gap:12px;flex-wrap:wrap;">
+        <span>Plafond : <strong>${eur(catBudget)}</strong></span>
+        <span>Dépensé : <strong>${eur(catSpent)}</strong></span>
+        <span style="color:${catBudget - catSpent <= 0 ? 'var(--danger)' : 'var(--success)'};">Restant : <strong>${eur(Math.max(0, catBudget - catSpent))}</strong></span>
+      </div>`
+    : '';
   openModal(`+ Opération ${catLabel}`, `
+    ${budgetInfo}
     <div class="form-group" style="margin-bottom:10px;"><label class="form-label">Enseigne / Description *</label><input type="text" class="form-input" id="bop-label" placeholder="Ex: Carrefour, restaurant…" autocomplete="off"></div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
       <div class="form-group"><label class="form-label">Jour</label><input type="number" class="form-input" id="bop-day" min="1" max="${daysInMonth}" value="${todayDay}"></div>
@@ -787,11 +795,28 @@ function _showAddBudgetOpModal({ catId, catLabel, catBudget = 0, catSpent = 0 },
     const userVal = document.getElementById('bop-user')?.value || null;
     if (!label) { showToast('Saisissez une description', 'error'); return; }
     if (!amount || amount <= 0) { showToast('Montant invalide', 'error'); return; }
-    // Overflow detection
-    const remaining     = catBudget > 0 ? Math.max(0, catBudget - catSpent) : Infinity;
-    const hasOverflow   = catBudget > 0 && amount > remaining;
-    const cappedAmount  = hasOverflow ? remaining : amount;
-    const overflowAmt   = hasOverflow ? +(amount - remaining).toFixed(2) : 0;
+
+    // Re-fetch real-time budget and spent values to avoid stale data
+    const [freshMd, freshSettings, freshBudgetOps] = await Promise.all([
+      getMonthlyData(year, month),
+      getAllSettings(),
+      getBudgetOpsForMonth(year, month),
+    ]);
+    const freshCustom = freshSettings.customBudgets || [];
+    const customEntry = freshCustom.find(b => b.id === catId);
+    const freshBudget = customEntry
+      ? (Number(customEntry.amount) || 0)
+      : users.reduce((s, u) => s + (Number(freshMd?.users?.[String(u.id)]?.[catId]) || 0), 0);
+    const freshSpent  = freshBudgetOps
+      .filter(op => op.category === catId)
+      .reduce((s, op) => s + (Number(op.amount) || 0), 0);
+
+    // Overflow detection using fresh data
+    const remaining    = freshBudget > 0 ? Math.max(0, freshBudget - freshSpent) : Infinity;
+    const hasOverflow  = freshBudget > 0 && amount > remaining;
+    const cappedAmount = hasOverflow ? remaining : amount;
+    const overflowAmt  = hasOverflow ? +(amount - remaining).toFixed(2) : 0;
+
     if (userVal === 'tous' && users.length > 1) {
       if (cappedAmount > 0) {
         const share = cappedAmount / users.length;
