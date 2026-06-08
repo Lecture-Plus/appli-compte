@@ -710,6 +710,16 @@ function _showQuickAddBudgetOp(catId, catLabel, year, month, users, onSave) {
           <option value="shared">🤝 Partagé (tous)</option>
           ${users.map(u => `<option value="${u.id}">${escHtml(u.name)}</option>`).join('')}
         </select>
+       </div>
+       <div id="qbop-split-section" style="display:none;padding:8px;background:var(--bg-secondary);border-radius:var(--radius-sm);margin-bottom:10px;">
+         <div style="font-size:0.7rem;color:var(--text-3);margin-bottom:6px;">Répartition personnalisée (%) — total doit faire 100%</div>
+         ${users.map(u => `<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+           <span style="width:8px;height:8px;border-radius:50%;background:${escHtml(u.color||'#6C63FF')};display:inline-block;"></span>
+           <span style="flex:1;font-size:0.78rem;">${escHtml(u.name)}</span>
+           <input type="number" class="form-input qbop-split-pct" data-uid="${u.id}" min="0" max="100" step="1" value="${Math.round(100/users.length)}" style="width:62px;text-align:right;padding:4px 6px;">
+           <span style="color:var(--text-3);font-size:0.78rem;">%</span>
+         </div>`).join('')}
+         <div id="qbop-split-hint" style="text-align:right;font-size:0.7rem;margin-top:2px;"></div>
        </div>`
     : '';
   openModal(`+ ${catLabel}`, `
@@ -723,6 +733,21 @@ function _showQuickAddBudgetOp(catId, catLabel, year, month, users, onSave) {
     </div>
     ${userSelect}
   `, `<button class="btn btn-primary btn-full" id="qbop-save">Enregistrer</button>`);
+  // ── Répartition personnalisée ──
+  const qbopUserSel  = document.getElementById('qbop-user');
+  const qbopSplitSec = document.getElementById('qbop-split-section');
+  const updateQbopHint = () => {
+    const total = [...document.querySelectorAll('.qbop-split-pct')].reduce((s,i)=>s+(Number(i.value)||0),0);
+    const hint  = document.getElementById('qbop-split-hint');
+    if (hint) { hint.style.color = Math.abs(total-100)<0.5?'var(--success)':'var(--danger)'; hint.textContent=`Total : ${total}%${Math.abs(total-100)>=0.5?' ⚠️':' ✅'}`; }
+  };
+  if (qbopSplitSec) {
+    qbopUserSel?.addEventListener('change', () => {
+      qbopSplitSec.style.display = qbopUserSel.value==='shared' ? '' : 'none';
+      if (qbopUserSel.value==='shared') updateQbopHint();
+    });
+    document.querySelectorAll('.qbop-split-pct').forEach(i=>i.addEventListener('input', updateQbopHint));
+  }
   document.getElementById('qbop-save')?.addEventListener('click', async () => {
     const label  = document.getElementById('qbop-label')?.value.trim();
     const amount = parseFloat(document.getElementById('qbop-amount')?.value);
@@ -731,9 +756,13 @@ function _showQuickAddBudgetOp(catId, catLabel, year, month, users, onSave) {
     if (!amount || amount <= 0) { showToast('Montant invalide', 'error'); return; }
     const userVal = document.getElementById('qbop-user')?.value || null;
     if (userVal === 'shared' && users.length > 1) {
-      const share = amount / users.length;
+      const splitInputs = document.querySelectorAll('.qbop-split-pct');
+      const useSplit = splitInputs.length > 0 && qbopSplitSec?.style.display !== 'none';
+      const sumPcts = useSplit ? [...splitInputs].reduce((s,i)=>s+(Number(i.value)||0),0)||100 : 100;
       for (const u of users) {
-        await saveBudgetOp({ category: catId, year, month, day, label, amount: share, userId: u.id });
+        const pct = useSplit ? (Number(document.querySelector(`.qbop-split-pct[data-uid='${u.id}']`)?.value)||0)/sumPcts : 1/users.length;
+        const share = +(amount * pct).toFixed(2);
+        if (share > 0) await saveBudgetOp({ category: catId, year, month, day, label, amount: share, userId: u.id });
       }
     } else {
       await saveBudgetOp({ category: catId, year, month, day, label, amount, userId: userVal });

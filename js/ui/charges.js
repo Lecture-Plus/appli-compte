@@ -955,7 +955,17 @@ async function _showAddBudgetOpModal({ catId, catLabel }, users, year, month, on
   const daysInMonth = new Date(year, month, 0).getDate();
   const todayDay    = new Date().getDate();
   const userSelect  = users.length > 1
-    ? `<div class="form-group" style="margin-bottom:10px;"><label class="form-label">Personne</label><select class="form-input" id="bop-user"><option value="">— Sans attribution —</option><option value="shared">🤝 Partagé (tous)</option>${users.map(u=>`<option value="${u.id}">${escHtml(u.name)}</option>`).join('')}</select></div>`
+    ? `<div class="form-group" style="margin-bottom:10px;"><label class="form-label">Personne</label><select class="form-input" id="bop-user"><option value="">— Sans attribution —</option><option value="shared">🤝 Partagé (tous)</option>${users.map(u=>`<option value="${u.id}">${escHtml(u.name)}</option>`).join('')}</select></div>
+    <div id="bop-split-section" style="display:none;padding:8px;background:var(--bg-secondary);border-radius:var(--radius-sm);margin-bottom:10px;">
+      <div style="font-size:0.7rem;color:var(--text-3);margin-bottom:6px;">Répartition personnalisée (%) — total doit faire 100%</div>
+      ${users.map(u => `<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+        <span style="width:8px;height:8px;border-radius:50%;background:${escHtml(u.color||'#6C63FF')};display:inline-block;"></span>
+        <span style="flex:1;font-size:0.78rem;">${escHtml(u.name)}</span>
+        <input type="number" class="form-input bop-split-pct" data-uid="${u.id}" min="0" max="100" step="1" value="${Math.round(100/users.length)}" style="width:62px;text-align:right;padding:4px 6px;">
+        <span style="color:var(--text-3);font-size:0.78rem;">%</span>
+      </div>`).join('')}
+      <div id="bop-split-hint" style="text-align:right;font-size:0.7rem;margin-top:2px;"></div>
+    </div>`
     : '';
   const remaining0  = catBudget > 0 ? Math.max(0, catBudget - catSpent) : null;
   const budgetInfo  = catBudget > 0
@@ -976,6 +986,21 @@ async function _showAddBudgetOpModal({ catId, catLabel }, users, year, month, on
     <p style="font-size:0.72rem;color:var(--text-3);">Mois : ${nomMois(month)} ${year}</p>
   `, `<button class="btn btn-primary btn-full" id="bop-save">Enregistrer</button>`);
   document.getElementById('bop-label')?.focus();
+  // ── Répartition personnalisée ──
+  const bopUserSel  = document.getElementById('bop-user');
+  const bopSplitSec = document.getElementById('bop-split-section');
+  const updateBopHint = () => {
+    const total = [...document.querySelectorAll('.bop-split-pct')].reduce((s,i)=>s+(Number(i.value)||0),0);
+    const hint  = document.getElementById('bop-split-hint');
+    if (hint) { hint.style.color = Math.abs(total-100)<0.5?'var(--success)':'var(--danger)'; hint.textContent=`Total : ${total}%${Math.abs(total-100)>=0.5?' ⚠️':' ✅'}`; }
+  };
+  if (bopSplitSec) {
+    bopUserSel?.addEventListener('change', () => {
+      bopSplitSec.style.display = bopUserSel.value==='shared' ? '' : 'none';
+      if (bopUserSel.value==='shared') updateBopHint();
+    });
+    document.querySelectorAll('.bop-split-pct').forEach(i=>i.addEventListener('input', updateBopHint));
+  }
   document.getElementById('bop-save')?.addEventListener('click', async () => {
     const label   = document.getElementById('bop-label')?.value.trim();
     const amount  = parseFloat(document.getElementById('bop-amount')?.value);
@@ -992,8 +1017,14 @@ async function _showAddBudgetOpModal({ catId, catLabel }, users, year, month, on
 
     if (userVal === 'shared' && users.length > 1) {
       if (cappedAmount > 0) {
-        const share = cappedAmount / users.length;
-        for (const u of users) await saveBudgetOp({ category: catId, year, month, day, label, amount: share, userId: u.id });
+        const splitInputs = document.querySelectorAll('.bop-split-pct');
+        const useSplit = splitInputs.length > 0 && bopSplitSec?.style.display !== 'none';
+        const sumPcts = useSplit ? [...splitInputs].reduce((s,i)=>s+(Number(i.value)||0),0)||100 : 100;
+        for (const u of users) {
+          const pct = useSplit ? (Number(document.querySelector(`.bop-split-pct[data-uid='${u.id}']`)?.value)||0) / sumPcts : 1/users.length;
+          const share = +(cappedAmount * pct).toFixed(2);
+          if (share > 0) await saveBudgetOp({ category: catId, year, month, day, label, amount: share, userId: u.id });
+        }
       }
     } else {
       if (cappedAmount > 0) await saveBudgetOp({ category: catId, year, month, day, label, amount: cappedAmount, userId: userVal });
