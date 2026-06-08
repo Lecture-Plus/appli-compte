@@ -638,7 +638,7 @@ function _fillDetailTable(el, { kpi: kpiReel, kpiPrev, realCourses, realExtras }
   const hint = el.querySelector('#detail-mode-hint');
   if (!wrap) return;
   const isReel = _detailMode === 'reel';
-  const dk     = isReel ? kpi : kpiPrev;
+  const dk     = isReel ? kpiReel : kpiPrev;
   const dc     = isReel ? realCourses : kpiPrev.courses;
   const de     = isReel ? realExtras  : kpiPrev.extras;
   if (hint) hint.textContent = isReel
