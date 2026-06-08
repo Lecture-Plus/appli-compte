@@ -188,7 +188,7 @@ function buildOpItem(op, users = []) {
 }
 
 // ── Modal : confirmer le solde mensuel ──
-async function showConfirmModal(onSave) {
+async function showConfirmModal(users, onSave) {
   const [allOps, latest] = await Promise.all([
     getAllSavingsOperations(),
     getLatestSavingsConfirmed(),
@@ -197,11 +197,36 @@ async function showConfirmModal(onSave) {
   const { year, month } = today();
   const moisLabel      = nomMois(month);
   const lastDayOfMonth = new Date(year, month, 0).getDate();
+  const N = users.length;
 
-  openModal('✅ Confirmer le solde épargne', `
-    <p style="color:var(--text-2); font-size:0.875rem; margin-bottom:12px;">
-      Indiquez le solde <strong>réel actuel</strong> de votre épargne (livret, compte, cash…).
-    </p>
+  // Soldes calculés par user
+  const userBalances = users.map(u => {
+    const uOps = allOps.filter(op => String(op.userId) === String(u.id));
+    const bal  = uOps.reduce((s, op) => s + (Number(op.amount) || 0), 0);
+    return { user: u, balance: bal };
+  });
+
+  const perUserForm = N > 1 ? `
+    <div class="form-group" style="margin-bottom:12px;">
+      <label class="form-label">Solde réel par personne</label>
+      <p style="font-size:0.72rem;color:var(--text-3);margin-bottom:8px;">Le bouton affiche le solde logique calculé. Corrigez si nécessaire.</p>
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        ${userBalances.map(ub => `
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span style="width:10px;height:10px;border-radius:50%;background:${escHtml(ub.user.color||'#6C63FF')};display:inline-block;flex-shrink:0;"></span>
+            <span style="font-size:0.82rem;font-weight:600;flex:1;">${escHtml(ub.user.name)}</span>
+            <button type="button" class="btn btn-outline btn-sm conf-use-user" data-uid="${ub.user.id}" data-calc="${ub.balance}"
+              style="font-size:0.72rem;padding:4px 8px;white-space:nowrap;">≈ ${eur(ub.balance)}</button>
+            <div class="input-wrap" style="width:120px;">
+              <input type="number" class="form-input input-euro conf-user-amount" data-uid="${ub.user.id}"
+                min="0" step="0.01" placeholder="0.00" style="padding-right:22px;">
+              <span class="input-suffix">€</span>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+      <div id="conf-total-display" style="text-align:right;font-size:0.82rem;font-weight:700;color:var(--primary);margin-top:8px;"></div>
+    </div>` : `
     <div class="form-group" style="margin-bottom:10px;">
       <label class="form-label">Solde logique (calculé)</label>
       <button class="btn btn-outline trf-preset" id="conf-use-calc"
@@ -213,19 +238,22 @@ async function showConfirmModal(onSave) {
     <div class="form-group" style="margin-bottom:10px;">
       <label class="form-label">Ou saisir manuellement (€)</label>
       <div class="input-wrap">
-        <input type="number" class="form-input input-euro" id="conf-amount"
-          min="0" step="0.01" placeholder="0.00">
+        <input type="number" class="form-input input-euro" id="conf-amount" min="0" step="0.01" placeholder="0.00">
         <span class="input-suffix">€</span>
       </div>
       <div style="font-size:0.72rem;color:var(--text-3);margin-top:4px;">Si supérieur au solde logique, la différence sera enregistrée comme ajustement de ${moisLabel}</div>
-    </div>
+    </div>`;
+
+  openModal('✅ Confirmer le solde épargne', `
+    <p style="color:var(--text-2); font-size:0.875rem; margin-bottom:12px;">
+      Indiquez le solde <strong>réel actuel</strong> de votre épargne (livret, compte, cash…).
+    </p>
+    ${perUserForm}
     <div class="form-group">
       <label class="form-label">Note (optionnel)</label>
       <input type="text" class="form-input" id="conf-note" placeholder="Ex: Vérification début de mois">
     </div>
-    <div style="margin-top:10px; font-size:0.75rem; color:var(--text-3);">
-      Mois : ${moisLabel} ${year}
-    </div>
+    <div style="margin-top:10px; font-size:0.75rem; color:var(--text-3);">Mois : ${moisLabel} ${year}</div>
   `, `
     <button class="btn btn-outline" id="conf-cancel">Annuler</button>
     <button class="btn btn-primary" id="conf-save">Confirmer</button>
@@ -233,45 +261,71 @@ async function showConfirmModal(onSave) {
 
   document.getElementById('conf-cancel')?.addEventListener('click', closeModal);
 
-  document.getElementById('conf-use-calc')?.addEventListener('click', () => {
-    const inp = document.getElementById('conf-amount');
-    if (inp) inp.value = balance.toFixed(2);
-  });
+  if (N > 1) {
+    const updateTotal = () => {
+      const t = [...document.querySelectorAll('.conf-user-amount')]
+        .reduce((s, inp) => s + (Number(inp.value) || 0), 0);
+      const el = document.getElementById('conf-total-display');
+      if (el) el.textContent = t > 0 ? `Total : ${eur(t)}` : '';
+    };
+    document.querySelectorAll('.conf-user-amount').forEach(inp => inp.addEventListener('input', updateTotal));
+    document.querySelectorAll('.conf-use-user').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const inp = document.querySelector(`.conf-user-amount[data-uid="${btn.dataset.uid}"]`);
+        if (inp) { inp.value = Math.max(0, Number(btn.dataset.calc)).toFixed(2); updateTotal(); }
+      });
+    });
+  } else {
+    document.getElementById('conf-use-calc')?.addEventListener('click', () => {
+      const inp = document.getElementById('conf-amount');
+      if (inp) inp.value = balance.toFixed(2);
+    });
+  }
 
   document.getElementById('conf-save')?.addEventListener('click', async () => {
-    const amountStr = document.getElementById('conf-amount')?.value?.trim();
-    const amount = amountStr ? Number(amountStr) : balance;
-    if (isNaN(amount) || amount < 0) {
-      showToast('Montant invalide', 'error');
-      return;
-    }
     const note = document.getElementById('conf-note')?.value.trim() || '';
     const now  = new Date();
+    let totalAmount;
 
-    // Si montant manuel > solde logique : enregistrer un ajustement daté au dernier jour du mois
-    if (amount > balance + 0.01) {
-      const diff = Math.round((amount - balance) * 100) / 100;
-      await saveSavingsOperation({
-        amount:    diff,
-        label:     `Ajustement ${moisLabel} ${year}`,
-        type:      'add',
-        year,
-        month,
-        day:       lastDayOfMonth,
-        createdAt: now.toISOString(),
-      });
+    if (N > 1) {
+      const userAmts = [...document.querySelectorAll('.conf-user-amount')]
+        .map(inp => ({ uid: inp.dataset.uid, amt: Number(inp.value) || 0 }));
+      if (userAmts.every(x => x.amt === 0)) {
+        showToast('Saisissez au moins un montant', 'error'); return;
+      }
+      totalAmount = userAmts.reduce((s, x) => s + x.amt, 0);
+      // Ajustements par user si le montant saisi dépasse le solde calculé
+      for (const { uid, amt } of userAmts) {
+        if (amt === 0) continue;
+        const ub = userBalances.find(x => String(x.user.id) === String(uid));
+        const calcBal = ub?.balance ?? 0;
+        if (amt > calcBal + 0.01) {
+          const diff = Math.round((amt - calcBal) * 100) / 100;
+          await saveSavingsOperation({
+            amount: diff, label: `Ajustement ${moisLabel} ${year}`,
+            type: 'add', userId: uid, year, month,
+            day: lastDayOfMonth, createdAt: now.toISOString(),
+          });
+        }
+      }
+    } else {
+      const amountStr = document.getElementById('conf-amount')?.value?.trim();
+      totalAmount = amountStr ? Number(amountStr) : balance;
+      if (isNaN(totalAmount) || totalAmount < 0) { showToast('Montant invalide', 'error'); return; }
+      if (totalAmount > balance + 0.01) {
+        const diff = Math.round((totalAmount - balance) * 100) / 100;
+        await saveSavingsOperation({
+          amount: diff, label: `Ajustement ${moisLabel} ${year}`,
+          type: 'add', year, month,
+          day: lastDayOfMonth, createdAt: now.toISOString(),
+        });
+      }
     }
 
-    await saveSavingsConfirmed({
-      year, month,
-      amount,
-      confirmedAt:  now.toISOString(),
-      confirmedDay: now.getDate(),
-      note,
-    });
-
+    await saveSavingsConfirmed({ year, month, amount: totalAmount,
+      confirmedAt: now.toISOString(), confirmedDay: now.getDate(), note });
     closeModal();
-    showToast(`Solde confirmé : ${eur(amount)} ✅`, 'success');
+    showToast(`Solde confirmé : ${eur(totalAmount)} ✅`, 'success');
     onSave();
   });
 }
