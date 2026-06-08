@@ -967,7 +967,6 @@ function renderScoreBudgetaire(container, result, s) {
     });
   });
 }
-}
 
 function destroyCharts() {
   _charts.forEach(c => { try { c.destroy(); } catch (e) {} });
