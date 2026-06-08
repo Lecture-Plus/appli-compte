@@ -657,9 +657,8 @@ async function renderBudgets(container) {
       const pendingAchat = pendingCraquages.find(a => a.id === achatId);
       if (!pendingAchat) return;
       const { showCraquageModal } = await import('./saisie.js');
-      const cleanLabel = pendingAchat.label.replace(' — Dépassement de budget', '');
       showCraquageModal(null, month, year, users, () => renderBudgets(container),
-        { label: cleanLabel, amount: pendingAchat.amount, pendingId: achatId });
+        { label: pendingAchat.label, amount: pendingAchat.amount, pendingId: achatId });
     });
   });
 
@@ -755,14 +754,16 @@ function _buildBudCatSection({ id, icon, title, budget, spent, ops, users, hint,
            <div class="item-list">${sorted.map(op => {
              const u = op.userId ? users.find(u => String(u.id)===String(op.userId)) : null;
              const dateStr = op.day ? `${op.day} ${nomMois(op.month)}` : nomMois(op.month);
-             return `<div class="list-item" style="position:relative;">
+             return `<div class="list-item">
                <div class="list-item-icon" style="background:var(--danger-bg);">🧾</div>
                <div class="list-item-body">
                  <div class="list-item-title">${escHtml(op.label||'Opération')}</div>
                  <div class="list-item-sub">${dateStr}${u?` · ${escHtml(u.name)}`:''}</div>
                </div>
-               <div class="list-item-right"><div class="list-item-amount" style="color:var(--danger);">−${eur(op.amount)}</div></div>
-               <button class="btn-icon" data-bgt-del-op="${op.id}" style="position:absolute;top:4px;right:4px;width:26px;height:26px;color:var(--text-3);">✕</button>
+               <div class="list-item-right">
+                 <div class="list-item-amount" style="color:var(--danger);">−${eur(op.amount)}</div>
+                 <button class="btn-icon" data-bgt-del-op="${op.id}" style="width:24px;height:24px;color:var(--text-3);font-size:0.8rem;" title="Supprimer">🗑️</button>
+               </div>
              </div>`;
            }).join('')}</div>
          </div>`

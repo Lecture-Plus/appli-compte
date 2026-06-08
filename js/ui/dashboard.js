@@ -354,10 +354,11 @@ async function _renderResume(container, s, users) {
 
   // ── Quick-add sur cartes budgets épinglées ──
   el.querySelectorAll('.btn-quickadd').forEach(btn => {
-    btn.addEventListener('click', e => {
+    btn.addEventListener('click', async e => {
       e.stopPropagation();
-      _showQuickAddBudgetOp(
-        btn.dataset.qcat, btn.dataset.qlabel, year, month, users,
+      const { showBudgetOpModal } = await import('./charges.js');
+      showBudgetOpModal(
+        btn.dataset.qcat, btn.dataset.qlabel, year, month,
         async () => { await _renderResume(container, s, users); }
       );
     });
