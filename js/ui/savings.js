@@ -325,13 +325,17 @@ function showOpModal(type, users, onSave) {
     </div>
     <div class="form-grid-2" style="margin-bottom:10px;">
       <div class="form-group">
+        <label class="form-label">Jour</label>
+        <input type="number" class="form-input" id="op-day" min="1" max="31" value="${now.getDate()}">
+      </div>
+      <div class="form-group">
         <label class="form-label">Mois</label>
         <input type="number" class="form-input" id="op-month" min="1" max="12" value="${month}">
       </div>
-      <div class="form-group">
-        <label class="form-label">Année</label>
-        <input type="number" class="form-input" id="op-year" min="2020" max="2099" value="${year}">
-      </div>
+    </div>
+    <div class="form-group" style="margin-bottom:10px;">
+      <label class="form-label">Année</label>
+      <input type="number" class="form-input" id="op-year" min="2020" max="2099" value="${year}">
     </div>
     ${userSection}
   `, `
@@ -379,6 +383,7 @@ function showOpModal(type, users, onSave) {
     const label = document.getElementById('op-label')?.value.trim() || (isAdd ? 'Versement' : 'Retrait');
     const m     = Number(document.getElementById('op-month')?.value) || month;
     const y     = Number(document.getElementById('op-year')?.value) || year;
+    const d     = Number(document.getElementById('op-day')?.value)   || now.getDate();
 
     const userAmounts = N > 1
       ? [...document.querySelectorAll('.op-user-amount')]
@@ -401,7 +406,7 @@ function showOpModal(type, users, onSave) {
           userId:  uid,
           year:    y,
           month:   m,
-          day:     now.getDate(),
+          day:     d,
           createdAt: now.toISOString(),
         });
       }
@@ -413,7 +418,7 @@ function showOpModal(type, users, onSave) {
         type:    isAdd ? 'add' : 'withdraw',
         year:    y,
         month:   m,
-        day:     now.getDate(),
+        day:     d,
         createdAt: now.toISOString(),
       });
     }
