@@ -569,3 +569,4 @@ async function _showImportConfirmModal(data) {
       setTimeout(() => location.reload(), 1200);
     } catch(e) { showToast('Erreur : ' + e.message, 'error'); }
   });
+}
