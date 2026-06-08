@@ -798,16 +798,17 @@ async function exportPDF(year, month, users, s) {
   *,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
   html{width:210mm;}
   body{font-family:'Inter',system-ui,sans-serif;background:#fff;color:#1E293B;font-size:12px;line-height:1.55;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
-  @page{size:A4 portrait;margin:15mm 14mm 14mm;}
-  @page :first{margin-top:0;}
+  @page{size:A4 portrait;margin:0;}
   @media print{
     .pb{page-break-before:always;}
-    .kpi-grid,.ss-row,.ug,.bar-box,.ch-wrap,.obj-box,.tx-box,.score-box,.spark-box,.mt-wrap,.ac-wrap{break-inside:avoid;page-break-inside:avoid;}
+    .kpi-grid,.ss-row,.ug,.bar-box,.ch-wrap,.obj-box,.tx-box,.score-box,.spark-box,.mt-wrap,.ac-wrap{break-inside:avoid;page-break-inside:avoid;margin-top:14mm;}
     .kc,.uc{break-inside:avoid;page-break-inside:avoid;}
     .mt tbody tr,.cht tbody tr,.ac tbody tr{break-inside:avoid;page-break-inside:avoid;}
-    .st{break-after:avoid;page-break-after:avoid;}
+    .st{break-after:avoid;page-break-after:avoid;margin-top:12mm;}
+    #ph{position:fixed;top:0;left:0;right:0;height:14mm;background:#fff;z-index:500;}
+    .cover{position:relative;z-index:600;}
   }
-  .cover{background:linear-gradient(135deg,#1E1B4B 0%,#312E81 50%,#4C1D95 100%);color:#fff;padding:36px 40px 30px;position:relative;overflow:hidden;}
+  .cover{background:linear-gradient(135deg,#1E1B4B 0%,#312E81 50%,#4C1D95 100%);color:#fff;padding:36px 40px 30px;position:relative;overflow:hidden;margin:0;}
   .cover::before{content:'';position:absolute;top:-80px;right:-80px;width:280px;height:280px;border-radius:50%;background:rgba(167,139,250,.15);}
   .cover::after{content:'';position:absolute;bottom:-50px;left:60px;width:160px;height:160px;border-radius:50%;background:rgba(99,102,241,.12);}
   .ci{position:relative;z-index:1;display:flex;justify-content:space-between;align-items:flex-start;}
@@ -818,7 +819,7 @@ async function exportPDF(year, month, users, s) {
   .cr-date{font-size:10px;color:rgba(255,255,255,.45);margin-top:6px;}
   .cr-chips{display:flex;gap:8px;justify-content:flex-end;margin-top:12px;flex-wrap:wrap;}
   .chip{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);border-radius:20px;padding:4px 12px;font-size:10px;font-weight:600;color:rgba(255,255,255,.9);}
-  .ct{padding:22px 14mm 14mm;}
+  .ct{padding:15mm 14mm 14mm;}
   .kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px;}
   .kc{border-radius:12px;padding:14px 12px;position:relative;overflow:hidden;}
   .kc::after{content:'';position:absolute;top:-20px;right:-20px;width:70px;height:70px;border-radius:50%;background:var(--kc);opacity:.1;}
@@ -885,6 +886,7 @@ async function exportPDF(year, month, users, s) {
 </style>
 </head>
 <body>
+<div id="ph"></div>
 <div class="cover"><div class="ci">
   <div><div class="cl-logo">Compta<em>+</em></div><div class="cl-sub">Bilan Financier Personnel</div></div>
   <div class="cr"><div class="cr-period">${esc(periodLabel)}</div><div class="cr-date">Généré le ${genDate}</div><div class="cr-chips">${users.map(u=>`<span class="chip">${esc(u.name)}</span>`).join('')}</div></div>
