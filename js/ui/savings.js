@@ -186,29 +186,43 @@ function buildOpItem(op, users = []) {
 }
 
 // ── Modal : confirmer le solde mensuel ──
-function showConfirmModal(onSave) {
+async function showConfirmModal(onSave) {
+  const [allOps, latest] = await Promise.all([
+    getAllSavingsOperations(),
+    getLatestSavingsConfirmed(),
+  ]);
+  const { balance } = calcSavingsBalance(latest, allOps);
   const { year, month } = today();
-  const allOps = getAllSavingsOperations();
+  const moisLabel      = nomMois(month);
+  const lastDayOfMonth = new Date(year, month, 0).getDate();
 
   openModal('✅ Confirmer le solde épargne', `
-    <p style="color:var(--text-2); font-size:0.875rem; margin-bottom:16px;">
+    <p style="color:var(--text-2); font-size:0.875rem; margin-bottom:12px;">
       Indiquez le solde <strong>réel actuel</strong> de votre épargne (livret, compte, cash…).
-      Cela servira de base pour les calculs futurs.
     </p>
-    <div class="form-group" style="margin-bottom:12px;">
-      <label class="form-label">Solde actuel (€)</label>
+    <div class="form-group" style="margin-bottom:10px;">
+      <label class="form-label">Solde logique (calculé)</label>
+      <button class="btn btn-outline trf-preset" id="conf-use-calc"
+        style="width:100%;justify-content:flex-start;font-size:0.85rem;padding:8px 12px;text-align:left;">
+        ✅ Utiliser : <strong>${eur(balance)}</strong>
+      </button>
+      <div style="font-size:0.72rem;color:var(--text-3);margin-top:4px;">Basé sur la dernière confirmation + toutes les opérations</div>
+    </div>
+    <div class="form-group" style="margin-bottom:10px;">
+      <label class="form-label">Ou saisir manuellement (€)</label>
       <div class="input-wrap">
         <input type="number" class="form-input input-euro" id="conf-amount"
           min="0" step="0.01" placeholder="0.00">
         <span class="input-suffix">€</span>
       </div>
+      <div style="font-size:0.72rem;color:var(--text-3);margin-top:4px;">Si supérieur au solde logique, la différence sera enregistrée comme ajustement de ${moisLabel}</div>
     </div>
     <div class="form-group">
       <label class="form-label">Note (optionnel)</label>
       <input type="text" class="form-input" id="conf-note" placeholder="Ex: Vérification début de mois">
     </div>
     <div style="margin-top:10px; font-size:0.75rem; color:var(--text-3);">
-      Mois : ${nomMois(month)} ${year}
+      Mois : ${moisLabel} ${year}
     </div>
   `, `
     <button class="btn btn-outline" id="conf-cancel">Annuler</button>
@@ -217,14 +231,34 @@ function showConfirmModal(onSave) {
 
   document.getElementById('conf-cancel')?.addEventListener('click', closeModal);
 
+  document.getElementById('conf-use-calc')?.addEventListener('click', () => {
+    const inp = document.getElementById('conf-amount');
+    if (inp) inp.value = balance.toFixed(2);
+  });
+
   document.getElementById('conf-save')?.addEventListener('click', async () => {
-    const amount = Number(document.getElementById('conf-amount')?.value);
+    const amountStr = document.getElementById('conf-amount')?.value?.trim();
+    const amount = amountStr ? Number(amountStr) : balance;
     if (isNaN(amount) || amount < 0) {
       showToast('Montant invalide', 'error');
       return;
     }
     const note = document.getElementById('conf-note')?.value.trim() || '';
     const now  = new Date();
+
+    // Si montant manuel > solde logique : enregistrer un ajustement daté au dernier jour du mois
+    if (amount > balance + 0.01) {
+      const diff = Math.round((amount - balance) * 100) / 100;
+      await saveSavingsOperation({
+        amount:    diff,
+        label:     `Ajustement ${moisLabel} ${year}`,
+        type:      'add',
+        year,
+        month,
+        day:       lastDayOfMonth,
+        createdAt: now.toISOString(),
+      });
+    }
 
     await saveSavingsConfirmed({
       year, month,

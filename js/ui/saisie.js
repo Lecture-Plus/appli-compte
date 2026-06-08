@@ -20,6 +20,7 @@ let _saveInd  = null; // référence à l'indicateur "Sauvegardé"
 // Cache chargé une fois par render pour éviter les DB reads répétés
 let _chargesCache = [];
 let _achatsCache  = [];
+let _coursesFoyerMode = localStorage.getItem('coursesFoyerMode') === '1';
 
 export async function render(container) {
   _users = await getActiveUsers();
@@ -73,8 +74,7 @@ export async function render(container) {
         <button class="tab-btn ${_repCfg.mode === 'fixe'      ? 'active' : ''}" data-mode="fixe">Fixe %</button>
         <button class="tab-btn ${_repCfg.mode === 'equitable' ? 'active' : ''}" data-mode="equitable">Équitable</button>
       </div>
-      ${_repCfg.mode === 'fixe' ? `
-      <div id="mode-options" class="form-grid-${Math.min(N, 4)}" style="margin-top:8px;">
+      <div id="mode-options" class="form-grid-${Math.min(N, 4)}" style="margin-top:8px;${_repCfg.mode !== 'fixe' ? 'display:none;' : ''}">
         ${_users.map(u => `
           <div class="form-group">
             <label class="form-label" style="display:flex;align-items:center;gap:6px;">
@@ -87,7 +87,8 @@ export async function render(container) {
               <span class="input-suffix">%</span>
             </div>
           </div>`).join('')}
-      </div>` : `<div id="mode-options" style="display:none;"></div>`}
+      </div>
+      <div id="equitable-info" style="margin-top:8px;${_repCfg.mode !== 'equitable' ? 'display:none;' : ''}"></div>
       <div id="mode-desc" style="font-size:0.78rem;color:var(--text-3);margin-top:6px;">${getModeDesc(_repCfg.mode)}</div>
     </div>` : ''}
 
@@ -108,12 +109,12 @@ export async function render(container) {
     </div>
 
     <!-- Courses -->
-    <div class="form-section">
-      <div class="form-section-title"><span class="section-icon">🛒</span>Courses alimentaires</div>
-      <div class="form-hint" style="margin-bottom:8px;">Ce que chacun a payé en caisse</div>
-      <div class="form-grid-${Math.min(N, 4)}">
-        ${_users.map(u => inputField(`crs-${u.id}`, u, _md.users[String(u.id)]?.courses, '€')).join('')}
+    <div class="form-section" id="courses-section">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+        <div class="form-section-title" style="margin:0;"><span class="section-icon">🛍️</span>Courses alimentaires</div>
+        ${N > 1 ? `<button class="btn btn-sm btn-outline" id="btn-courses-mode">${_coursesFoyerMode ? '👤 Par personne' : '🏠 Foyer'}</button>` : ''}
       </div>
+      <div id="courses-content">${_buildCoursesContent(N)}</div>
     </div>
 
     <!-- Extras -->
@@ -172,6 +173,7 @@ export async function render(container) {
 
   // Mise à jour immédiate de l'aperçu
   updatePreview(container);
+  _updateModeOptions(container);
 
   // ── Navigation mois ──
   container.querySelector('#prev-month')?.addEventListener('click', () => {
@@ -193,9 +195,7 @@ export async function render(container) {
       container.querySelectorAll('#mode-tabs .tab-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       _repCfg.mode = btn.dataset.mode;
-      // Afficher/cacher les champs de %
-      const optsEl = container.querySelector('#mode-options');
-      if (optsEl) optsEl.style.display = _repCfg.mode === 'fixe' ? '' : 'none';
+      _updateModeOptions(container);
       const descEl = container.querySelector('#mode-desc');
       if (descEl) descEl.textContent = getModeDesc(_repCfg.mode);
       updatePreview(container);
@@ -205,7 +205,7 @@ export async function render(container) {
 
   // ── Saisie des champs (auto-save debounced) ──
   const fieldSelectors = [
-    ...Array.from(container.querySelectorAll('input[id^="rev-"], input[id^="pri-"], input[id^="crs-"], input[id^="ext-"]')),
+    ...Array.from(container.querySelectorAll('input[id^="rev-"], input[id^="pri-"], input[id^="ext-"]')),
     ...Array.from(container.querySelectorAll('.pct-field')),
   ];
 
@@ -214,11 +214,32 @@ export async function render(container) {
       syncFormToState(container);
       updatePreview(container);
       debouncedSave();
+      if (_repCfg.mode === 'equitable') _updateModeOptions(container);
     });
   });
 
   container.querySelector('#notes-field')?.addEventListener('input', () => {
     _md.notes = container.querySelector('#notes-field').value;
+    debouncedSave();
+  });
+
+  // ── Courses toggle (foyer / individuel) ──
+  container.querySelector('#courses-section')?.addEventListener('input', (e) => {
+    if (e.target.matches('input[type="number"]')) {
+      syncFormToState(container);
+      updatePreview(container);
+      debouncedSave();
+    }
+  });
+  container.querySelector('#btn-courses-mode')?.addEventListener('click', () => {
+    syncFormToState(container);
+    _coursesFoyerMode = !_coursesFoyerMode;
+    localStorage.setItem('coursesFoyerMode', _coursesFoyerMode ? '1' : '0');
+    const btn = container.querySelector('#btn-courses-mode');
+    if (btn) btn.textContent = _coursesFoyerMode ? '👤 Par personne' : '🏠 Foyer';
+    const contentEl = container.querySelector('#courses-content');
+    if (contentEl) contentEl.innerHTML = _buildCoursesContent(N);
+    updatePreview(container);
     debouncedSave();
   });
 
@@ -258,16 +279,23 @@ export async function render(container) {
 // ── Synchronise les inputs vers _md et _repCfg ──
 function syncFormToState(container) {
   if (!_md.users) _md.users = {};
+  const _v = id => Number(container.querySelector(`#${id}`)?.value) || 0;
   _users.forEach(u => {
     const uid = String(u.id);
     if (!_md.users[uid]) _md.users[uid] = {};
-    const v = id => Number(container.querySelector(`#${id}`)?.value) || 0;
-    _md.users[uid].revenus  = v(`rev-${u.id}`);
-    _md.users[uid].primes   = v(`pri-${u.id}`);
-    _md.users[uid].courses  = v(`crs-${u.id}`);
-    _md.users[uid].extras   = v(`ext-${u.id}`);
+    _md.users[uid].revenus  = _v(`rev-${u.id}`);
+    _md.users[uid].primes   = _v(`pri-${u.id}`);
+    _md.users[uid].extras   = _v(`ext-${u.id}`);
     // imprevus is computed from imprévusList — not read from an input
   });
+  // Courses : mode foyer ou individuel
+  if (_coursesFoyerMode && _users.length > 1) {
+    const total   = _v('crs-foyer');
+    const perUser = _users.length > 0 ? total / _users.length : 0;
+    _users.forEach(u => { _md.users[String(u.id)].courses = perUser; });
+  } else {
+    _users.forEach(u => { _md.users[String(u.id)].courses = _v(`crs-${u.id}`); });
+  }
 
   if (!_repCfg.pcts) _repCfg.pcts = {};
   container.querySelectorAll('.pct-field').forEach(input => {
@@ -627,6 +655,62 @@ function showCraquageModal(container, month, year) {
 }
 
 // ── Helpers ──
+function _updateModeOptions(container) {
+  const optsEl   = container.querySelector('#mode-options');
+  const eqInfoEl = container.querySelector('#equitable-info');
+  if (_repCfg.mode === 'fixe') {
+    if (optsEl)   optsEl.style.display   = '';
+    if (eqInfoEl) eqInfoEl.style.display = 'none';
+  } else if (_repCfg.mode === 'equitable') {
+    if (optsEl)   optsEl.style.display   = 'none';
+    if (eqInfoEl) {
+      eqInfoEl.style.display = '';
+      let totalRev = 0;
+      const revByUser = {};
+      _users.forEach(u => {
+        const r = Number(container.querySelector(`#rev-${u.id}`)?.value) || 0;
+        const p = Number(container.querySelector(`#pri-${u.id}`)?.value) || 0;
+        revByUser[String(u.id)] = r + p;
+        totalRev += r + p;
+      });
+      const base = totalRev || 1;
+      eqInfoEl.innerHTML = `
+        <div style="font-size:0.72rem;color:var(--text-3);margin-bottom:6px;">Parts calculées au prorata des revenus :</div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;">
+          ${_users.map(u => {
+            const pctVal = Math.round(revByUser[String(u.id)] / base * 100);
+            return `<span style="display:inline-flex;align-items:center;gap:5px;background:var(--bg-card);border:1px solid var(--border);border-radius:20px;padding:3px 10px;font-size:0.8rem;">
+              <span style="width:8px;height:8px;border-radius:50%;background:${escHtml(u.color||'#6C63FF')};display:inline-block;flex-shrink:0;"></span>
+              <span style="font-weight:600;">${escHtml(u.name)}: ${pctVal}%</span>
+            </span>`;
+          }).join('')}
+        </div>
+      `;
+    }
+  } else {
+    if (optsEl)   optsEl.style.display   = 'none';
+    if (eqInfoEl) eqInfoEl.style.display = 'none';
+  }
+}
+
+function _buildCoursesContent(N) {
+  if (_coursesFoyerMode && N > 1) {
+    const total = _users.reduce((s, u) => s + (Number(_md?.users?.[String(u.id)]?.courses) || 0), 0);
+    return `
+      <div class="form-hint" style="margin-bottom:8px;">Budget commun du foyer (réparti équitablement)</div>
+      <div class="input-wrap" style="max-width:200px;">
+        <input type="number" class="form-input input-euro" id="crs-foyer"
+          min="0" step="0.01" placeholder="0.00" value="${total || ''}">
+        <span class="input-suffix">€</span>
+      </div>`;
+  }
+  return `
+    <div class="form-hint" style="margin-bottom:8px;">Ce que chacun a payé en caisse</div>
+    <div class="form-grid-${Math.min(N, 4)}">
+      ${_users.map(u => inputField(`crs-${u.id}`, u, _md?.users?.[String(u.id)]?.courses, '€')).join('')}
+    </div>`;
+}
+
 function getModeDesc(mode) {
   if (mode === 'fixe')      return 'Les charges communes sont partagées selon des pourcentages fixes.';
   if (mode === 'equitable') return 'Les charges communes sont partagées au prorata des revenus de chacun.';

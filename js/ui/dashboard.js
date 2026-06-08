@@ -91,11 +91,6 @@ async function _renderResume(container, s, users) {
   const kpi    = calcMonth(md, charges, achats, repCfg, users);
   const status = completenessStatus(md);
 
-  // Transfert épargne déjà effectué ce mois ?
-  const monthlySavOp = allSavOps.find(op =>
-    op.type === 'monthly_savings' && op.year === year && op.month === month
-  );
-
   const goal     = Number(s.savingsGoal) || 0;
   const goalYear = s.savingsGoalYear ?? year;
   let epargneYTD = 0;
@@ -114,14 +109,10 @@ async function _renderResume(container, s, users) {
   const goalPct   = goal > 0 ? Math.min(200, Math.round((epargneYTD / goal) * 100)) : 0;
   const pBarColor = progressColor(goalPct);
 
-  // ── Épargne réelle du mois (somme des opérations validées ce mois) ──
-  const monthlySavingsOps = allSavOps.filter(op =>
-    op.year === year && op.month === month &&
-    ['add', 'monthly_savings'].includes(op.type)
-  );
-  const realSavings = monthlySavingsOps.reduce((s, op) => s + (Number(op.amount) || 0), 0);
-  const monthlySavingsByUser = users.map(u => {
-    const uOps = monthlySavingsOps.filter(op => String(op.userId) === String(u.id));
+  // ── Épargne réelle = solde total des économies (toutes opérations) ──
+  const realSavings  = savInfo.balance;
+  const savingsByUser = users.map(u => {
+    const uOps = allSavOps.filter(op => String(op.userId) === String(u.id));
     return [u.name, uOps.reduce((s, op) => s + (Number(op.amount) || 0), 0)];
   });
 
@@ -179,7 +170,7 @@ async function _renderResume(container, s, users) {
       </div>
       <div style="font-size:0.75rem; color:var(--text-3); margin-top:4px;">
         ${savInfo.latest
-          ? `Confirmé ${new Date(savInfo.latest.confirmedAt).toLocaleDateString('fr-FR')}${savInfo.delta !== 0 ? ` · ${savInfo.delta >= 0 ? '+' : ''}${eur(savInfo.delta)} depuis` : ''}`
+          ? `Confirmé le ${new Date(savInfo.latest.confirmedAt).toLocaleDateString('fr-FR')}${savInfo.delta !== 0 ? ` · ${savInfo.delta >= 0 ? '+' : ''}${eur(savInfo.delta)} depuis la confirmation` : ''}`
           : 'Aucune confirmation enregistrée'}
       </div>
     </div>
@@ -259,15 +250,12 @@ async function _renderResume(container, s, users) {
         </div>
         <div style="background:${realSavings >= 0 ? 'var(--primary-bg)' : 'var(--danger-bg)'};border-radius:var(--radius-sm);padding:12px;">
           <div style="font-size:0.65rem;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:0.03em;margin-bottom:2px;">Réelle mise de côté</div>
-          <div style="font-size:0.68rem;color:var(--text-3);margin-bottom:5px;">Opérations validées</div>
-          <div style="font-size:1.15rem;font-weight:800;color:${realSavings >= 0 ? 'var(--primary)' : 'var(--danger)'};">${eur(realSavings)}</div>
-          <div style="font-size:0.68rem;color:var(--text-3);margin-top:2px;">${monthlySavingsOps.length} opération(s)</div>
-          ${users.length > 1 && monthlySavingsByUser.some(([,v]) => v > 0) ? `<div style="font-size:0.7rem;color:var(--text-3);margin-top:4px;">${monthlySavingsByUser.filter(([,v]) => v > 0).map(([name, v]) => `${escHtml(name)}: ${eur(v)}`).join(' · ')}</div>` : ''}
+          <div style="font-size:0.68rem;color:var(--text-3);margin-bottom:5px;">Total des économies</div>
+          <div style="font-size:1.15rem;font-weight:800;color:${realSavings >= 0 ? 'var(--primary)' : 'var(--danger)'};">$\{eur(realSavings)}</div>
+          <div style="font-size:0.68rem;color:var(--text-3);margin-top:2px;">${allSavOps.length} opération(s)</div>
+          ${users.length > 1 && savingsByUser.some(([,v]) => v > 0) ? `<div style="font-size:0.7rem;color:var(--text-3);margin-top:4px;">${savingsByUser.filter(([,v]) => v > 0).map(([name, v]) => `${escHtml(name)}: ${eur(v)}`).join(' · ')}</div>` : ''}
         </div>
       </div>
-      <button class="btn btn-success" style="width:100%;font-weight:700;" id="btn-transfer-savings">
-        ${monthlySavOp ? '✏️ Modifier le virement épargne' : '💰 Virer vers l\'épargne ce mois'}
-      </button>
     </div>
 
     ${md?.notes ? `
@@ -280,9 +268,6 @@ async function _renderResume(container, s, users) {
 
   el.querySelector('#btn-go-saisie')?.addEventListener('click', () => navigateTo('saisie'));
   el.querySelector('#btn-go-savings')?.addEventListener('click', () => navigateTo('savings'));
-  el.querySelector('#btn-transfer-savings')?.addEventListener('click', () => {
-    showTransferSavingsModal(year, month, kpi.ecoPossible.total, monthlySavOp, () => render(container));
-  });
 }
 
 // ══════════════════════════════════════════════════
