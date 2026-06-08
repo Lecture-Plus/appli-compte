@@ -1,7 +1,7 @@
 // Service Worker – Budget Foyer
 // Stratégie : Cache First pour l'app shell, réseau ignoré (tout est local)
 
-const CACHE_NAME = 'budget-foyer-v4';
+const CACHE_NAME = 'budget-foyer-v5';
 
 const APP_SHELL = [
   './index.html',
