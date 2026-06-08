@@ -366,7 +366,7 @@ async function showFirstRunModal() {
 // ── Drive warning banner ──
 function showDriveWarningBanner(s) {
   if (s[DRIVE_URL_KEY] && isValidDriveUrl(s[DRIVE_URL_KEY])) return; // déjà configuré
-  if (s.driveWarningDismissed) return; // ne plus afficher
+  if (sessionStorage.getItem('driveBannerHidden')) return; // fermé pour cette session
 
   const banner = document.createElement('div');
   banner.id    = 'drive-banner';
@@ -376,24 +376,20 @@ function showDriveWarningBanner(s) {
       <div style="flex:1;font-size:0.82rem;color:var(--text-2);">
         <strong>Sync Drive non configurée</strong> — vos données ne sont sauvegardées que sur cet appareil.
       </div>
-      <label style="display:flex;align-items:center;gap:5px;font-size:0.74rem;cursor:pointer;white-space:nowrap;">
-        <input type="checkbox" id="drive-banner-dismiss"> Ne plus afficher
-      </label>
       <button id="drive-banner-go" class="btn btn-sm btn-primary" style="white-space:nowrap;">Configurer</button>
       <button id="drive-banner-close" class="btn-icon" style="width:28px;height:28px;flex-shrink:0;font-size:1.1rem;" aria-label="Fermer">✕</button>
     </div>`;
 
   document.body.appendChild(banner);
 
-  const closeBanner = async () => {
-    const dismiss = document.getElementById('drive-banner-dismiss')?.checked;
-    if (dismiss) await setSetting('driveWarningDismissed', true);
+  const closeBanner = () => {
+    sessionStorage.setItem('driveBannerHidden', '1');
     banner.remove();
   };
 
   document.getElementById('drive-banner-close')?.addEventListener('click', closeBanner);
-  document.getElementById('drive-banner-go')?.addEventListener('click', async () => {
-    await closeBanner();
+  document.getElementById('drive-banner-go')?.addEventListener('click', () => {
+    closeBanner();
     _showDriveConfigModal(s);
   });
 }

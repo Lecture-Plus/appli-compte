@@ -563,7 +563,7 @@ async function renderBudgets(container) {
       <div class="item-list">${pendingCraquages.map(a => `<div class="list-item"><div class="list-item-icon" style="background:var(--warning-bg);">⏳</div><div class="list-item-body"><div class="list-item-title">${escHtml(a.label)}</div></div><div class="list-item-right"><div class="list-item-amount" style="color:var(--warning);">−${eur(a.amount)}</div><button class="btn btn-sm btn-primary" style="margin-top:4px;" data-attrib-crq="${a.id}">Attribuer</button></div></div>`).join('')}</div>
     </div>` : ''}
     ${_buildBudCatSection({ id:'courses', icon:'🛒', title:'Courses', budget:budgetCourses, spent:spent('courses'), ops:opsByCategory['courses']||[], users, hint:budgetCourses===0?'⚠️ Aucun budget courses dans la saisie mensuelle.':null, isPinned:pinnedBudgets.includes('courses') })}
-    ${_buildBudCatSection({ id:'extras',  icon:'�', title:'Loisirs', budget:budgetExtras,  spent:spent('extras'),  ops:opsByCategory['extras'] ||[], users, hint:budgetExtras ===0?'⚠️ Aucun budget loisirs dans la saisie mensuelle.' :null, isPinned:pinnedBudgets.includes('extras'), perUserBudgets:extrasPerUser })}
+    ${_buildBudCatSection({ id:'extras',  icon:'🎉', title:'Loisirs', budget:budgetExtras,  spent:spent('extras'),  ops:opsByCategory['extras'] ||[], users, hint:budgetExtras ===0?'⚠️ Aucun budget loisirs dans la saisie mensuelle.' :null, isPinned:pinnedBudgets.includes('extras') })}
     ${customBudgets.map(b => _buildBudCatSection({ id:b.id, icon:b.icon||'📌', title:b.name, budget:Number(b.amount)||0, spent:spent(b.id), ops:opsByCategory[b.id]||[], users })).join('')}
     <div class="card" style="margin-bottom:12px;">
       <div class="card-header">
@@ -598,10 +598,12 @@ async function renderBudgets(container) {
 
   tc.querySelectorAll('[data-bgt-add-op]').forEach(btn => {
     btn.addEventListener('click', () => {
-      const catId   = btn.dataset.bgtAddOp;
-      const catName = btn.dataset.catName || catId;
-      const catIcon = btn.dataset.catIcon || '📌';
-      _showAddBudgetOpModal({ catId, catLabel:`${catIcon} ${catName}` }, users, year, month, () => renderBudgets(container));
+      const catId     = btn.dataset.bgtAddOp;
+      const catName   = btn.dataset.catName || catId;
+      const catIcon   = btn.dataset.catIcon || '📌';
+      const catBudget = parseFloat(btn.dataset.catBudget) || 0;
+      const catSpent  = parseFloat(btn.dataset.catSpent)  || 0;
+      _showAddBudgetOpModal({ catId, catLabel:`${catIcon} ${catName}`, catBudget, catSpent }, users, year, month, () => renderBudgets(container));
     });
   });
   tc.querySelectorAll('[data-bgt-del-op]').forEach(btn => {
@@ -727,7 +729,7 @@ function _buildBudCatSection({ id, icon, title, budget, spent, ops, users, hint,
         ${perUserToggleBtn}
         ${editBtn}
         ${pinBtn}
-        <button class="btn btn-sm btn-primary" data-bgt-add-op="${id}" data-cat-name="${escHtml(title)}" data-cat-budget="${budget}" data-cat-spent="${spent}">+ Ajouter</button>
+        <button class="btn btn-sm btn-primary" data-bgt-add-op="${id}" data-cat-name="${escHtml(title)}" data-cat-icon="${escHtml(icon)}" data-cat-budget="${budget}" data-cat-spent="${spent}">+ Ajouter</button>
       </div>
     </div>
     ${hint ? `<div style="font-size:0.75rem;color:var(--warning);background:var(--warning-bg);padding:6px 10px;border-radius:var(--radius-sm);margin-bottom:10px;">${hint}</div>` : ''}
