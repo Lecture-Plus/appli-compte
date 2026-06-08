@@ -364,9 +364,14 @@ async function showFirstRunModal() {
 }
 
 // ── Drive warning banner ──
+let _driveBannerDismissed = false; // reset on every app boot
+
 function showDriveWarningBanner(s) {
   if (s[DRIVE_URL_KEY] && isValidDriveUrl(s[DRIVE_URL_KEY])) return; // déjà configuré
-  if (sessionStorage.getItem('driveBannerHidden')) return; // fermé pour cette session
+  if (_driveBannerDismissed) return; // fermé pendant cette session
+
+  // Remove any stale banner before adding a fresh one
+  document.getElementById('drive-banner')?.remove();
 
   const banner = document.createElement('div');
   banner.id    = 'drive-banner';
@@ -383,7 +388,7 @@ function showDriveWarningBanner(s) {
   document.body.appendChild(banner);
 
   const closeBanner = () => {
-    sessionStorage.setItem('driveBannerHidden', '1');
+    _driveBannerDismissed = true;
     banner.remove();
   };
 

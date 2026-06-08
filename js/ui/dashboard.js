@@ -4,7 +4,7 @@
 
 import { State, navigateTo }                              from '../app.js';
 import { getMonthlyData, getChargesForMonth,
-         getAchatsForMonth, getRepartition,
+         getAchatsForMonth, getAllAchats, getRepartition,
          getAllSettings, getMonthsByYear,
          computeCurrentSavingsBalance,
          getAllSavingsOperations, saveSavingsOperation,
@@ -86,7 +86,7 @@ async function _renderResume(container, s, users) {
   const customBudgets = s.customBudgets || [];
   const pinnedBudgets = s.pinnedBudgets || ['courses', 'extras'];
 
-  const [md, charges, achats, repCfg, savInfo, allSavOps, allBudgetOps] = await Promise.all([
+  const [md, charges, achats, repCfg, savInfo, allSavOps, allBudgetOps, allAchats] = await Promise.all([
     getMonthlyData(year, month),
     getChargesForMonth(month),
     getAchatsForMonth(year, month),
@@ -94,7 +94,10 @@ async function _renderResume(container, s, users) {
     computeCurrentSavingsBalance(),
     getAllSavingsOperations(),
     getBudgetOpsForMonth(year, month),
+    getAllAchats(),
   ]);
+
+  const pendingCraquages = allAchats.filter(a => a.category === 'craquage' && a.craquage_source === 'pending');
 
   const kpi    = calcMonth(md, charges, achats, repCfg, users);
   const status = completenessStatus(md);
@@ -205,6 +208,15 @@ async function _renderResume(container, s, users) {
     </div>
 
     <!-- ── Suivi budgets épinglés ── -->
+    ${pendingCraquages.length > 0 ? `
+    <div class="card" style="margin-bottom:12px;border:1.5px solid var(--warning);">
+      <div class="card-header">
+        <span class="card-title">⚠️ Dépassements en attente</span>
+        <span class="chip warning">${pendingCraquages.length}</span>
+      </div>
+      <p style="font-size:0.78rem;color:var(--text-3);margin-bottom:8px;">Ces dépassements n'ont pas encore de source de financement.</p>
+      <div class="item-list">${pendingCraquages.map(a => `<div class="list-item"><div class="list-item-icon" style="background:var(--warning-bg);">\u23f3</div><div class="list-item-body"><div class="list-item-title">${escHtml(a.label)}</div><div class="list-item-sub">${nomMois(a.month)} ${a.year}</div></div><div class="list-item-right"><div class="list-item-amount" style="color:var(--warning);">\u2212${eur(a.amount)}</div><button class="btn btn-sm btn-primary dash-attrib-crq" data-id="${a.id}" data-label="${escHtml(a.label)}" data-amount="${a.amount}" data-month="${a.month}" data-year="${a.year}" style="margin-top:4px;">Attribuer</button></div></div>`).join('')}</div>
+    </div>` : ''}
     ${pinnedCards.length > 0 ? `<div style="display:grid;grid-template-columns:${pinnedCards.map(() => '1fr').join(' ')};gap:8px;margin-top:12px;margin-bottom:12px;align-items:stretch;">
       ${pinnedCards.map(c => `<div class="card" style="padding:12px;box-sizing:border-box;position:relative;" data-quickadd-cat="${escHtml(c.id)}" data-quickadd-label="${escHtml(c.label)}">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
@@ -349,6 +361,19 @@ async function _renderResume(container, s, users) {
   el.querySelector('#btn-go-craquage')?.addEventListener('click', () => {
     showCraquageModal(null, month, year, users, async () => {
       await _renderResume(container, s, users);
+    });
+  });
+
+  // ── Attribuer un craquage en attente depuis l'accueil ──
+  el.querySelectorAll('.dash-attrib-crq').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const pendingId = parseInt(btn.dataset.id);
+      const label     = btn.dataset.label;
+      const amount    = parseFloat(btn.dataset.amount);
+      const m         = parseInt(btn.dataset.month);
+      const y         = parseInt(btn.dataset.year);
+      showCraquageModal(null, m, y, users, async () => { await _renderResume(container, s, users); },
+        { label, amount, pendingId });
     });
   });
 
