@@ -42,10 +42,16 @@ export async function render(container) {
       <div class="chart-wrap" style="height:200px;"><canvas id="chart-rev-dep"></canvas></div>
     </div>
 
-    <!-- Graphique Épargne mensuelle -->
+    <!-- Graphique Revenus & Primes -->
     <div class="card" style="margin-bottom:12px;">
-      <div class="card-header"><span class="card-title">📈 Épargne mensuelle</span></div>
-      <div class="chart-wrap" style="height:180px;"><canvas id="chart-epargne"></canvas></div>
+      <div class="card-header"><span class="card-title">💰 Revenus & Primes</span></div>
+      <div class="chart-wrap" style="height:200px;"><canvas id="chart-rev-primes"></canvas></div>
+    </div>
+
+    <!-- Graphique Épargne (mensuelle + cumulée + taux) -->
+    <div class="card" style="margin-bottom:12px;">
+      <div class="card-header"><span class="card-title">📈 Épargne mensuelle, cumulée & taux</span></div>
+      <div class="chart-wrap" style="height:220px;"><canvas id="chart-epargne"></canvas></div>
     </div>
 
     <!-- Graphique Solde épargne (evolution) -->
@@ -164,8 +170,9 @@ async function loadAndRender(container, year, users, s) {
 
   renderKPIAnnuel(container, yearKPI);
   destroyCharts();
-  renderChartRevDep(displayResults, users);
-  renderChartEpargne(displayResults, users);
+  renderChartRevDep(displayResults);
+  renderChartRevPrimes(displayResults, users);
+  renderChartEpargne(displayResults);
   await renderChartSavingsBalance(year, curYear, curMonth, users);
   renderChartRepartition(yearKPI);
   renderTableMensuel(container, displayResults);
@@ -202,25 +209,33 @@ function renderKPIAnnuel(container, kpi) {
   `;
 }
 
-function renderChartRevDep(displayResults, users = []) {
+function renderChartRevDep(displayResults) {
   const canvas = document.getElementById('chart-rev-dep');
+  if (!canvas) return;
+  const chart = new Chart(canvas, {
+    type: 'bar',
+    data: {
+      labels: MOIS_COURT,
+      datasets: [
+        { label: 'Revenus + Primes', data: displayResults.map(r => r ? r.revenus.total + r.primes.total : 0), backgroundColor: 'rgba(108,99,255,0.7)', borderRadius: 4 },
+        { label: 'Dépenses',         data: displayResults.map(r => r ? r.depenses.total : 0),                 backgroundColor: 'rgba(255,71,87,0.7)',  borderRadius: 4 },
+      ],
+    },
+    options: chartOptions({}),
+  });
+  _charts.push(chart);
+}
+
+function renderChartRevPrimes(displayResults, users = []) {
+  const canvas = document.getElementById('chart-rev-primes');
   if (!canvas) return;
 
   const userDatasets = users.length > 1 ? users.flatMap(u => [
     {
       type: 'line',
       label: `Revenus ${escHtml(u.name)}`,
-      data: displayResults.map(r => r ? (r.revenus.byUser?.[u.id] ?? 0) + (r.primes.byUser?.[u.id] ?? 0) : null),
+      data: displayResults.map(r => r ? (r.revenus.byUser?.[u.id] ?? 0) : null),
       borderColor: u.color || '#6C63FF',
-      backgroundColor: 'transparent',
-      borderWidth: 2, pointRadius: 3, tension: 0.3, spanGaps: false,
-    },
-    {
-      type: 'line',
-      label: `Dépenses ${escHtml(u.name)}`,
-      data: displayResults.map(r => r ? (r.depenses.byUser?.[u.id] ?? 0) : null),
-      borderColor: u.color || '#FF4757',
-      borderDash: [5, 4],
       backgroundColor: 'transparent',
       borderWidth: 2, pointRadius: 3, tension: 0.3, spanGaps: false,
     },
@@ -231,45 +246,110 @@ function renderChartRevDep(displayResults, users = []) {
     data: {
       labels: MOIS_COURT,
       datasets: [
-        { label: 'Revenus + Primes', data: displayResults.map(r => r ? r.revenus.total + r.primes.total : 0), backgroundColor: 'rgba(108,99,255,0.7)', borderRadius: 4 },
-        { label: 'Dépenses',         data: displayResults.map(r => r ? r.depenses.total : 0),                 backgroundColor: 'rgba(255,71,87,0.7)',  borderRadius: 4 },
+        { label: 'Revenus total',   data: displayResults.map(r => r ? r.revenus.total : 0), backgroundColor: 'rgba(108,99,255,0.7)', borderRadius: 4 },
+        { label: 'Primes total',    data: displayResults.map(r => r ? r.primes.total  : 0), backgroundColor: 'rgba(0,200,150,0.65)', borderRadius: 4 },
         ...userDatasets,
       ],
     },
-    options: chartOptions({}),
+    options: chartOptions({ stacked: false }),
   });
   _charts.push(chart);
 }
 
-function renderChartEpargne(displayResults, users = []) {
+function renderChartEpargne(displayResults) {
   const canvas = document.getElementById('chart-epargne');
   if (!canvas) return;
-  const soldes = displayResults.map(r => r ? r.solde.total : null);
 
-  const userDatasets = users.length > 1 ? users.map(u => ({
-    type: 'line',
-    label: escHtml(u.name),
-    data: displayResults.map(r => r ? (r.solde.byUser?.[u.id] ?? null) : null),
-    borderColor: u.color || '#6C63FF',
-    backgroundColor: 'transparent',
-    borderWidth: 2, pointRadius: 3, tension: 0.3, spanGaps: false,
-  })) : [];
+  // Épargne mensuelle
+  const mensuelle = displayResults.map(r => r ? r.solde.total : null);
 
-  const chart  = new Chart(canvas, {
+  // Épargne cumulée (somme glissante des mois non-null)
+  let cum = 0;
+  const cumulee = displayResults.map(r => {
+    if (r === null) return null;
+    cum += r.solde.total;
+    return cum;
+  });
+
+  // Taux d'épargne (0..1 → affiché en %)
+  const taux = displayResults.map(r => r ? r.txEpargne.total : null);
+
+  const textColor = getComputedStyle(document.documentElement).getPropertyValue('--text-2').trim() || '#666';
+  const gridColor = getComputedStyle(document.documentElement).getPropertyValue('--border').trim() || 'rgba(0,0,0,0.1)';
+
+  const chart = new Chart(canvas, {
     type: 'bar',
     data: {
       labels: MOIS_COURT,
       datasets: [
         {
-          label: 'Total',
-          data: soldes,
-          backgroundColor: soldes.map(v => v === null ? 'transparent' : v >= 0 ? 'rgba(0,200,150,0.7)' : 'rgba(255,71,87,0.7)'),
-          borderRadius: 4,
+          type: 'line',
+          label: 'Épargne cumulée',
+          data: cumulee,
+          borderColor: '#6C63FF',
+          backgroundColor: 'rgba(108,99,255,0.15)',
+          fill: true,
+          tension: 0.3,
+          pointRadius: 3,
+          borderWidth: 2,
+          yAxisID: 'y',
+          spanGaps: false,
+          order: 3,
         },
-        ...userDatasets,
+        {
+          type: 'bar',
+          label: 'Épargne mensuelle',
+          data: mensuelle,
+          backgroundColor: mensuelle.map(v => v === null ? 'transparent' : v >= 0 ? 'rgba(0,200,150,0.7)' : 'rgba(255,71,87,0.7)'),
+          borderRadius: 4,
+          yAxisID: 'y',
+          order: 2,
+        },
+        {
+          type: 'line',
+          label: "Taux d'épargne",
+          data: taux,
+          borderColor: '#FFB020',
+          backgroundColor: 'transparent',
+          borderWidth: 2,
+          pointRadius: 3,
+          tension: 0.3,
+          yAxisID: 'y1',
+          spanGaps: false,
+          order: 1,
+        },
       ],
     },
-    options: chartOptions({}),
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'bottom', labels: { padding: 8, font: { size: 10 }, color: textColor } },
+        tooltip: {
+          callbacks: {
+            label: ctx => {
+              if (ctx.dataset.yAxisID === 'y1') return `${ctx.dataset.label}: ${pct(ctx.raw, 1)}`;
+              return `${ctx.dataset.label}: ${eur(ctx.raw)}`;
+            }
+          }
+        },
+      },
+      scales: {
+        x: { grid: { color: gridColor }, ticks: { color: textColor, font: { size: 10 } } },
+        y: {
+          position: 'left',
+          grid: { color: gridColor },
+          ticks: { color: textColor, font: { size: 10 }, callback: v => eur(v).replace(/\s€/, '') + '€' },
+        },
+        y1: {
+          type: 'linear',
+          display: true,
+          position: 'right',
+          grid: { drawOnChartArea: false },
+          ticks: { color: '#FFB020', font: { size: 10 }, callback: v => `${Math.round(v * 100)}%` },
+          min: 0,
+        },
+      },
+    },
   });
   _charts.push(chart);
 }
