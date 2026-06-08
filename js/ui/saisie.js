@@ -397,7 +397,8 @@ export async function render(container) {
 // ── Synchronise les inputs vers _md et _repCfg ──
 function syncFormToState(container) {
   if (!_md.users) _md.users = {};
-  const _v = id => Number(container.querySelector(`#${id}`)?.value) || 0;
+  // Clamp à 0 pour tous les champs financiers (pas de revenus/dépenses négatifs via ce formulaire)
+  const _v = id => Math.max(0, Number(container.querySelector(`#${id}`)?.value) || 0);
   _users.forEach(u => {
     const uid = String(u.id);
     if (!_md.users[uid]) _md.users[uid] = {};

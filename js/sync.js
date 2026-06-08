@@ -17,6 +17,11 @@ let _isSyncing = false;
 // ── Dirty flag : ne syncer que si des modifications ont eu lieu ──
 let _isDirty = false;
 
+// ── Retry avec backoff exponentiel en cas d'erreur Drive ──
+let _retryCount  = 0;
+let _nextRetryAt = 0;
+const _RETRY_DELAYS = [30_000, 120_000, 600_000]; // 30s, 2min, 10min
+
 /** Marquer les données comme modifiées (appelé après toute écriture IDB) */
 export function markDirty() { _isDirty = true; }
 
@@ -114,6 +119,7 @@ export function startAutoSave() {
     if (!isActive()) return;
     if (_isSyncing) return;  // import en cours, ne pas écraser
     if (!_isDirty) return;   // rien de nouveau, économiser bande passante et batterie
+    if (_nextRetryAt > 0 && Date.now() < _nextRetryAt) return; // attendre le backoff
 
     const url = await getSetting(DRIVE_URL_KEY);
     if (!isValidDriveUrl(url)) return;
@@ -146,9 +152,15 @@ export function startAutoSave() {
       _isDirty = false;  // reset dirty flag après push réussi
       setSyncStatus('ok');
       console.log('[Sync] Auto-save Drive OK');
+      _retryCount  = 0;
+      _nextRetryAt = 0;
     } catch (err) {
       setSyncStatus('error');
-      console.warn('[Sync] Auto-save échoué :', err.message);
+      const delay = _RETRY_DELAYS[Math.min(_retryCount, _RETRY_DELAYS.length - 1)];
+      _nextRetryAt = Date.now() + delay;
+      _retryCount++;
+      // Ne pas remettre _isDirty à false → sera retenté au prochain check
+      console.warn(`[Sync] Auto-save échoué (retry #${_retryCount} dans ${delay/1000}s) :`, err.message);
     }
   }, AUTO_SAVE_INTERVAL_MS);
 }

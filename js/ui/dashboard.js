@@ -15,7 +15,7 @@ import { getMonthlyData, getChargesForMonth,
 import { calcMonth, calcPrevisionnel }                    from '../calculs.js';
 import { eur, pct, nomMois, addMonth, signClass,
          txEparClass, completenessStatus,
-         progressColor, escHtml, showToast,
+         progressColor, escHtml, showToast, showToastWithUndo,
          openModal, closeModal }                          from '../utils.js';
 import { showCraquageModal }                              from './saisie.js';
 import { showEditBudgetModal }                            from './charges.js';
@@ -33,10 +33,10 @@ export async function render(container) {
       <button class="month-btn" id="prev-month" aria-label="Mois précédent">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M15 18l-6-6 6-6"/></svg>
       </button>
-      <div style="text-align:center;">
-        <div class="month-nav-label">${nomMois(month)}</div>
-        <div class="month-nav-year">${year}</div>
-      </div>
+      <button id="month-picker-btn" style="text-align:center;background:transparent;border:none;cursor:pointer;padding:4px 8px;border-radius:8px;transition:background .15s;" title="Sélectionner un mois">
+        <div class="month-nav-label" style="pointer-events:none;">${nomMois(month)}</div>
+        <div class="month-nav-year" style="pointer-events:none;">${year} ▾</div>
+      </button>
       <button class="month-btn" id="next-month" aria-label="Mois suivant">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 18l6-6-6-6"/></svg>
       </button>
@@ -60,6 +60,43 @@ export async function render(container) {
     const n = addMonth(State.year, State.month, 1);
     State.year = n.year; State.month = n.month;
     render(container);
+  });
+
+  // ── Sélecteur rapide de mois ──
+  container.querySelector('#month-picker-btn')?.addEventListener('click', async () => {
+    const allMonths = await getMonthsByYear();
+    // Construire une liste des 24 derniers mois + mois courant
+    const months = [];
+    let cy = State.year, cm = State.month;
+    for (let i = 0; i < 24; i++) {
+      months.unshift({ year: cy, month: cm });
+      const prev = addMonth(cy, cm, -1);
+      cy = prev.year; cm = prev.month;
+    }
+    const completedSet = new Set((allMonths.flat ? allMonths : Object.values(allMonths).flat()).map(m => `${m.year}-${m.month}`));
+    const rows = months.map(m => {
+      const key = `${m.year}-${m.month}`;
+      const hasData = completedSet.has(key);
+      const isCurrent = m.year === State.year && m.month === State.month;
+      return `<button class="btn ${isCurrent ? 'btn-primary' : 'btn-outline'} month-pick-item"
+        data-y="${m.year}" data-m="${m.month}"
+        style="padding:8px 12px;font-size:0.82rem;text-align:left;justify-content:space-between;display:flex;gap:8px;">
+        <span>${nomMois(m.month)} ${m.year}</span>
+        <span style="font-size:0.72rem;opacity:0.6;">${hasData ? '📄' : '○'}</span>
+      </button>`;
+    }).reverse().join('');
+    openModal('📅 Choisir un mois',
+      `<div style="display:flex;flex-direction:column;gap:4px;max-height:60vh;overflow-y:auto;">${rows}</div>`,
+      ''
+    );
+    document.querySelectorAll('.month-pick-item').forEach(btn => {
+      btn.addEventListener('click', () => {
+        State.year  = parseInt(btn.dataset.y);
+        State.month = parseInt(btn.dataset.m);
+        closeModal();
+        render(container);
+      });
+    });
   });
 
   container.querySelectorAll('#dash-tabs .tab-btn').forEach(btn => {
@@ -206,6 +243,19 @@ async function _renderResume(container, s, users) {
   const sR = 22, sCirc = 2 * Math.PI * sR;
   const sOffset   = sCirc - (score / 100) * sCirc;
 
+  // ── Budget journalier restant ──
+  const _today     = new Date();
+  const _isCurrentMonth = (_today.getFullYear() === year && (_today.getMonth() + 1) === month);
+  const _daysLeft  = _isCurrentMonth
+    ? (new Date(year, month, 0).getDate() - _today.getDate() + 1)
+    : new Date(year, month, 0).getDate();
+  const _soldeRest = kpi.solde.total - (Number(s.savingsGoal) > 0 ? Math.max(0, Number(s.savingsGoal) / 12) : 0);
+  const _dailyBudg = _daysLeft > 0 ? _soldeRest / _daysLeft : _soldeRest;
+  const _dailyColor = _dailyBudg >= 30 ? 'var(--success)' : _dailyBudg >= 0 ? 'var(--warning)' : 'var(--danger)';
+  const _dailyLabel = _isCurrentMonth
+    ? `Budget aujourd'hui — ${_daysLeft} jour${_daysLeft > 1 ? 's' : ''} restant${_daysLeft > 1 ? 's' : ''}`
+    : `Budget/jour moyen`;
+
   const el = container.querySelector('#dash-content');
   el.innerHTML = `
     <!-- ── HERO compact + score ring ── -->
@@ -220,9 +270,13 @@ async function _renderResume(container, s, users) {
             <span style="color:var(--danger);">${eur(kpi.depenses.total)} dépensés</span>
           </div>
           ${users.length > 1 ? `<div style="font-size:0.67rem;color:var(--text-3);margin-top:3px;">${users.map(u => `${escHtml(u.name)}: ${eur(kpi.solde.byUser?.[u.id] ?? 0)}`).join(' · ')}</div>` : ''}
+          <div style="margin-top:8px;padding:8px 10px;background:var(--bg-2);border-radius:8px;display:flex;justify-content:space-between;align-items:center;">
+            <span style="font-size:0.68rem;color:var(--text-3);">${_dailyLabel}</span>
+            <span style="font-size:1.05rem;font-weight:800;color:${_dailyColor};">${eur(_dailyBudg)}<span style="font-size:0.62rem;font-weight:400;color:var(--text-3);">/j</span></span>
+          </div>
         </div>
-        <div style="display:flex;flex-direction:column;align-items:center;gap:2px;flex-shrink:0;">
-          <svg width="58" height="58" viewBox="0 0 56 56" style="overflow:visible;">
+        <div style="display:flex;flex-direction:column;align-items:center;gap:2px;flex-shrink:0;" title="Score budgétaire : Taux d'épargne (${_txPts}/40 pts) + Solde positif (${_soldePts}/20 pts) + Budget courses (${_cPts}/20 pts) + Budget loisirs (${_ePts}/20 pts)">
+          <svg width="58" height="58" viewBox="0 0 56 56" style="overflow:visible;cursor:help;">
             <circle cx="28" cy="28" r="${sR}" stroke-width="5" fill="none" stroke="var(--bg-2)"/>
             <circle cx="28" cy="28" r="${sR}" stroke-width="5" fill="none"
               stroke="${scoreHex}" stroke-dasharray="${sCirc.toFixed(2)}" stroke-dashoffset="${sCirc.toFixed(2)}"
@@ -864,11 +918,17 @@ function showTransferSavingsModal(year, month, ecoPossible, existingOp, onSave) 
   document.getElementById('trf-cancel')?.addEventListener('click', closeModal);
 
   document.getElementById('trf-delete')?.addEventListener('click', async () => {
-    if (!confirm('Supprimer ce virement ?')) return;
-    await deleteSavingsOperation(existingOp.id);
+    const toDelete = { ...existingOp };
     closeModal();
-    showToast('Virement supprimé', 'success');
-    onSave();
+    showToastWithUndo(
+      `Virement « ${toDelete.label || 'sans nom'} » supprimé`,
+      async () => {
+        await deleteSavingsOperation(toDelete.id);
+        onSave();
+      },
+      6000,
+      'warning'
+    );
   });
 
   document.getElementById('trf-save')?.addEventListener('click', async () => {

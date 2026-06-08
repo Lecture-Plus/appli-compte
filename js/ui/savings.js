@@ -10,7 +10,7 @@ import { getAllSavingsOperations, saveSavingsOperation,
          getAllSalaryAbondements, saveSalaryAbondement, deleteSalaryAbondement }
                                                              from '../db.js';
 import { calcSavingsBalance }                                from '../calculs.js';
-import { eur, escHtml, showToast, openModal, closeModal,
+import { eur, escHtml, showToast, showToastWithUndo, openModal, closeModal,
          today, nomMois }                                    from '../utils.js';
 
 export async function render(container) {
@@ -267,10 +267,9 @@ async function _renderEconomies(el, container) {
     btn.addEventListener('click', async (e) => {
       e.stopPropagation();
       const id = Number(btn.dataset.id);
-      if (!confirm('Supprimer cette opération ?')) return;
-      await deleteSavingsOperation(id);
-      showToast('Opération supprimée', 'success');
-      _renderPage(container);
+      showToastWithUndo('Opération supprimée',
+        async () => { await deleteSavingsOperation(id); _renderPage(container); },
+        6000, 'warning');
     });
   });
 }
@@ -819,19 +818,19 @@ async function _renderSalariale(el, container) {
 
   el.querySelectorAll('.sal-op-delete').forEach(btn => {
     btn.addEventListener('click', async () => {
-      if (!confirm('Supprimer ce versement ?')) return;
-      await deleteSalarySaving(Number(btn.dataset.id));
-      showToast('Versement supprimé', 'success');
-      _renderPage(container);
+      const id = Number(btn.dataset.id);
+      showToastWithUndo('Versement supprimé',
+        async () => { await deleteSalarySaving(id); _renderPage(container); },
+        6000, 'warning');
     });
   });
 
   el.querySelectorAll('.abon-delete').forEach(btn => {
     btn.addEventListener('click', async () => {
-      if (!confirm('Supprimer cet abondement ?')) return;
-      await deleteSalaryAbondement(Number(btn.dataset.id));
-      showToast('Abondement supprimé', 'success');
-      _renderPage(container);
+      const id = Number(btn.dataset.id);
+      showToastWithUndo('Abondement supprimé',
+        async () => { await deleteSalaryAbondement(id); _renderPage(container); },
+        6000, 'warning');
     });
   });
 }

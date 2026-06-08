@@ -95,6 +95,7 @@ function buildHTML(s, users, archived, N) {
         <button class="tab-btn ${s.defaultRepartMode === 'equitable'    ? 'active' : ''}" data-mode="equitable">Équitable</button>
         <button class="tab-btn ${s.defaultRepartMode === 'personnalise' ? 'active' : ''}" data-mode="personnalise">🎛 Perso</button>
       </div>
+      <div id="repartition-mode-hint" style="font-size:0.78rem;color:var(--text-3);padding:8px 10px;background:var(--bg-2);border-radius:8px;margin-bottom:8px;"></div>
       <p style="font-size:0.78rem;color:var(--text-3);">Ce mode sera pré-sélectionné pour les nouveaux mois.</p>
     </div>` : ''}
 
@@ -326,10 +327,23 @@ function bindEvents(container, s, users, archived, N) {
   });
 
   // ── Mode répartition ──
+  const _REPART_HINTS = {
+    separe:       '🔀 Séparé : chaque personne paie ses charges personnelles + la moitié des charges communes. Ex: loyer 1 000 € → chacun paie 500 €.',
+    fixe:         '📊 Fixe % : les charges communes sont réparties selon des pourcentages fixes. Ex: A paie 60 %, B paie 40 % — quelle que soit leur situation.',
+    equitable:    '⚖️ Équitable : les charges communes sont réparties au prorata des revenus. Ex: A gagne 3 000 €, B gagne 2 000 € → A paie 60 %, B 40 % des 1 000 € → A paie 600 €, B paie 400 €.',
+    personnalise: '🎛 Personnalisé : vous définissez manuellement la répartition charge par charge. Idéal quand chaque dépense a sa propre logique.',
+  };
+  const _updateRepartHint = (mode) => {
+    const el = container.querySelector('#repartition-mode-hint');
+    if (el) el.textContent = _REPART_HINTS[mode] || '';
+  };
+  _updateRepartHint(s.defaultRepartMode || 'separe');
+
   container.querySelectorAll('#repartition-tabs .tab-btn').forEach(btn => {
     btn.addEventListener('click', async () => {
       container.querySelectorAll('#repartition-tabs .tab-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
+      _updateRepartHint(btn.dataset.mode);
       await setSetting('defaultRepartMode', btn.dataset.mode);
       showToast('Mode de répartition enregistré', 'success');
     });

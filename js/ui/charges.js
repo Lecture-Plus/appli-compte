@@ -9,7 +9,7 @@ import { getAllCharges, saveCharge, deleteCharge,
          getMonthlyData, getBudgetOpsForMonth,
          saveBudgetOp, deleteBudgetOp,
          getAllSettings, setSetting }                       from '../db.js';
-import { eur, escHtml, nomMois, addMonth, showToast,
+import { eur, escHtml, nomMois, addMonth, showToast, showToastWithUndo,
          openModal, closeModal, getCategoryInfo,
          CATEGORIES, MOIS }                                from '../utils.js';
 
@@ -461,11 +461,10 @@ function showChargeModal(charge, onSave) {
   document.getElementById('c-cancel')?.addEventListener('click', closeModal);
 
   document.getElementById('c-delete')?.addEventListener('click', async () => {
-    if (!confirm('Supprimer cette charge ?')) return;
-    await deleteCharge(charge.id);
+    const toDelete = { ...charge };
     closeModal();
-    showToast('Charge supprimée', 'success');
-    onSave();
+    showToastWithUndo(`Charge « ${toDelete.label || 'sans nom'} » supprimée`,
+      async () => { await deleteCharge(toDelete.id); onSave(); }, 6000, 'warning');
   });
 
   document.getElementById('c-save')?.addEventListener('click', async () => {
@@ -771,10 +770,9 @@ async function renderBudgets(container) {
   });
   tc.querySelectorAll('[data-bgt-del-op]').forEach(btn => {
     btn.addEventListener('click', async () => {
-      if (!confirm('Supprimer cette opération ?')) return;
-      await deleteBudgetOp(Number(btn.dataset.bgtDelOp));
-      showToast('Supprimé', 'success');
-      renderBudgets(container);
+      const opId = Number(btn.dataset.bgtDelOp);
+      showToastWithUndo('Opération supprimée',
+        async () => { await deleteBudgetOp(opId); renderBudgets(container); }, 6000, 'warning');
     });
   });
   tc.querySelectorAll('[data-bgt-peruser]').forEach(btn => {
@@ -846,10 +844,9 @@ async function renderBudgets(container) {
   });
   tc.querySelectorAll('[data-del-achat]').forEach(btn => {
     btn.addEventListener('click', async () => {
-      if (!confirm('Supprimer cet achat exceptionnel ?')) return;
-      await deleteAchat(Number(btn.dataset.delAchat));
-      showToast('Achat supprimé', 'success');
-      renderBudgets(container);
+      const id = Number(btn.dataset.delAchat);
+      showToastWithUndo('Achat exceptionnel supprimé',
+        async () => { await deleteAchat(id); renderBudgets(container); }, 6000, 'warning');
     });
   });
   tc.querySelector('#bgt-ops-toggle-achats')?.addEventListener('click', () => {
@@ -1066,9 +1063,11 @@ export function showEditBudgetModal(existing, customBudgets, onSave) {
     btn.addEventListener('click', () => { document.querySelectorAll('.icon-pick').forEach(b=>b.style.borderColor='transparent'); btn.style.borderColor='var(--primary)'; document.getElementById('bgt-icon').value=btn.dataset.icon; });
   });
   document.getElementById('bgt-delete')?.addEventListener('click', async () => {
-    if (!confirm(`Supprimer "${existing.name}" ?`)) return;
-    await setSetting('customBudgets', customBudgets.filter(b=>b.id!==existing.id));
-    closeModal(); showToast('Budget supprimé', 'success'); onSave();
+    const toDelete = { ...existing };
+    closeModal();
+    showToastWithUndo(`Budget « ${toDelete.name} » supprimé`,
+      async () => { await setSetting('customBudgets', customBudgets.filter(b=>b.id!==toDelete.id)); onSave(); },
+      6000, 'warning');
   });
   document.getElementById('bgt-save')?.addEventListener('click', async () => {
     const name   = document.getElementById('bgt-name')?.value.trim();
@@ -1093,10 +1092,12 @@ function _showManageBudgetsModal(customBudgets, onSave) {
   });
   document.querySelectorAll('.manage-del').forEach(btn => {
     btn.addEventListener('click', async () => {
-      const b=customBudgets.find(b=>b.id===btn.dataset.id);
-      if(!b||!confirm(`Supprimer "${b.name}" ?`)) return;
-      await setSetting('customBudgets',customBudgets.filter(x=>x.id!==b.id));
-      closeModal(); showToast('Supprimé','success'); onSave();
+      const b = customBudgets.find(b=>b.id===btn.dataset.id);
+      if (!b) return;
+      closeModal();
+      showToastWithUndo(`Budget « ${b.name} » supprimé`,
+        async () => { await setSetting('customBudgets',customBudgets.filter(x=>x.id!==b.id)); onSave(); },
+        6000, 'warning');
     });
   });
 }
@@ -1198,11 +1199,10 @@ function showAchatModal(achat, onSave) {
     updateASplitHint();
   }
   document.getElementById('a-delete')?.addEventListener('click', async () => {
-    if (!confirm('Supprimer cet achat ?')) return;
-    await deleteAchat(achat.id);
+    const toDelete = { ...achat };
     closeModal();
-    showToast('Achat supprimé', 'success');
-    onSave();
+    showToastWithUndo(`Achat « ${toDelete.label || 'sans nom'} » supprimé`,
+      async () => { await deleteAchat(toDelete.id); onSave(); }, 6000, 'warning');
   });
 
   document.getElementById('a-save')?.addEventListener('click', async () => {

@@ -6,7 +6,7 @@ import { getAllSettings, getSetting, setSetting, getActiveUsers, getMonthsByYear
 import { initDriveSync, startAutoSave, initActivityTracking,
          markDirty, testDriveConnection }                         from './sync.js';
 import { today, showToast, closeModal, openModal, nomMois,
-         isMonthEmpty }                                           from './utils.js';
+         addMonth, isMonthEmpty }                                 from './utils.js';
 import { DRIVE_URL_KEY, isValidDriveUrl }                         from './drive.js';
 
 // ── État global de l'application ──
@@ -49,6 +49,9 @@ export async function navigateTo(page, params = {}) {
   State.page = page;
   if (params.year)  State.year  = params.year;
   if (params.month) State.month = params.month;
+
+  // FAB : masquer sur la page argent
+  if (window._fabUpdater) window._fabUpdater();
 
   document.querySelectorAll('.nav-item').forEach(btn => {
     btn.classList.toggle('active', btn.dataset.page === page);
@@ -276,6 +279,80 @@ async function init() {
   document.getElementById('modal-overlay')?.addEventListener('click', e => {
     if (e.target === document.getElementById('modal-overlay')) closeModal();
   });
+
+  // ── FAB Saisie rapide ──
+  const fab = document.getElementById('fab-quick');
+  if (fab) {
+    fab.style.display = 'flex';
+    fab.addEventListener('click', () => navigateTo('argent', { tab: 'saisir' }));
+    // Cacher sur la page argent (la saisie est déjà là)
+    const _updateFab = () => {
+      fab.style.opacity  = State.page === 'argent' ? '0' : '1';
+      fab.style.pointerEvents = State.page === 'argent' ? 'none' : '';
+    };
+    // patch navigateTo pour mettre à jour le FAB
+    const _origNav = navigateTo;
+    window._fabUpdater = _updateFab; // accessible depuis navigateTo hook ci-dessous
+    _updateFab();
+  }
+
+  // ── Raccourcis clavier (desktop) ──
+  document.addEventListener('keydown', e => {
+    // Escape → fermer modal
+    if (e.key === 'Escape') { closeModal(); return; }
+    // Alt+1..6 → navigation pages
+    if (e.altKey && !e.ctrlKey && !e.metaKey) {
+      const pageKeys = ['dashboard','argent','charges','savings','stats','settings'];
+      const n = parseInt(e.key);
+      if (n >= 1 && n <= pageKeys.length) { e.preventDefault(); navigateTo(pageKeys[n-1]); return; }
+      // Alt+N → mois suivant, Alt+P → mois précédent (dashboard uniquement)
+      if (e.key === 'n' && State.page === 'dashboard') {
+        e.preventDefault();
+        const nx = addMonth(State.year, State.month, 1);
+        State.year = nx.year; State.month = nx.month;
+        navigateTo('dashboard');
+        return;
+      }
+      if (e.key === 'p' && State.page === 'dashboard') {
+        e.preventDefault();
+        const pv = addMonth(State.year, State.month, -1);
+        State.year = pv.year; State.month = pv.month;
+        navigateTo('dashboard');
+        return;
+      }
+      // Alt+? → aide raccourcis
+      if (e.key === '?') {
+        e.preventDefault();
+        openModal('⌨️ Raccourcis clavier',
+          `<div style="font-size:0.85rem;line-height:1.9;">
+            <div><kbd>Alt+1</kbd> → Accueil &nbsp; <kbd>Alt+2</kbd> → Argent</div>
+            <div><kbd>Alt+3</kbd> → Charges &nbsp; <kbd>Alt+4</kbd> → Épargne</div>
+            <div><kbd>Alt+5</kbd> → Statistiques &nbsp; <kbd>Alt+6</kbd> → Paramètres</div>
+            <div><kbd>Alt+N</kbd> → Mois suivant &nbsp; <kbd>Alt+P</kbd> → Mois précédent</div>
+            <div><kbd>Échap</kbd> → Fermer modal &nbsp; <kbd>Alt+?</kbd> → Cette aide</div>
+          </div>`,
+          `<button class="btn btn-primary" onclick="document.getElementById('modal-close').click()">Fermer</button>`
+        );
+        return;
+      }
+    }
+  });
+
+  // ── Swipe horizontal pour navigation entre mois (dashboard) ──
+  let _swipeX = null;
+  document.getElementById('app-content')?.addEventListener('touchstart', e => {
+    _swipeX = e.touches[0].clientX;
+  }, { passive: true });
+  document.getElementById('app-content')?.addEventListener('touchend', e => {
+    if (_swipeX === null || State.page !== 'dashboard') { _swipeX = null; return; }
+    const delta = e.changedTouches[0].clientX - _swipeX;
+    _swipeX = null;
+    if (Math.abs(delta) < 60) return; // seuil 60px
+    const dir = delta < 0 ? 1 : -1;  // swipe gauche = mois suivant
+    const nx = addMonth(State.year, State.month, dir);
+    State.year = nx.year; State.month = nx.month;
+    navigateTo('dashboard');
+  }, { passive: true });
 
   // Hash URL
   const hash   = window.location.hash.replace('#', '').trim();

@@ -209,8 +209,61 @@ export function showToast(message, type = '', duration = 3000) {
   toast.textContent  = message;
   toast.className    = `toast ${type}`;
   toast.classList.remove('hidden');
+  // Nettoyer un éventuel bouton Annuler précédent
+  toast.style.display = '';
+  const old = toast.querySelector('.toast-undo');
+  if (old) old.remove();
   clearTimeout(toast._timer);
   toast._timer = setTimeout(() => toast.classList.add('hidden'), duration);
+}
+
+/**
+ * Toast avec bouton "Annuler" — action différée de `delay` ms.
+ * @param {string} message
+ * @param {Function} action  — fonction exécutée après `delay` si non annulée
+ * @param {number}  delay    — délai avant exécution réelle (ms)
+ * @param {string}  type     — classe CSS ('warning', 'error', 'success', '')
+ */
+export function showToastWithUndo(message, action, delay = 6000, type = 'warning') {
+  const toast = document.getElementById('toast');
+  if (!toast) { action(); return; }
+
+  let cancelled = false;
+  clearTimeout(toast._timer);
+  clearTimeout(toast._undoTimer);
+
+  toast.className = `toast ${type}`;
+  toast.classList.remove('hidden');
+  toast.style.display = 'flex';
+  toast.style.alignItems = 'center';
+  toast.style.gap = '10px';
+
+  // Vider le contenu précédent
+  toast.innerHTML = '';
+  const span = document.createElement('span');
+  span.style.flex = '1';
+  span.textContent = message;
+  toast.appendChild(span);
+
+  const btn = document.createElement('button');
+  btn.className = 'toast-undo';
+  btn.textContent = 'Annuler';
+  btn.style.cssText = 'background:rgba(255,255,255,0.2);border:1px solid rgba(255,255,255,0.4);color:#fff;border-radius:6px;padding:3px 10px;font-size:0.78rem;font-weight:700;cursor:pointer;flex-shrink:0;';
+  btn.addEventListener('click', () => {
+    cancelled = true;
+    clearTimeout(toast._undoTimer);
+    toast.classList.add('hidden');
+    toast.innerHTML = '';
+    toast.style.display = '';
+  });
+  toast.appendChild(btn);
+
+  toast._undoTimer = setTimeout(() => {
+    toast.classList.add('hidden');
+    toast.innerHTML = '';
+    toast.style.display = '';
+    if (!cancelled) action();
+  }, delay);
 }
 
 /** Ouvre la modal avec un titre et un contenu HTML */
