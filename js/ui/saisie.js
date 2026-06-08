@@ -40,6 +40,23 @@ export async function render(container) {
   // Initialiser la liste des imprévus si absente
   if (!_md.imprévusList) _md.imprévusList = [];
 
+  // Normaliser le mode de répartition pour le contexte multi-user
+  if (N > 1) {
+    // `solo` ne devrait jamais être sauvegardé, mais on le corrige au cas où
+    if (!_repCfg.mode || _repCfg.mode === 'solo') {
+      _repCfg.mode = 'equitable';
+    }
+    // Si mode `separe` et qu'au moins un user n'a pas encore de revenus déclarés
+    // (transition typique mono→multi), basculer silencieusement sur équitable
+    if (_repCfg.mode === 'separe') {
+      const someUserNoRevenue = _users.some(u => {
+        const ud = _md.users?.[String(u.id)];
+        return !ud || ((ud.revenus || 0) + (ud.primes || 0) === 0);
+      });
+      if (someUserNoRevenue) _repCfg.mode = 'equitable';
+    }
+  }
+
   const modeHidden = N <= 1;
 
   container.innerHTML = `

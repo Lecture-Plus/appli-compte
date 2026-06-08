@@ -522,10 +522,14 @@ function showUserModal(user, onSave) {
     const name = document.getElementById('um-name')?.value.trim();
     if (!name) { showToast('Le prénom est requis', 'error'); return; }
     const payload = { ...u, name, color: selectedColor, active: true, createdAt: u.createdAt || new Date().toISOString(), deletedAt: null };
+    const prevCount = (await getActiveUsers()).length;
     await saveUser(payload);
     await reloadUsers();
     closeModal();
     showToast(isNew ? `${name} ajouté ✅` : 'Utilisateur mis à jour ✅', 'success');
+    if (isNew && prevCount === 1) {
+      setTimeout(() => showToast('💡 Mode équitable activé automatiquement. Vérifiez la répartition dans Saisie.', 'success', 4500), 700);
+    }
     onSave();
   });
 }

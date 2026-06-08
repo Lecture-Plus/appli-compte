@@ -186,7 +186,7 @@ const SETTING_DEFAULTS = {
   savingsGoalLabel:       'Mon objectif',
   savingsGoalYear:        new Date().getFullYear(),
   weeklyCoursesEstimate:  85,
-  defaultRepartMode:      'separe',
+  defaultRepartMode:      'equitable',
   currency:               '€',
   theme:                  'auto',
   lastBackup:             null,
