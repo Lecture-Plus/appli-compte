@@ -173,11 +173,27 @@ export function calcMonth(monthData, charges, achats, repartCfg, users, budgetOp
   for (const uid of uids) depU[uid] = aPayerU[uid] + chgPersoU[uid];
 
   // ── Économie possible (sans imprévus ni achats exc.) ──
+  // La part d'achats partagés est recalculée selon le mode (identique à partSharedU mais sans les charges)
   const ecoU = _mk(uids);
   for (const uid of uids) {
-    const achP  = achPersonalU[uid];
-    const shAch = mode === 'solo' ? totalSharedAch : totalSharedAch / N;
-    ecoU[uid]   = revU[uid] + priU[uid] + aidesU[uid] - (aPayerU[uid] - impU[uid] - achP - shAch);
+    const achP = achPersonalU[uid] + achCustomU[uid];
+    let shAchU;
+    if (mode === 'solo') {
+      shAchU = uid === uids[0] ? totalSharedAch : 0;
+    } else if (mode === 'fixe') {
+      const pcts    = repartCfg?.pcts ?? {};
+      const sumPcts = uids.reduce((s, u) => s + (Number(pcts[u]) || 0), 0) || 100;
+      shAchU = totalSharedAch * ((Number(pcts[uid]) || 0) / sumPcts);
+    } else if (mode === 'equitable') {
+      const aidesRep   = repartCfg?.aidesRepartition || {};
+      const revForDist = _mk(uids);
+      for (const u of uids) revForDist[u] = revU[u] + (aidesRep[u] ? aidesU[u] : 0);
+      const base = _sum(revForDist) || 1;
+      shAchU = totalSharedAch * (revForDist[uid] / base);
+    } else {
+      shAchU = totalSharedAch / N;
+    }
+    ecoU[uid] = revU[uid] + priU[uid] + aidesU[uid] - (aPayerU[uid] - impU[uid] - achP - shAchU);
   }
 
   // ── Taux d'épargne (par user = solde/revenus+aides+primes ; total = agrégat) ──
@@ -298,13 +314,7 @@ export function calcPrevisionnel({ totalIncome, charges, year, month, simDay, de
     chargesByDay[day].push({ label: c.label, amount: amt });
   }
 
-  // Courses hebdomadaires : déduire tous les 7 jours à partir du jour 1
-  if (weeklyGroceries > 0) {
-    for (let d = 1; d <= daysInMonth; d += 7) {
-      if (!chargesByDay[d]) chargesByDay[d] = [];
-      chargesByDay[d].push({ label: '🛒 Courses', amount: weeklyGroceries });
-    }
-  }
+  // Courses hebdomadaires : fonctionnalité non activée (weeklyGroceries toujours 0)
 
   // Le solde de départ est le revenu net des dépenses déjà connues (courses, extras, imprévus)
   let balance = (Number(totalIncome) || 0) - (Number(deductions) || 0);

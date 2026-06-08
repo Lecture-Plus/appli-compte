@@ -25,13 +25,6 @@ export const CATEGORIES = [
   { id: 'autre',        label: 'Autre',              emoji: '📦' },
 ];
 
-export const QUI_OPTIONS = [
-  { id: 'p1',       label: 'Personne 1' },
-  { id: 'p2',       label: 'Personne 2' },
-  { id: 'les_deux', label: 'Les deux' },
-  { id: '50_50',    label: '50 / 50' },
-];
-
 /** Formatters singleton — instanciés une seule fois, réutilisés à chaque appel */
 const _eurFmt = new Intl.NumberFormat('fr-FR', {
   style:    'currency',

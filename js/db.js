@@ -422,7 +422,8 @@ export async function saveArchive(archive)   { await _put('archives', archive); 
 
 export async function exportAllData() {
   const [users, settings, monthlyData, charges, achats, repartition, archives,
-         savings_operations, savings_confirmed] = await Promise.all([
+         savings_operations, savings_confirmed,
+         budget_ops, salary_savings, salary_abondements] = await Promise.all([
     _getAll('users'),
     _getAll('settings'),
     _getAll('monthlyData'),
@@ -432,14 +433,18 @@ export async function exportAllData() {
     _getAll('archives'),
     _getAll('savings_operations'),
     _getAll('savings_confirmed'),
+    _getAll('budget_ops'),
+    _getAll('salary_savings'),
+    _getAll('salary_abondements'),
   ]);
 
   return {
-    version:    2,   // v2 du format JSON (multi-users)
+    version:    3,   // v3 du format JSON (+ budget_ops, salary_savings, salary_abondements)
     appName:    'Compta+',
     exportedAt: new Date().toISOString(),
     users, settings, monthlyData, charges, achats,
     repartition, archives, savings_operations, savings_confirmed,
+    budget_ops, salary_savings, salary_abondements,
   };
 }
 
@@ -450,7 +455,7 @@ export async function importAllData(data) {
 
   const stores = ['users', 'settings', 'monthlyData', 'charges', 'achats',
                   'repartition', 'archives', 'savings_operations', 'savings_confirmed',
-                  'salary_savings', 'salary_abondements'];
+                  'budget_ops', 'salary_savings', 'salary_abondements'];
   const db     = await openDB();
 
   for (const storeName of stores) {
@@ -471,7 +476,7 @@ export async function importAllData(data) {
 export async function resetAllData() {
   const stores = ['users', 'settings', 'monthlyData', 'charges', 'achats',
                   'repartition', 'archives', 'savings_operations', 'savings_confirmed',
-                  'salary_savings', 'salary_abondements'];
+                  'budget_ops', 'salary_savings', 'salary_abondements'];
   for (const s of stores) await _clear(s);
   _settingsCache = null; _usersCache = null; _db = null;
 }

@@ -4,11 +4,12 @@
 
 import { State, navigateTo }                              from '../app.js';
 import { getMonthlyData, getChargesForMonth,
-         getAchatsForMonth, getAllAchats, getRepartition,
+         getAchatsForMonth, getAllAchats, getRepartition, getAllRepartitions,
          getAllSettings, getMonthsByYear,
          computeCurrentSavingsBalance,
          getAllSavingsOperations, saveSavingsOperation,
          deleteSavingsOperation,
+         getAllCharges, getAllBudgetOps,
          getBudgetOpsForMonth, saveBudgetOp,
          getActiveUsers }                                  from '../db.js';
 import { calcMonth, calcPrevisionnel }                    from '../calculs.js';
@@ -154,14 +155,20 @@ async function _renderResume(container, s, users) {
 
   if (goal > 0 && goalYear === year) {
     const allMonths = await getMonthsByYear(year);
-    const ytdValues = await Promise.all(allMonths.map(m =>
-      Promise.all([
-        getChargesForMonth(m.month, year),
-        getAchatsForMonth(year, m.month),
-        getRepartition(year, m.month),
-        getBudgetOpsForMonth(year, m.month),
-      ]).then(([c, a, rc, bopsYTD]) => calcMonth(m, c, a, rc, users, bopsYTD).solde.total)
-    ));
+    // Pré-charger tout en mémoire pour éviter N×4 requêtes IDB
+    const [allChargesYTD, allAchatsYTD, allRepsYTD, allBopsYTD] = await Promise.all([
+      getAllCharges(), getAllAchats(), getAllRepartitions(), getAllBudgetOps(),
+    ]);
+    const ytdValues = allMonths.map(m => {
+      const mChg  = allChargesYTD.filter(c => {
+        const ms = Array.isArray(c.months) ? c.months : (c.months === 'all' ? null : []);
+        return ms === null || ms.includes(m.month);
+      });
+      const mAch  = allAchatsYTD.filter(a => a.year === year && a.month === m.month);
+      const mRep  = allRepsYTD.find(r => r.year === year && r.month === m.month) ?? {};
+      const mBops = allBopsYTD.filter(b => b.year === year && b.month === m.month);
+      return calcMonth(m, mChg, mAch, mRep, users, mBops).solde.total;
+    });
     epargneYTD = ytdValues.reduce((s, v) => s + v, 0);
   }
   const goalPct   = goal > 0 ? Math.min(200, Math.round((epargneYTD / goal) * 100)) : 0;

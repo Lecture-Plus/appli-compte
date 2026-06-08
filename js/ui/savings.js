@@ -470,7 +470,6 @@ function showOpModal(type, users, onSave) {
   const N        = users.length;
 
   // Pour craquage partagé (passé en paramètre) : total à distribuer
-  const sharedTotal = null; // pas de total pré-rempli en usage direct
 
   const userSection = N > 1 ? `
     <div class="form-group" style="margin-bottom:10px;">

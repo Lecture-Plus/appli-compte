@@ -487,10 +487,10 @@ function showChargeModal(charge, onSave) {
       const splitPcts = (qui === 'shared' && splitInputs.length > 0 && wrapper.querySelector('.charge-line-split')?.style.display !== 'none')
         ? Object.fromEntries([...splitInputs].map(inp => [inp.dataset.uid, Number(inp.value) || 0]))
         : null;
-      // Le montant courant = dernier dans l'historique (si existant) sinon le champ saisi
-      const effectiveAmt = history.length > 0 ? history[history.length - 1].amount : amt;
+      // line.amount = montant de base saisi dans le champ (fallback quand aucune entrée historique n'est applicable)
+      // L'historique des prix est géré séparément par resolveLineAmount dans db.js
       lines.push({
-        amount: effectiveAmt,
+        amount: amt,
         qui,
         dayOfMonth: day,
         ...(splitPcts ? { splitPcts } : {}),

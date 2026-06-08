@@ -461,13 +461,10 @@ async function renderChartSavingsBalance(year, curYear, curMonth, users = []) {
       continue;
     }
     const monthOps = ops.filter(o => o.year === year && o.month === m);
-    const confirmed = monthOps.find(o => o.type === 'confirmed_balance');
-    if (confirmed) {
-      runningBalance = confirmed.amount;
-    } else {
-      const delta = monthOps.filter(o => o.type !== 'confirmed_balance').reduce((s, o) => s + (o.amount || 0), 0);
-      runningBalance += delta;
-    }
+    // Les confirmations sont dans savings_confirmed, pas dans savings_operations
+    // On accumule simplement les deltas (versements/retraits)
+    const delta = monthOps.reduce((s, o) => s + (o.amount || 0), 0);
+    runningBalance += delta;
     pointsByMonth.push(runningBalance || null);
 
     users.forEach(u => {
@@ -782,10 +779,10 @@ async function exportPDF(year, month, users, s) {
     // Charges fixes détail
     const chargesByCat={};
     for (const m of months) { const chg=chgForMonth(m); for (const c of chg) { const cat=c.category||'autre'; chargesByCat[cat]=chargesByCat[cat]||{label:c.category||'Autre',total:0}; chargesByCat[cat].total+=Number(c.amount)||0; } }
-    const chargesRows=Object.values(chargesByCat).sort((a,b)=>b.total-a.total).map((c,i)=>{ const bg=i%2?'background:#F8FAFC;':''; const info=getCategoryInfo(c.label); const monthly=months.length>1?(c.total/months.length):c.total; return `<tr style="${bg}"><td>${info.emoji} ${esc(info.name||c.label)}</td><td style="text-align:right;color:#64748B;">${fmt(monthly)}</td><td style="text-align:right;font-weight:700;color:#4F46E5;">${fmt(c.total)}</td></tr>`; }).join('');
+    const chargesRows=Object.values(chargesByCat).sort((a,b)=>b.total-a.total).map((c,i)=>{ const bg=i%2?'background:#F8FAFC;':''; const info=getCategoryInfo(c.label); const monthly=months.length>1?(c.total/months.length):c.total; return `<tr style="${bg}"><td>${info.emoji} ${esc(info.label||c.label)}</td><td style="text-align:right;color:#64748B;">${fmt(monthly)}</td><td style="text-align:right;font-weight:700;color:#4F46E5;">${fmt(c.total)}</td></tr>`; }).join('');
 
     // Objectif épargne
-    const epObjectif=Number(s?.epargneObjectif)||0, epTxObjectif=Number(s?.epargneRate)||0.35;
+    const epObjectif=Number(s?.savingsGoal)||0, epTxObjectif=0.35;
     const epActualTotal=yearKPI?.solde?.total??0, epActualTx=yearKPI?.txEpargne?.total??0;
     const epProgress=epObjectif>0?Math.min(100,Math.round((epActualTotal/epObjectif)*100)):0;
     const epProgressBar=epObjectif>0?`<div style="background:#E2E8F0;border-radius:8px;overflow:hidden;height:12px;margin:8px 0;"><div style="height:12px;width:${epProgress}%;background:linear-gradient(90deg,#10B981,#34D399);border-radius:8px;min-width:4px;"></div></div><div style="font-size:9px;color:#64748B;">${epProgress}% de l'objectif annuel de ${fmt(epObjectif)}</div>`:'';

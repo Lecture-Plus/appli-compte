@@ -84,8 +84,8 @@ export async function reloadUsers() {
   State.users = await getActiveUsers();
 }
 
-/** @deprecated use reloadUsers */
-export async function reloadNames() { return reloadUsers(); }
+/** @deprecated — utiliser reloadUsers directement */
+// export async function reloadNames() { return reloadUsers(); }
 
 // ── Vérification des mois non remplis + notification push ──
 async function checkUnfilledMonths() {
@@ -207,7 +207,11 @@ function _initNavScroll() {
 }
 
 // ── Counter animation pour éléments .data-counter[data-value] ──
+let _counterRafs = [];
 function _initCounters(root) {
+  // Annuler les animations précédentes
+  _counterRafs.forEach(id => cancelAnimationFrame(id));
+  _counterRafs = [];
   const elements = root.querySelectorAll('.data-counter[data-value]');
   elements.forEach(el => {
     const target = parseFloat(el.dataset.value);
@@ -223,9 +227,13 @@ function _initCounters(root) {
       el.textContent = isEuro
         ? current.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €'
         : current.toLocaleString('fr-FR', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
-      if (progress < 1) requestAnimationFrame(tick);
+      if (progress < 1) {
+        const rafId = requestAnimationFrame(tick);
+        _counterRafs.push(rafId);
+      }
     }
-    requestAnimationFrame(tick);
+    const rafId = requestAnimationFrame(tick);
+    _counterRafs.push(rafId);
   });
 }
 

@@ -383,7 +383,7 @@ export async function render(container) {
 
   // ── Craquage ──
   container.querySelector('#btn-craquage')?.addEventListener('click', () => {
-    showCraquageModal(container, month, year);
+    showCraquageModal(container, month, year, _users, () => updatePreview(container));
   });
 }
 

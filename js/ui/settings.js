@@ -580,13 +580,17 @@ function bindEvents(container, s, users, archived, N) {
   container.querySelector('#btn-reset')?.addEventListener('click', () => {
     openModal('⚠️ Effacer toutes les données', `
       <p style="color:var(--danger);font-weight:600;margin-bottom:10px;">Cette action est irréversible.</p>
-      <p>Toutes vos données seront définitivement supprimées.</p>
+      <p style="margin-bottom:12px;">Toutes vos données seront définitivement supprimées.</p>
+      <label class="form-label">Tapez <strong>EFFACER</strong> pour confirmer</label>
+      <input type="text" class="form-input" id="reset-confirm-input" placeholder="EFFACER" autocomplete="off" style="margin-top:6px;">
     `, `
       <button class="btn btn-outline" id="reset-cancel">Annuler</button>
       <button class="btn btn-danger" id="reset-confirm">Tout effacer</button>
     `);
     document.getElementById('reset-cancel')?.addEventListener('click', closeModal);
     document.getElementById('reset-confirm')?.addEventListener('click', async () => {
+      const val = document.getElementById('reset-confirm-input')?.value.trim();
+      if (val !== 'EFFACER') { showToast('Tapez EFFACER pour confirmer', 'error'); return; }
       await resetAllData();
       closeModal();
       showToast('Données effacées. Rechargement…', 'success');
