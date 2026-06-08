@@ -5,9 +5,9 @@
 import { State }                                       from '../app.js';
 import { getMonthlyData, saveMonthlyData,
          getChargesForMonth, getAchatsForMonth,
-         saveAchat, getRepartition, saveRepartition,
+         saveAchat, deleteAchat, getRepartition, saveRepartition,
          getAllSettings, saveSavingsOperation,
-         saveBudgetOp,
+         saveBudgetOp, getBudgetOpsForMonth,
          getActiveUsers, getUserMonthData }             from '../db.js';
 import { calcMonth, whatIf }                           from '../calculs.js';
 import { eur, pct, nomMois, addMonth, escHtml,
@@ -22,6 +22,7 @@ let _saveInd  = null; // référence à l'indicateur "Sauvegardé"
 let _chargesCache = [];
 let _achatsCache  = [];
 let _coursesFoyerMode = localStorage.getItem('coursesFoyerMode') === '1';
+let _extrasFoyerMode  = localStorage.getItem('extrasFoyerMode')  === '1';
 
 export async function render(container) {
   _users = await getActiveUsers();
@@ -176,11 +177,12 @@ export async function render(container) {
         </div>
         <div id="courses-content">${_buildCoursesContent(N)}</div>
       </div>
-      <div>
-        <div style="font-size:0.78rem;font-weight:700;color:var(--text);margin-bottom:6px;">🎮 Loisirs &amp; Sorties</div>
-        <div class="form-grid-${Math.min(N, 4)}">
-          ${_users.map(u => inputField(`ext-${u.id}`, u, _md.users[String(u.id)]?.extras, '€')).join('')}
+      <div id="extras-section">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+          <div style="font-size:0.78rem;font-weight:700;color:var(--text);">🎮 Loisirs &amp; Sorties</div>
+          <button class="btn btn-sm btn-outline" id="btn-extras-mode" style="font-size:0.7rem;">${_extrasFoyerMode ? '👤 Par personne' : '🏠 Foyer'}</button>
         </div>
+        <div id="extras-content">${_buildExtrasContent(N)}</div>
       </div>`}
     </div>
 
@@ -334,6 +336,21 @@ export async function render(container) {
     debouncedSave();
   });
 
+  container.querySelector('#btn-extras-mode')?.addEventListener('click', () => {
+    syncFormToState(container);
+    _extrasFoyerMode = !_extrasFoyerMode;
+    localStorage.setItem('extrasFoyerMode', _extrasFoyerMode ? '1' : '0');
+    const btn = container.querySelector('#btn-extras-mode');
+    if (btn) btn.textContent = _extrasFoyerMode ? '👤 Par personne' : '🏠 Foyer';
+    const contentEl = container.querySelector('#extras-content');
+    if (contentEl) contentEl.innerHTML = _buildExtrasContent(N);
+    container.querySelector('#ext-foyer')?.addEventListener('input', () => {
+      syncFormToState(container); updatePreview(container); debouncedSave();
+    });
+    updatePreview(container);
+    debouncedSave();
+  });
+
   // ── Imprévus (liste dynamique) ──
   _recomputeImprévus();
   _renderImprévusList(container);
@@ -392,6 +409,12 @@ function syncFormToState(container) {
     _users.forEach(u => { _md.users[String(u.id)].courses = perUser; });
   } else {
     _users.forEach(u => { _md.users[String(u.id)].courses = _v(`crs-${u.id}`); });
+  }
+  // Extras : mode foyer ou individuel (override si foyer mode)
+  if (_extrasFoyerMode && _users.length > 1) {
+    const total   = _v('ext-foyer');
+    const perUser = _users.length > 0 ? total / _users.length : 0;
+    _users.forEach(u => { _md.users[String(u.id)].extras = perUser; });
   }
 
   if (!_repCfg.pcts) _repCfg.pcts = {};
@@ -635,7 +658,7 @@ function showImprévuModal(container, month, year) {
 }
 
 // ── Modal Craquage et dépassement (exportable) ──
-export async function showCraquageModal(container, month, year, usersOverride = null, onSave = null) {
+export async function showCraquageModal(container, month, year, usersOverride = null, onSave = null, prefill = null) {
   const users         = usersOverride || _users;
   const now           = new Date();
   const settings      = await getAllSettings();
@@ -646,7 +669,24 @@ export async function showCraquageModal(container, month, year, usersOverride = 
     ...customBudgets.map(b => ({ id: b.id, label: `${b.icon || '📌'} ${escHtml(b.name)}` })),
   ];
 
-  let rows = [{ source: 'balance', amount: '', subValue: 'courses' }];
+  // Budget limits for greying maxed options
+  let budgetLimitsMap = {};
+  try {
+    const [mdBgt, bOps] = await Promise.all([getMonthlyData(year, month), getBudgetOpsForMonth(year, month)]);
+    for (const b of budgetOpts) {
+      const lim = b.id === 'courses'
+        ? users.reduce((s, u) => s + (Number(mdBgt?.users?.[String(u.id)]?.courses) || 0), 0)
+        : b.id === 'extras'
+          ? users.reduce((s, u) => s + (Number(mdBgt?.users?.[String(u.id)]?.extras) || 0), 0)
+          : Number(customBudgets.find(cb => cb.id === b.id)?.amount || 0);
+      if (lim > 0) {
+        const sp = bOps.filter(o => o.category === b.id).reduce((s, o) => s + (Number(o.amount)||0), 0);
+        budgetLimitsMap[b.id] = { budget: lim, spent: sp, remaining: lim - sp };
+      }
+    }
+  } catch (e) { /* ignore */ }
+
+  let rows = [{ source: 'balance', amount: prefill?.amount ? String(prefill.amount) : '', subValue: 'courses' }];
 
   const sourceOptions = `
     <option value="balance">📅 Budget mensuel</option>
@@ -657,7 +697,12 @@ export async function showCraquageModal(container, month, year, usersOverride = 
   function buildSubField(r) {
     if (r.source === 'balance') {
       return `<select class="form-input crq-sub" style="width:100%;font-size:0.78rem;padding:6px 8px;">
-        ${budgetOpts.map(b => `<option value="${b.id}" ${r.subValue === b.id ? 'selected' : ''}>${b.label}</option>`).join('')}
+        ${budgetOpts.map(b => {
+          const lim = budgetLimitsMap[b.id];
+          const isMaxed = lim && lim.remaining <= 0;
+          const suffix = isMaxed ? ' — épuisé' : (lim && lim.budget > 0 ? ` (${eur(lim.remaining)} restant)` : '');
+          return `<option value="${b.id}" ${r.subValue === b.id ? 'selected' : ''} ${isMaxed ? 'disabled' : ''}>${b.label}${suffix}</option>`;
+        }).join('')}
       </select>`;
     }
     if (r.source === 'savings' && users.length > 1) {
@@ -705,7 +750,7 @@ export async function showCraquageModal(container, month, year, usersOverride = 
     </p>
     <div class="form-group" style="margin-bottom:10px;">
       <label class="form-label">Description</label>
-      <input type="text" class="form-input" id="crq-label" placeholder="Ex: Restaurant, Vêtement impulsif…" autofocus>
+      <input type="text" class="form-input" id="crq-label" placeholder="Ex: Restaurant, Vêtement impulsif…" autofocus value="${escHtml(prefill?.label || '')}">
     </div>
     <div class="form-group" style="margin-bottom:10px;">
       <label class="form-label">Qui a dépensé ?</label>
@@ -833,6 +878,7 @@ export async function showCraquageModal(container, month, year, usersOverride = 
       }
     }
 
+    if (prefill?.pendingId) await deleteAchat(prefill.pendingId);
     closeModal();
     const total = validRows.reduce((s, r) => s + Number(r.amount), 0);
     showToast(`Craquage enregistré : ${eur(total)} 💥`, 'success');
@@ -901,6 +947,24 @@ function _buildCoursesContent(N) {
     <div class="form-hint" style="margin-bottom:8px;">Ce que chacun a payé en caisse</div>
     <div class="form-grid-${Math.min(N, 4)}">
       ${_users.map(u => inputField(`crs-${u.id}`, u, _md?.users?.[String(u.id)]?.courses, '€')).join('')}
+    </div>`;
+}
+
+function _buildExtrasContent(N) {
+  if (_extrasFoyerMode && N > 1) {
+    const total = _users.reduce((s, u) => s + (Number(_md?.users?.[String(u.id)]?.extras) || 0), 0);
+    return `
+      <div class="form-hint" style="margin-bottom:8px;">Budget loisirs commun du foyer (réparti équitablement)</div>
+      <div class="input-wrap" style="max-width:200px;">
+        <input type="number" class="form-input input-euro" id="ext-foyer"
+          min="0" step="0.01" placeholder="0.00" value="${total || ''}">
+        <span class="input-suffix">€</span>
+      </div>`;
+  }
+  return `
+    <div class="form-hint" style="margin-bottom:8px;">Loisirs, sorties, activités</div>
+    <div class="form-grid-${Math.min(N, 4)}">
+      ${_users.map(u => inputField(`ext-${u.id}`, u, _md?.users?.[String(u.id)]?.extras, '€')).join('')}
     </div>`;
 }
 

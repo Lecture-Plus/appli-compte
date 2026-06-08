@@ -371,7 +371,7 @@ function showDriveWarningBanner(s) {
   const banner = document.createElement('div');
   banner.id    = 'drive-banner';
   banner.innerHTML = `
-    <div style="background:var(--warning-bg);border-bottom:2px solid var(--warning);padding:10px 16px;display:flex;align-items:center;gap:10px;z-index:9999;position:relative;">
+    <div style="background:var(--warning-bg);border-bottom:2px solid var(--warning);padding:10px 16px;display:flex;align-items:center;gap:10px;position:fixed;top:0;left:0;right:0;z-index:10000;">
       <span style="font-size:1.1rem;">☁️</span>
       <div style="flex:1;font-size:0.82rem;color:var(--text-2);">
         <strong>Sync Drive non configurée</strong> — vos données ne sont sauvegardées que sur cet appareil.
@@ -383,8 +383,7 @@ function showDriveWarningBanner(s) {
       <button id="drive-banner-close" class="btn-icon" style="width:28px;height:28px;flex-shrink:0;font-size:1.1rem;" aria-label="Fermer">✕</button>
     </div>`;
 
-  const appEl = document.getElementById('app');
-  if (appEl) appEl.prepend(banner);
+  document.body.appendChild(banner);
 
   const closeBanner = async () => {
     const dismiss = document.getElementById('drive-banner-dismiss')?.checked;

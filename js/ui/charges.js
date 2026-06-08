@@ -540,7 +540,9 @@ async function renderBudgets(container) {
     spent:  (opsByCategory['extras'] || []).filter(op => String(op.userId) === String(u.id)).reduce((s, op) => s + (Number(op.amount)||0), 0),
   })) : null;
 
-  const totalAchats = achats.reduce((s, a) => s + (Number(a.amount) || 0), 0);
+  const pendingCraquages = achats.filter(a => a.category === 'craquage' && a.craquage_source === 'pending');
+  const regularAchats    = achats.filter(a => !(a.category === 'craquage' && a.craquage_source === 'pending'));
+  const totalAchats = regularAchats.reduce((s, a) => s + (Number(a.amount) || 0), 0);
 
   tc.innerHTML = `
     <div style="display:flex;align-items:center;justify-content:space-between;margin:8px 0 12px;">
@@ -551,6 +553,15 @@ async function renderBudgets(container) {
         <button class="btn btn-outline btn-sm" id="bgt-next-month">›</button>
       </div>
     </div>
+    ${pendingCraquages.length > 0 ? `
+    <div class="card" style="margin-bottom:12px;border:1.5px solid var(--warning);">
+      <div class="card-header">
+        <span class="card-title">⚠️ Dépassements en attente</span>
+        <span class="chip warning">${pendingCraquages.length}</span>
+      </div>
+      <p style="font-size:0.78rem;color:var(--text-3);margin-bottom:8px;">Ces dépassements de budget n'ont pas encore de source de financement.</p>
+      <div class="item-list">${pendingCraquages.map(a => `<div class="list-item"><div class="list-item-icon" style="background:var(--warning-bg);">⏳</div><div class="list-item-body"><div class="list-item-title">${escHtml(a.label)}</div></div><div class="list-item-right"><div class="list-item-amount" style="color:var(--warning);">−${eur(a.amount)}</div><button class="btn btn-sm btn-primary" style="margin-top:4px;" data-attrib-crq="${a.id}">Attribuer</button></div></div>`).join('')}</div>
+    </div>` : ''}
     ${_buildBudCatSection({ id:'courses', icon:'🛒', title:'Courses', budget:budgetCourses, spent:spent('courses'), ops:opsByCategory['courses']||[], users, hint:budgetCourses===0?'⚠️ Aucun budget courses dans la saisie mensuelle.':null, isPinned:pinnedBudgets.includes('courses') })}
     ${_buildBudCatSection({ id:'extras',  icon:'�', title:'Loisirs', budget:budgetExtras,  spent:spent('extras'),  ops:opsByCategory['extras'] ||[], users, hint:budgetExtras ===0?'⚠️ Aucun budget loisirs dans la saisie mensuelle.' :null, isPinned:pinnedBudgets.includes('extras'), perUserBudgets:extrasPerUser })}
     ${customBudgets.map(b => _buildBudCatSection({ id:b.id, icon:b.icon||'📌', title:b.name, budget:Number(b.amount)||0, spent:spent(b.id), ops:opsByCategory[b.id]||[], users })).join('')}
@@ -562,11 +573,11 @@ async function renderBudgets(container) {
           <button class="btn btn-sm btn-primary" id="bgt-add-achat">+ Ajouter</button>
         </div>
       </div>
-      ${achats.length===0
+      ${regularAchats.length===0
         ? `<div style="font-size:0.82rem;color:var(--text-3);text-align:center;padding:8px 0;">Aucun achat exceptionnel ce mois-ci</div>`
-        : `<button class="btn btn-outline btn-full btn-sm" id="bgt-ops-toggle-achats" style="font-size:0.78rem;">📋 Voir les achats (${achats.length})</button>
+        : `<button class="btn btn-outline btn-full btn-sm" id="bgt-ops-toggle-achats" style="font-size:0.78rem;">📋 Voir les achats (${regularAchats.length})</button>
            <div id="bgt-ops-achats" style="display:none;margin-top:8px;">
-             <div class="item-list">${achats.map(a => {
+             <div class="item-list">${regularAchats.map(a => {
                const info = getCategoryInfo(a.category);
                const dateStr = a.day ? `${a.day} ${nomMois(a.month)} ${a.year}` : `${nomMois(a.month)} ${a.year}`;
                return `<div class="list-item"><div class="list-item-icon" style="background:var(--warning-bg);">${info.emoji}</div><div class="list-item-body"><div class="list-item-title">${escHtml(a.label)}</div><div class="list-item-sub">${dateStr}</div></div><div class="list-item-right"><div class="list-item-amount" style="color:var(--danger);">−${eur(a.amount)}</div></div></div>`;
@@ -639,6 +650,19 @@ async function renderBudgets(container) {
     });
   });
 
+  // Attribuer une source à un craquage en attente
+  tc.querySelectorAll('[data-attrib-crq]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const achatId = parseInt(btn.dataset.attribCrq);
+      const pendingAchat = pendingCraquages.find(a => a.id === achatId);
+      if (!pendingAchat) return;
+      const { showCraquageModal } = await import('./saisie.js');
+      const cleanLabel = pendingAchat.label.replace(' — Dépassement de budget', '');
+      showCraquageModal(null, month, year, users, () => renderBudgets(container),
+        { label: cleanLabel, amount: pendingAchat.amount, pendingId: achatId });
+    });
+  });
+
   // Toggle ops list collapse per budget category
   tc.querySelectorAll('[data-bgt-ops-toggle]').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -703,7 +727,7 @@ function _buildBudCatSection({ id, icon, title, budget, spent, ops, users, hint,
         ${perUserToggleBtn}
         ${editBtn}
         ${pinBtn}
-        <button class="btn btn-sm btn-primary" data-bgt-add-op="${id}" data-cat-name="${escHtml(title)}" data-cat-icon="${escHtml(icon)}">+ Ajouter</button>
+        <button class="btn btn-sm btn-primary" data-bgt-add-op="${id}" data-cat-name="${escHtml(title)}" data-cat-budget="${budget}" data-cat-spent="${spent}">+ Ajouter</button>
       </div>
     </div>
     ${hint ? `<div style="font-size:0.75rem;color:var(--warning);background:var(--warning-bg);padding:6px 10px;border-radius:var(--radius-sm);margin-bottom:10px;">${hint}</div>` : ''}
@@ -738,7 +762,7 @@ function _buildBudCatSection({ id, icon, title, budget, spent, ops, users, hint,
   </div>`;
 }
 
-function _showAddBudgetOpModal({ catId, catLabel }, users, year, month, onSave) {
+function _showAddBudgetOpModal({ catId, catLabel, catBudget = 0, catSpent = 0 }, users, year, month, onSave) {
   const daysInMonth = new Date(year, month, 0).getDate();
   const todayDay    = new Date().getDate();
   const userSelect  = users.length > 1
@@ -761,15 +785,36 @@ function _showAddBudgetOpModal({ catId, catLabel }, users, year, month, onSave) 
     const userVal = document.getElementById('bop-user')?.value || null;
     if (!label) { showToast('Saisissez une description', 'error'); return; }
     if (!amount || amount <= 0) { showToast('Montant invalide', 'error'); return; }
+    // Overflow detection
+    const remaining     = catBudget > 0 ? Math.max(0, catBudget - catSpent) : Infinity;
+    const hasOverflow   = catBudget > 0 && amount > remaining;
+    const cappedAmount  = hasOverflow ? remaining : amount;
+    const overflowAmt   = hasOverflow ? +(amount - remaining).toFixed(2) : 0;
     if (userVal === 'tous' && users.length > 1) {
-      const share = amount / users.length;
-      for (const u of users) {
-        await saveBudgetOp({ category: catId, year, month, day, label, amount: share, userId: u.id });
+      if (cappedAmount > 0) {
+        const share = cappedAmount / users.length;
+        for (const u of users) await saveBudgetOp({ category: catId, year, month, day, label, amount: share, userId: u.id });
       }
     } else {
-      await saveBudgetOp({ category: catId, year, month, day, label, amount, userId: userVal });
+      if (cappedAmount > 0) await saveBudgetOp({ category: catId, year, month, day, label, amount: cappedAmount, userId: userVal });
     }
-    closeModal(); showToast('Opération ajoutée ✅', 'success'); onSave();
+    if (overflowAmt > 0) {
+      await saveAchat({
+        year, month, day: day || new Date().getDate(),
+        label: `${label} — Dépassement de budget`,
+        amount: overflowAmt,
+        category: 'craquage',
+        craquage_source: 'pending',
+        qui: userVal === 'tous' ? 'shared' : (userVal || 'shared'),
+        createdAt: new Date().toISOString(),
+      });
+      closeModal();
+      showToast(`Budget atteint — ${eur(overflowAmt)} en attente d'attribution 💥`, 'warning');
+    } else {
+      closeModal();
+      showToast('Opération ajoutée ✅', 'success');
+    }
+    onSave();
   });
 }
 
