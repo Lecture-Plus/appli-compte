@@ -1225,3 +1225,55 @@ svg { display: block; }
 
 /* ── Chip success ───────────────────────────────────────── */
 .chip.success { background: var(--success-bg); color: var(--success); }
+
+/* ── Indicateur Drive sync ──────────────────────────────── */
+#sync-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+  margin-right: 4px;
+  transition: background 0.4s, box-shadow 0.4s;
+}
+#sync-dot[data-status="none"]    { background: var(--text-3); opacity: 0.5; }
+#sync-dot[data-status="ok"]      { background: var(--success); box-shadow: 0 0 0 3px rgba(0,200,150,0.2); }
+#sync-dot[data-status="error"]   { background: var(--danger); box-shadow: 0 0 0 3px rgba(255,77,88,0.2); }
+#sync-dot[data-status="syncing"] { background: var(--warning); animation: syncPulse 1s ease-in-out infinite; }
+
+@keyframes syncPulse {
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 2px rgba(255,170,0,0.3); }
+  50%       { opacity: 0.6; box-shadow: 0 0 0 5px rgba(255,170,0,0.1); }
+}
+
+/* ── Vue annuelle rapide ────────────────────────────────── */
+.ym-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  padding: 2px 0;
+}
+.ym-box {
+  border-radius: var(--radius-sm);
+  padding: 8px 4px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  border: 1px solid var(--border);
+  background: var(--bg-input);
+  cursor: default;
+  transition: transform 0.15s;
+}
+.ym-box:hover { transform: scale(1.04); }
+.ym-label { font-size: 0.62rem; font-weight: 700; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.05em; }
+.ym-val   { font-size: 0.7rem;  font-weight: 700; color: var(--text-2); }
+
+.ym-ok      { background: var(--success-bg); border-color: rgba(0,200,150,0.2); }
+.ym-ok .ym-val   { color: var(--success); }
+.ym-bad     { background: var(--danger-bg);  border-color: rgba(255,77,88,0.2); }
+.ym-bad .ym-val  { color: var(--danger); }
+.ym-empty   { opacity: 0.5; }
+.ym-current { background: var(--primary-bg); border-color: var(--primary); }
+.ym-current .ym-label { color: var(--primary); }
+

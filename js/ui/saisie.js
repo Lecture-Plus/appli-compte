@@ -415,7 +415,8 @@ function updatePreview(container) {
   }
 
   el.innerHTML = `
-    <div class="calc-preview-row"><span>Revenus + Primes</span><span>${eur(kpi.revenus.total + kpi.primes.total)}</span></div>
+    <div class="calc-preview-row"><span>Revenus</span><span>${eur(kpi.revenus.total)}</span></div>
+    <div class="calc-preview-row"><span>Primes & Aides</span><span>${eur(kpi.primes.total)}</span></div>
     <div class="calc-preview-row"><span>Charges récurrentes</span><span>${eur(kpi.charges.total)}</span></div>
     <div class="calc-preview-row"><span>Courses</span><span>${eur(kpi.courses.total)}</span></div>
     <div class="calc-preview-row"><span>Extras</span><span>${eur(kpi.extras.total)}</span></div>
@@ -558,9 +559,7 @@ function showCraquageModal(container, month, year) {
   let rows   = [{ source: 'balance', amount: '' }];
 
   const sourceOptions = `
-    <option value="balance">📊 Budget mensuel</option>
-    <option value="courses">🛒 Budget courses</option>
-    <option value="extras">🎉 Budget extras</option>
+    <option value="balance">📅 Budget mensuel</option>
     <option value="savings">💰 Économies</option>
     <option value="perso">🪙 Compte perso</option>
   `;
@@ -686,13 +685,13 @@ function _updateModeOptions(container) {
       const revByUser = {};
       _users.forEach(u => {
         const r = Number(container.querySelector(`#rev-${u.id}`)?.value) || 0;
-        const p = Number(container.querySelector(`#pri-${u.id}`)?.value) || 0;
-        revByUser[String(u.id)] = r + p;
-        totalRev += r + p;
+        // Primes exclues du calcul équitable (elles appartiennent 100% à l'user)
+        revByUser[String(u.id)] = r;
+        totalRev += r;
       });
       const base = totalRev || 1;
       eqInfoEl.innerHTML = `
-        <div style="font-size:0.72rem;color:var(--text-3);margin-bottom:6px;">Parts calculées au prorata des revenus :</div>
+        <div style="font-size:0.72rem;color:var(--text-3);margin-bottom:6px;">Parts calculées au prorata des <strong>revenus</strong> (primes exclues) :</div>
         <div style="display:flex;flex-wrap:wrap;gap:6px;">
           ${_users.map(u => {
             const pctVal = Math.round(revByUser[String(u.id)] / base * 100);

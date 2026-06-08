@@ -1,7 +1,7 @@
 // Service Worker – Budget Foyer
 // Stratégie : Network First pour l'app shell (auto-update), Cache pour CDN
 
-const CACHE_NAME = 'budget-foyer-v10';
+const CACHE_NAME = 'budget-foyer-v11';
 
 const APP_SHELL = [
   './index.html',

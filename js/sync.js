@@ -11,6 +11,28 @@ import { showToast }                                             from './utils.j
 let _lastActivity = Date.now();
 let _autoSaveTimer = null;
 
+// ── Indicateur de sync ──
+let _syncStatus = 'none'; // 'none' | 'ok' | 'syncing' | 'error'
+
+/**
+ * Met à jour l'indicateur de sync dans la nav.
+ * statuses: 'none' | 'ok' | 'syncing' | 'error'
+ */
+export function setSyncStatus(status) {
+  _syncStatus = status;
+  const dot = document.getElementById('sync-dot');
+  if (!dot) return;
+  dot.dataset.status = status;
+  dot.title = {
+    none:    'Drive non configuré',
+    ok:      'Synchronisé avec Drive',
+    syncing: 'Synchronisation en cours…',
+    error:   'Erreur de synchronisation',
+  }[status] ?? '';
+}
+
+export function getSyncStatus() { return _syncStatus; }
+
 const INACTIVITY_LIMIT_MS = 10 * 60 * 1000;  // 10 minutes
 const AUTO_SAVE_INTERVAL_MS = 2 * 60 * 1000; // 2 minutes
 
@@ -36,15 +58,17 @@ export function initActivityTracking() {
  */
 export async function initDriveSync() {
   const url = await getSetting(DRIVE_URL_KEY);
-  if (!isValidDriveUrl(url)) return false;
+  if (!isValidDriveUrl(url)) { setSyncStatus('none'); return false; }
 
   const overlay = document.getElementById('sync-overlay');
   if (overlay) overlay.classList.remove('hidden');
+  setSyncStatus('syncing');
 
   try {
     const backups = await listBackups(url);
     if (!backups || !backups.length) {
       if (overlay) overlay.classList.add('hidden');
+      setSyncStatus('ok');
       return false;
     }
 
@@ -56,8 +80,10 @@ export async function initDriveSync() {
       await setSetting(DRIVE_SYNC_KEY, new Date().toISOString());
       console.log('[Sync] Drive synchronisé :', latest.filename);
     }
+    setSyncStatus('ok');
   } catch (err) {
     console.warn('[Sync] Impossible de synchroniser avec Drive :', err.message);
+    setSyncStatus('error');
     // Silencieux — l'app peut fonctionner hors-ligne
   }
 
@@ -88,6 +114,7 @@ export function startAutoSave() {
 
         if (driveLatest > lastSync + 5000) {
           // Drive est plus récent → on avertit mais on ne pousse pas
+          setSyncStatus('error');
           showToast(
             '⚠️ Une version plus récente existe sur Drive. Allez dans Réglages → Sync pour importer.',
             'warning',
@@ -98,11 +125,14 @@ export function startAutoSave() {
       }
 
       // Pousser
+      setSyncStatus('syncing');
       const data = await exportAllData();
       await pushVersionedBackup(url, data);
       await setSetting(DRIVE_SYNC_KEY, new Date().toISOString());
+      setSyncStatus('ok');
       console.log('[Sync] Auto-save Drive OK');
     } catch (err) {
+      setSyncStatus('error');
       console.warn('[Sync] Auto-save échoué :', err.message);
     }
   }, AUTO_SAVE_INTERVAL_MS);

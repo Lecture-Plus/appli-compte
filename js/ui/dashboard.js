@@ -109,10 +109,11 @@ async function _renderResume(container, s, users) {
   const goalPct   = goal > 0 ? Math.min(200, Math.round((epargneYTD / goal) * 100)) : 0;
   const pBarColor = progressColor(goalPct);
 
-  // ── Épargne réelle = solde total des économies (toutes opérations) ──
-  const realSavings  = savInfo.balance;
+  // ── Épargne réelle = ops du mois en cours (versements/retraits) ──
+  const monthlySavOps = allSavOps.filter(op => op.year === year && op.month === month);
+  const realSavings   = monthlySavOps.reduce((s, op) => s + (Number(op.amount) || 0), 0);
   const savingsByUser = users.map(u => {
-    const uOps = allSavOps.filter(op => String(op.userId) === String(u.id));
+    const uOps = monthlySavOps.filter(op => String(op.userId) === String(u.id));
     return [u.name, uOps.reduce((s, op) => s + (Number(op.amount) || 0), 0)];
   });
 
@@ -139,8 +140,13 @@ async function _renderResume(container, s, users) {
     <div class="kpi-grid" style="margin-bottom:12px;">
       <div class="kpi-card primary">
         <div class="kpi-label">Revenus</div>
-        <div class="kpi-value neutral">${eur(kpi.revenus.total + kpi.primes.total)}</div>
-        <div class="kpi-sub">${byUserSub({ byUser: mergeByUser(kpi.revenus.byUser, kpi.primes.byUser, users) })}</div>
+        <div class="kpi-value neutral">${eur(kpi.revenus.total)}</div>
+        <div class="kpi-sub">${byUserSub(kpi.revenus)}</div>
+      </div>
+      <div class="kpi-card warning">
+        <div class="kpi-label">Primes & Aides</div>
+        <div class="kpi-value neutral">${eur(kpi.primes.total)}</div>
+        <div class="kpi-sub" style="font-size:0.68rem;">💡 Personnelles – non partagées${users.length > 1 ? '<br>' + users.map(u => `${escHtml(u.name)}: ${eur(kpi.primes.byUser?.[u.id] ?? 0)}`).join('<br>') : ''}</div>
       </div>
       <div class="kpi-card danger">
         <div class="kpi-label">Dépenses</div>
@@ -152,8 +158,8 @@ async function _renderResume(container, s, users) {
         <div class="kpi-value ${signClass(kpi.solde.total)}">${eur(kpi.solde.total)}</div>
         <div class="kpi-sub">${byUserSub(kpi.solde)}</div>
       </div>
-      <div class="kpi-card warning">
-        <div class="kpi-label">Taux épargne</div>
+      <div class="kpi-card warning" style="grid-column:span 2;">
+        <div class="kpi-label">Taux d'épargne</div>
         <div class="kpi-value ${txEparClass(kpi.txEpargne.total)}">${pct(kpi.txEpargne.total, 0)}</div>
         <div class="kpi-sub">${users.length <= 1 ? '' : users.map(u => `${escHtml(u.name)}: ${pct(kpi.txEpargne.byUser?.[u.id] ?? 0, 0)}`).join('<br>')}</div>
       </div>
@@ -250,9 +256,9 @@ async function _renderResume(container, s, users) {
         </div>
         <div style="background:${realSavings >= 0 ? 'var(--primary-bg)' : 'var(--danger-bg)'};border-radius:var(--radius-sm);padding:12px;">
           <div style="font-size:0.65rem;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:0.03em;margin-bottom:2px;">Réelle mise de côté</div>
-          <div style="font-size:0.68rem;color:var(--text-3);margin-bottom:5px;">Total des économies</div>
+          <div style="font-size:0.68rem;color:var(--text-3);margin-bottom:5px;">Opérations épargne ce mois</div>
           <div style="font-size:1.15rem;font-weight:800;color:${realSavings >= 0 ? 'var(--primary)' : 'var(--danger)'}">${eur(realSavings)}</div>
-          <div style="font-size:0.68rem;color:var(--text-3);margin-top:2px;">${allSavOps.length} opération(s)</div>
+          <div style="font-size:0.68rem;color:var(--text-3);margin-top:2px;">${monthlySavOps.length} opération(s)</div>
           ${users.length > 1 && savingsByUser.some(([,v]) => v > 0) ? `<div style="font-size:0.7rem;color:var(--text-3);margin-top:4px;">${savingsByUser.filter(([,v]) => v > 0).map(([name, v]) => `${escHtml(name)}: ${eur(v)}`).join(' · ')}</div>` : ''}
         </div>
       </div>
@@ -263,11 +269,21 @@ async function _renderResume(container, s, users) {
       <div class="card-title" style="margin-bottom:6px;">📝 Notes</div>
       <p style="font-size:0.875rem;color:var(--text-2);white-space:pre-wrap;">${escHtml(md.notes)}</p>
     </div>` : ''}
+
+    <!-- Vue annuelle rapide -->
+    <div class="card" style="margin-bottom:12px;">
+      <div class="card-header"><span class="card-title">🗓️ Année ${year} en un coup d'œil</span></div>
+      <div id="annual-quick-view"><div class="loading" style="padding:10px;"><div class="spinner" style="width:20px;height:20px;"></div></div></div>
+    </div>
+
     <div style="height:16px;"></div>
   `;
 
   el.querySelector('#btn-go-saisie')?.addEventListener('click', () => navigateTo('saisie'));
   el.querySelector('#btn-go-savings')?.addEventListener('click', () => navigateTo('savings'));
+
+  // ── Vue annuelle rapide (chargée en arrière-plan) ──
+  _renderAnnualQuickView(el.querySelector('#annual-quick-view'), year, users);
 }
 
 // ══════════════════════════════════════════════════
@@ -293,20 +309,21 @@ async function _renderPrevisionnel(container, s, users) {
     }
   }
 
-  // ── Budgets courses & extras ──
-  const totalCourses = users.reduce((s, u) => s + (Number(md?.users?.[String(u.id)]?.courses) || 0), 0);
-  const totalExtras  = users.reduce((s, u) => s + (Number(md?.users?.[String(u.id)]?.extras) || 0), 0);
-  const spentCourses = achats.filter(a => a.craquage_source === 'courses').reduce((s, a) => s + (Number(a.amount) || 0), 0);
-  const spentExtras  = achats.filter(a => a.craquage_source === 'extras').reduce((s, a) => s + (Number(a.amount) || 0), 0);
+  // ── Budgets courses & extras & imprévus ──
+  const totalCourses  = users.reduce((s, u) => s + (Number(md?.users?.[String(u.id)]?.courses) || 0), 0);
+  const totalExtras   = users.reduce((s, u) => s + (Number(md?.users?.[String(u.id)]?.extras) || 0), 0);
+  const totalImprévus = (md?.imprévusList || []).reduce((s, i) => s + (Number(i.amount) || 0), 0);
+  const spentCourses  = achats.filter(a => a.craquage_source === 'courses').reduce((s, a) => s + (Number(a.amount) || 0), 0);
+  const spentExtras   = achats.filter(a => a.craquage_source === 'extras').reduce((s, a) => s + (Number(a.amount) || 0), 0);
 
-  // ── Calcul prévisionnel ──
+  // ── Calcul prévisionnel (déduction courses + extras + imprévus) ──
+  const totalDeductions = totalCourses + totalExtras + totalImprévus;
   const now        = new Date();
   const isCurrentM = now.getFullYear() === year && now.getMonth() + 1 === month;
   const daysInMonth = new Date(year, month, 0).getDate();
-  // Jour simulé : soit le sélecteur, soit aujourd'hui si mois courant
   const simDay = _prevSimDay !== null ? _prevSimDay : (isCurrentM ? now.getDate() : 0);
 
-  const { days, todayDay } = calcPrevisionnel({ totalIncome, charges, year, month, simDay });
+  const { days, todayDay } = calcPrevisionnel({ totalIncome, charges, year, month, simDay, deductions: totalDeductions });
 
   const timedCount = charges.filter(c => c.active && Number(c.dayOfMonth) > 0).length;
   const noTimedMsg = timedCount === 0
@@ -338,15 +355,28 @@ async function _renderPrevisionnel(container, s, users) {
     </div>
 
     <!-- Suivi des budgets courses & extras -->
-    ${(totalCourses > 0 || totalExtras > 0) ? `
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
-      ${totalCourses > 0 ? _buildBudgetCard('🛒 Courses', totalCourses, spentCourses) : ''}
-      ${totalExtras  > 0 ? _buildBudgetCard('🎉 Extras',  totalExtras,  spentExtras)  : ''}
-    </div>` : ''}
+    ${(() => {
+      const cibles = s.budgetCibles || {};
+      const budgCourses = totalCourses > 0 ? totalCourses : (Number(cibles.courses) || 0);
+      const budgExtras  = totalExtras  > 0 ? totalExtras  : (Number(cibles.extras)  || 0);
+      const budgImpr    = Number(cibles.imprevus) || 0;
+      const totalImprSpent = (md?.imprévusList || []).reduce((s, i) => s + (Number(i.amount) || 0), 0);
+      const cards = [
+        budgCourses > 0 ? _buildBudgetCard('🛒 Courses',  budgCourses, spentCourses,  totalCourses > 0 ? 'Saisi' : 'Cible') : '',
+        budgExtras  > 0 ? _buildBudgetCard('🎉 Extras',   budgExtras,  spentExtras,   totalExtras  > 0 ? 'Saisi' : 'Cible') : '',
+        budgImpr    > 0 ? _buildBudgetCard('⚡ Imprévus', budgImpr,    totalImprSpent, 'Cible') : '',
+      ].filter(Boolean);
+      return cards.length > 0
+        ? `<div style="display:grid;grid-template-columns:${cards.map(() => '1fr').join(' ')};gap:8px;margin-bottom:12px;">${cards.join('')}</div>`
+        : '';
+    })()}
 
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
       <span class="section-label">Projection jour par jour</span>
-      <span class="chip ${totalIncome > 0 ? 'primary' : 'danger'}">Base : ${eur(totalIncome)}</span>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <span class="chip ${totalIncome > 0 ? 'primary' : 'danger'}">Base : ${eur(totalIncome)}</span>
+        ${totalDeductions > 0 ? `<span class="chip danger">−${eur(totalDeductions)}</span>` : ''}
+      </div>
     </div>
 
     ${totalIncome === 0
@@ -376,8 +406,48 @@ async function _renderPrevisionnel(container, s, users) {
   });
 }
 
-function _buildBudgetCard(title, budget, spent) {
-  const remaining = budget - spent;
+// ── Vue annuelle rapide ──
+async function _renderAnnualQuickView(el, year, users) {
+  if (!el) return;
+  try {
+    const allMonths = await getMonthsByYear(year);
+    const monthMap  = {};
+    for (const m of allMonths) monthMap[m.month] = m;
+
+    const MONTH_LABELS = ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'];
+    const now          = new Date();
+    const curYear      = now.getFullYear();
+    const curMonth     = now.getMonth() + 1;
+
+    const boxes = await Promise.all(Array.from({ length: 12 }, async (_, i) => {
+      const m   = i + 1;
+      const md  = monthMap[m];
+      const isFuture  = year > curYear || (year === curYear && m > curMonth);
+      const isCurrent = year === curYear && m === curMonth;
+
+      if (!md || isFuture) {
+        const cls = isCurrent ? 'ym-box ym-current' : 'ym-box ym-empty';
+        return `<div class="${cls}" title="${MONTH_LABELS[i]}"><span class="ym-label">${MONTH_LABELS[i]}</span><span class="ym-val">&mdash;</span></div>`;
+      }
+
+      const [charges, achats, repCfg] = await Promise.all([
+        getChargesForMonth(m),
+        getAchatsForMonth(year, m),
+        getRepartition(year, m),
+      ]);
+      const kpi   = calcMonth(md, charges, achats, repCfg, users);
+      const solde = kpi.solde.total;
+      const cls   = 'ym-box ' + (solde > 0 ? 'ym-ok' : solde < 0 ? 'ym-bad' : 'ym-neutral');
+      return `<div class="${cls}" title="${MONTH_LABELS[i]}: ${eur(solde)}"><span class="ym-label">${MONTH_LABELS[i]}</span><span class="ym-val">${solde >= 0 ? '+' : ''}${eur(solde)}</span></div>`;
+    }));
+
+    el.innerHTML = `<div class="ym-grid">${boxes.join('')}</div>`;
+  } catch (e) {
+    el.innerHTML = `<p style="font-size:0.78rem;color:var(--text-3);padding:4px 0;">Impossible de charger la vue annuelle.</p>`;
+  }
+}
+
+function _buildBudgetCard(title, budget, spent, budgetLabel = 'Budget') {
   const pctUsed   = budget > 0 ? Math.min(100, Math.round((spent / budget) * 100)) : 0;
   const color     = pctUsed >= 90 ? 'danger' : pctUsed >= 70 ? 'warning' : 'success';
   return `
@@ -388,9 +458,9 @@ function _buildBudgetCard(title, budget, spent) {
       </div>
       <div style="display:flex;justify-content:space-between;font-size:0.75rem;">
         <span style="color:var(--${color});">${eur(spent)} dépensé</span>
-        <span style="color:var(--text-3);">/ ${eur(budget)}</span>
+        <span style="color:var(--text-3);">${budgetLabel} ${eur(budget)}</span>
       </div>
-      ${remaining < 0 ? `<div style="font-size:0.7rem;color:var(--danger);margin-top:3px;">⚠️ Dépassement ${eur(Math.abs(remaining))}</div>` : ''}
+      ${(budget - spent) < 0 ? `<div style="font-size:0.7rem;color:var(--danger);margin-top:3px;">⚠️ Dépassement ${eur(Math.abs(budget - spent))}</div>` : ''}
     </div>
   `;
 }

@@ -15,10 +15,11 @@ export async function render(container) {
 }
 
 async function _renderPage(container) {
-  const [allOps, latest, users] = await Promise.all([
+  const [allOps, latest, users, s] = await Promise.all([
     getAllSavingsOperations(),
     getLatestSavingsConfirmed(),
     getActiveUsers(),
+    getAllSettings(),
   ]);
   const { balance, base, delta } = calcSavingsBalance(latest, allOps);
 
@@ -31,6 +32,7 @@ async function _renderPage(container) {
     const bal  = uOps.reduce((s, op) => s + (Number(op.amount) || 0), 0);
     return { user: u, balance: bal };
   });
+  const goalsByUser = s.savingsGoalsByUser || {};
   const hasUserData = userBalances.some(ub => ub.balance !== 0);
 
   // Tri : plus récent d'abord
@@ -69,13 +71,22 @@ async function _renderPage(container) {
     <!-- Soldes par user -->
     ${users.length > 1 ? `
     <div style="display:grid;grid-template-columns:${users.map(() => '1fr').join(' ')};gap:8px;margin-bottom:12px;">
-      ${userBalances.map(ub => `
+      ${userBalances.map(ub => {
+        const goal = Number(goalsByUser[String(ub.user.id)]) || 0;
+        const goalPct = goal > 0 ? Math.min(200, Math.round(ub.balance / goal * 100)) : -1;
+        return `
         <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:12px;text-align:center;">
           <div style="width:10px;height:10px;border-radius:50%;background:${escHtml(ub.user.color||'#6C63FF')};display:inline-block;margin-bottom:4px;"></div>
           <div style="font-size:0.72rem;font-weight:600;color:var(--text-3);">${escHtml(ub.user.name)}</div>
           <div style="font-size:1.05rem;font-weight:800;color:${ub.balance >= 0 ? 'var(--success)' : 'var(--danger)'};">${eur(ub.balance)}</div>
-        </div>
-      `).join('')}
+          ${goalPct >= 0 ? `
+            <div style="margin-top:6px;">
+              <div class="progress-track" style="height:5px;"><div class="progress-bar ${goalPct >= 100 ? 'success' : 'primary'}" style="width:${Math.min(100, goalPct)}%;"></div></div>
+              <div style="font-size:0.65rem;color:var(--text-3);margin-top:2px;">${goalPct}% · obj. ${eur(goal)}</div>
+            </div>
+          ` : ''}
+        </div>`;
+      }).join('')}
     </div>` : ''}
 
     <!-- Rappel mensuel -->

@@ -240,7 +240,7 @@ export function calcYear(monthsResults) {
 /**
  * Calcul prévisionnel jour par jour pour un mois.
  */
-export function calcPrevisionnel({ totalIncome, charges, year, month, simDay }) {
+export function calcPrevisionnel({ totalIncome, charges, year, month, simDay, deductions = 0 }) {
   const daysInMonth = new Date(year, month, 0).getDate();
   const today       = new Date();
   // simDay permet de visualiser le prévisionnel à une date passée précise
@@ -262,7 +262,8 @@ export function calcPrevisionnel({ totalIncome, charges, year, month, simDay }) 
     chargesByDay[day].push({ label: c.label, amount: amt });
   }
 
-  let balance = Number(totalIncome) || 0;
+  // Le solde de départ est le revenu net des dépenses déjà connues (courses, extras, imprévus)
+  let balance = (Number(totalIncome) || 0) - (Number(deductions) || 0);
   const days  = [];
 
   for (let d = 1; d <= daysInMonth; d++) {

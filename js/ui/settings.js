@@ -82,6 +82,26 @@ function buildHTML(s, users, N) {
           <input type="number" class="form-input" id="s-goal-year" min="2020" max="2099" value="${s.savingsGoalYear || today().year}">
         </div>
       </div>
+      ${N >= 2 ? `
+      <div style="margin-bottom:10px;">
+        <label class="form-label" style="margin-bottom:6px;display:block;">Objectifs par utilisateur (€)</label>
+        <div class="form-grid-2">
+          ${users.map(u => `
+            <div class="form-group">
+              <label class="form-label" style="display:flex;align-items:center;gap:5px;">
+                <span style="width:8px;height:8px;border-radius:50%;background:${escHtml(u.color||'#6C63FF')};display:inline-block;"></span>
+                ${escHtml(u.name)}
+              </label>
+              <div class="input-wrap">
+                <input type="number" class="form-input input-euro s-goal-user"
+                  data-uid="${u.id}" min="0" step="100"
+                  value="${(s.savingsGoalsByUser || {})[String(u.id)] || ''}">
+                <span class="input-suffix">€</span>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </div>` : ''}
       <div class="form-group" style="margin-bottom:10px;">
         <label class="form-label">Seuil d'alerte mensuel (€)</label>
         <div class="input-wrap">
@@ -99,6 +119,38 @@ function buildHTML(s, users, N) {
         <p class="form-hint">Utilisé par le prévisionnel pour estimer les courses quotidiennes.</p>
       </div>
       <button class="btn btn-primary btn-full" id="s-save-goal">Enregistrer</button>
+    </div>
+
+    <!-- Section : Budget cibles par catégorie -->
+    <div class="card" style="margin-bottom:12px;">
+      <div class="card-header"><span class="card-title">📊 Budget cibles mensuels</span></div>
+      <p style="font-size:0.78rem;color:var(--text-3);margin-bottom:10px;">
+        Définissez des plafonds mensuels pour chaque catégorie. Affichés dans le prévisionnel.
+      </p>
+      <div class="form-grid-2" style="margin-bottom:12px;">
+        <div class="form-group">
+          <label class="form-label">🛒 Courses</label>
+          <div class="input-wrap">
+            <input type="number" class="form-input input-euro" id="s-budget-courses" min="0" step="10" value="${(s.budgetCibles || {}).courses || ''}">
+            <span class="input-suffix">€</span>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">🎉 Extras</label>
+          <div class="input-wrap">
+            <input type="number" class="form-input input-euro" id="s-budget-extras" min="0" step="10" value="${(s.budgetCibles || {}).extras || ''}">
+            <span class="input-suffix">€</span>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">⚡ Imprévus</label>
+          <div class="input-wrap">
+            <input type="number" class="form-input input-euro" id="s-budget-imprevus" min="0" step="10" value="${(s.budgetCibles || {}).imprevus || ''}">
+            <span class="input-suffix">€</span>
+          </div>
+        </div>
+      </div>
+      <button class="btn btn-primary btn-full" id="s-save-budgets">Enregistrer</button>
     </div>
 
     <!-- Section : Répartition par défaut (masqué si solo) -->
@@ -278,14 +330,31 @@ function bindEvents(container, s, users, N) {
 
   // ── Objectif épargne ──
   container.querySelector('#s-save-goal')?.addEventListener('click', async () => {
+    // Objectifs par user
+    const goalsByUser = {};
+    container.querySelectorAll('.s-goal-user').forEach(inp => {
+      const v = Number(inp.value);
+      if (v > 0) goalsByUser[inp.dataset.uid] = v;
+    });
     await Promise.all([
       setSetting('savingsGoal',           Number(container.querySelector('#s-goal')?.value) || 0),
       setSetting('savingsGoalLabel',      container.querySelector('#s-goal-label')?.value.trim() || 'Mon objectif'),
       setSetting('savingsGoalYear',       Number(container.querySelector('#s-goal-year')?.value) || today().year),
       setSetting('epargneThreshold',      Number(container.querySelector('#s-threshold')?.value) || 100),
       setSetting('weeklyCoursesEstimate', Number(container.querySelector('#s-weekly-courses')?.value) || 85),
+      setSetting('savingsGoalsByUser',    goalsByUser),
     ]);
     showToast('Paramètres enregistrés ✅', 'success');
+  });
+
+  // ── Budget cibles par catégorie ──
+  container.querySelector('#s-save-budgets')?.addEventListener('click', async () => {
+    await setSetting('budgetCibles', {
+      courses:  Number(container.querySelector('#s-budget-courses')?.value) || 0,
+      extras:   Number(container.querySelector('#s-budget-extras')?.value)  || 0,
+      imprevus: Number(container.querySelector('#s-budget-imprevus')?.value) || 0,
+    });
+    showToast('Budgets cibles enregistrés ✅', 'success');
   });
 
   // ── Mode répartition ──
