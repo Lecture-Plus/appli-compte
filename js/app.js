@@ -23,6 +23,7 @@ const PAGES = {
   saisie:    () => import('./ui/saisie.js'    + _V),
   charges:   () => import('./ui/charges.js'   + _V),
   savings:   () => import('./ui/savings.js'   + _V),
+  budgets:   () => import('./ui/budgets.js'   + _V),
   stats:     () => import('./ui/stats.js'     + _V),
   settings:  () => import('./ui/settings.js'  + _V),
 };
@@ -32,6 +33,7 @@ const PAGE_TITLES = {
   saisie:    'Saisie du mois',
   charges:   'Charges & Achats',
   savings:   'Épargne',
+  budgets:   'Suivi Budgets',
   stats:     'Statistiques',
   settings:  'Réglages',
 };

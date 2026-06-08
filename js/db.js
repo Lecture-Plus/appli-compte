@@ -3,7 +3,7 @@
 // ============================================================
 
 const DB_NAME    = 'budgetFoyer';
-const DB_VERSION = 3;  // v3 : multi-users, clean break
+const DB_VERSION = 4;  // v4 : budget_ops store
 
 let _db = null;
 
@@ -77,6 +77,13 @@ async function openDB() {
       // ── Confirmations mensuelles épargne ──
       if (!db.objectStoreNames.contains('savings_confirmed')) {
         db.createObjectStore('savings_confirmed', { keyPath: ['year', 'month'] });
+      }
+
+      // ── Opérations de suivi budget (courses, extras) ──
+      if (!db.objectStoreNames.contains('budget_ops')) {
+        const s = db.createObjectStore('budget_ops', { keyPath: 'id', autoIncrement: true });
+        s.createIndex('yearMonth',  ['year', 'month'],            { unique: false });
+        s.createIndex('category',   'category',                   { unique: false });
       }
     };
   });
@@ -438,3 +445,12 @@ export async function computeCurrentSavingsBalance() {
   const delta = opsSince.reduce((s, op) => s + (Number(op.amount) || 0), 0);
   return { balance: base + delta, base, delta, latest, opsSince };
 }
+
+/* ── Opérations suivi budget ── */
+
+export async function getBudgetOpsForMonth(year, month) {
+  return _getAllByIndex('budget_ops', 'yearMonth', [year, month]);
+}
+export async function getAllBudgetOps() { return _getAll('budget_ops'); }
+export async function saveBudgetOp(op) { return _put('budget_ops', op); }
+export async function deleteBudgetOp(id) { return _delete('budget_ops', id); }

@@ -15,7 +15,6 @@ export async function render(container) {
 }
 
 let _savingsHistTab = 'all';
-}
 
 async function _renderPage(container) {
   const [allOps, latest, users, s] = await Promise.all([
