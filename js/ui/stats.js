@@ -786,7 +786,7 @@ async function exportPDF(year, month, users, s) {
     const achatsForPDF=[];
     for (const m of months) { const list=(achatMap[m]||[]).filter(a=>a.category==='craquage'&&a.craquage_source!=='pending'); for (const a of list) achatsForPDF.push({...a,_month:m}); }
     achatsForPDF.sort((a,b)=>(b._month*100+(b.day||0))-(a._month*100+(a.day||0)));
-    const achatRows=achatsForPDF.slice(0,30).map((a,i)=>{ const info=getCategoryInfo(a.category); const d=a.day?`${a.day} ${MOIS_SHORT[a._month-1]}`:MOIS_SHORT[a._month-1]; return `<tr style="${i%2?'background:#FFF5F5;':''}"><td style="display:flex;align-items:center;gap:6px;"><span>${info.emoji}</span><span>${esc(a.label||'')}</span></td><td style="color:#94A3B8;text-align:right;">${d}</td><td style="color:#EF4444;font-weight:700;text-align:right;">${fmt(a.amount)}</td></tr>`; }).join('');
+    const achatRows=achatsForPDF.slice(0,30).map((a,i)=>{ const info=getCategoryInfo(a.category); const d=a.day?`${a.day} ${MOIS_SHORT[a._month-1]}`:MOIS_SHORT[a._month-1]; return `<tr style="${i%2?'background:#FFFBEB;':''}"><td style="display:flex;align-items:center;gap:6px;"><span>${info.emoji}</span><span>${esc(a.label||'')}</span></td><td style="color:#94A3B8;text-align:right;">${d}</td><td style="color:#D97706;font-weight:700;text-align:right;">${fmt(a.amount)}</td></tr>`; }).join('');
 
     const html = `<!DOCTYPE html>
 <html lang="fr">
@@ -874,13 +874,13 @@ async function exportPDF(year, month, users, s) {
   .mt tfoot tr{background:#1E1B4B;}
   .mt tfoot td{padding:8px 10px;color:#E0DFFF;font-weight:800;text-align:right;font-feature-settings:"tnum";font-size:11px;}
   .mt tfoot td:first-child{text-align:left;color:#fff;}
-  .ac-wrap{border-radius:12px;overflow:hidden;border:1px solid #FEE2E2;margin-bottom:20px;}
+  .ac-wrap{border-radius:12px;overflow:hidden;border:1px solid #FEF3C7;margin-bottom:20px;}
   .ac{width:100%;border-collapse:collapse;font-size:10.5px;}
-  .ac thead tr{background:linear-gradient(90deg,#7F1D1D,#DC2626);}
+  .ac thead tr{background:linear-gradient(90deg,#92400E,#D97706);}
   .ac thead th{padding:8px 10px;color:#fff;font-size:8.5px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;}
   .ac thead th:first-child{text-align:left;}.ac thead th:nth-child(2),.ac thead th:nth-child(3){text-align:right;}
-  .ac tbody tr:nth-child(even){background:#FFF5F5;}
-  .ac tbody td{padding:6px 10px;border-bottom:1px solid #FEE2E2;}
+  .ac tbody tr:nth-child(even){background:#FFFBEB;}
+  .ac tbody td{padding:6px 10px;border-bottom:1px solid #FEF3C7;}
   .pf{margin-top:14px;padding-top:8px;border-top:1px solid #E2E8F0;display:flex;justify-content:space-between;font-size:8.5px;color:#CBD5E1;}
   .pf strong{color:#A78BFA;font-weight:700;}
 </style>
