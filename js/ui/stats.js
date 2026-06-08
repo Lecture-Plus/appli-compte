@@ -16,7 +16,7 @@ import { eur, pct, nomMoisCourt, escHtml, showToast,
          getCategoryInfo, CATEGORIES }                      from '../utils.js';
 
 let _charts = [];
-let _statsTab  = 'revenus'; // 'revenus' | 'epargne' | 'depenses'
+let _statsTab  = 'revenus'; // 'revenus' | 'epargne' | 'depenses' | 'evolution'
 let _statsMonth = 0;        // 0 = toute l'année, 1-12 = mois précis
 
 export async function render(container) {
@@ -50,9 +50,10 @@ export async function render(container) {
 
     <!-- Onglets stats -->
     <div class="tabs" id="stats-tabs" style="margin-bottom:12px;">
-      <button class="tab-btn ${_statsTab === 'revenus'  ? 'active' : ''}" data-stab="revenus">📊 Revenus</button>
-      <button class="tab-btn ${_statsTab === 'epargne'  ? 'active' : ''}" data-stab="epargne">💰 Épargne</button>
-      <button class="tab-btn ${_statsTab === 'depenses' ? 'active' : ''}" data-stab="depenses">💸 Dépenses</button>
+      <button class="tab-btn ${_statsTab === 'revenus'    ? 'active' : ''}" data-stab="revenus">📊 Revenus</button>
+      <button class="tab-btn ${_statsTab === 'epargne'    ? 'active' : ''}" data-stab="epargne">💰 Épargne</button>
+      <button class="tab-btn ${_statsTab === 'depenses'   ? 'active' : ''}" data-stab="depenses">💸 Dépenses</button>
+      <button class="tab-btn ${_statsTab === 'evolution'  ? 'active' : ''}" data-stab="evolution">📈 Évolution</button>
     </div>
 
     <!-- Onglet Revenus -->
@@ -136,6 +137,10 @@ export async function render(container) {
       </div>` : ''}
     </div>
 
+    <div id="stab-evolution" style="${_statsTab !== 'evolution' ? 'display:none;' : ''}">
+      <div id="evolution-content"><div class="loading"><div class="spinner"></div></div></div>
+    </div>
+
     <div style="height:16px;"></div>
   `;
 
@@ -171,10 +176,13 @@ export async function render(container) {
       container.querySelectorAll('#stats-tabs .tab-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       _statsTab = btn.dataset.stab;
-      ['revenus', 'epargne', 'depenses'].forEach(t => {
+      ['revenus', 'epargne', 'depenses', 'evolution'].forEach(t => {
         const el = container.querySelector(`#stab-${t}`);
         if (el) el.style.display = t === _statsTab ? '' : 'none';
       });
+      if (_statsTab === 'evolution') {
+        _renderEvolution(container, State.year, users);
+      }
     });
   });
 
@@ -1414,3 +1422,123 @@ function renderInsights(container, results, curMonth, year, s) {
   ).join('');
 }
 
+// ── Comparaison N vs N-1 ──
+async function _renderEvolution(container, year, users) {
+  const el = container.querySelector('#evolution-content');
+  if (!el) return;
+  el.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+
+  const [allCharges, allAchats, allRepts] = await Promise.all([
+    getAllCharges(), getAllAchats(), getAllRepartitions(),
+  ]);
+  const prevYear = year - 1;
+
+  const getYearData = async (y) => {
+    const months = await getMonthsByYear(y);
+    const results = [];
+    for (let m = 1; m <= 12; m++) {
+      const md  = months.find(x => x.month === m);
+      const chg = allCharges.filter(c => c.active);
+      const ach = allAchats.filter(a => a.year === y && a.month === m);
+      const rep = allRepts.find(r => r.year === y && r.month === m);
+      if (!md) { results.push(null); continue; }
+      results.push(calcMonth(md, chg, ach, rep, users));
+    }
+    return results;
+  };
+
+  const [curData, prevData] = await Promise.all([getYearData(year), getYearData(prevYear)]);
+
+  // Métriques annuelles agrégées
+  const agg = (data) => {
+    const rows = data.filter(Boolean);
+    if (!rows.length) return null;
+    const revTotal = rows.reduce((s, r) => s + r.revenus.total, 0);
+    const depTotal = rows.reduce((s, r) => s + r.depenses.total, 0);
+    const solTotal = rows.reduce((s, r) => s + r.solde.total, 0);
+    const txAvg    = rows.reduce((s, r) => s + (r.txEpargne?.total ?? 0), 0) / rows.length;
+    const chgTotal = rows.reduce((s, r) => s + r.charges.total, 0);
+    return { revTotal, depTotal, solTotal, txAvg, chgTotal, count: rows.length };
+  };
+  const cur  = agg(curData);
+  const prev = agg(prevData);
+
+  // métriques calculées ci-dessus
+
+  const txtDiff = (label, a, b, getter, isRate = false, higherIsBetter = true) => {
+    if (!a || !b) return '';
+    const va = getter(a), vb = getter(b);
+    const d = va - vb;
+    const sign = d >= 0 ? '+' : '';
+    const fmt = isRate ? `${(d * 100).toFixed(1)} pts` : eur(d);
+    const color = (d >= 0) === higherIsBetter ? 'var(--success)' : 'var(--danger)';
+    const curVal = getter(cur);
+    return `<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);">
+      <span style="font-size:0.85rem;color:var(--text-2);">${label}</span>
+      <div style="text-align:right;">
+        <div style="font-size:0.85rem;">${isRate ? pct(curVal ?? 0) : eur(curVal ?? 0)} <span style="color:var(--text-3);font-size:0.72rem;">(${year})</span></div>
+        <div style="font-size:0.72rem;color:${color};">${sign}${fmt} vs ${prevYear}</div>
+      </div>
+    </div>`;
+  };
+
+  // Chart comparatif
+  const canvasId = 'chart-evolution-comparison';
+  el.innerHTML = `
+    <div class="card" style="margin-bottom:12px;">
+      <div class="card-header">
+        <span class="card-title">📈 ${year} vs ${prevYear}</span>
+        ${!prev ? `<span class="chip" style="font-size:0.72rem;">Pas de données ${prevYear}</span>` : ''}
+      </div>
+      ${prev ? `
+      <div style="padding:4px 0;">
+        ${txtDiff('💰 Revenus totaux', cur, prev, x => x.revTotal)}
+        ${txtDiff('💸 Dépenses totales', cur, prev, x => x.depTotal, false, false)}
+        ${txtDiff('✅ Solde cumulé', cur, prev, x => x.solTotal)}
+        ${txtDiff('📈 Taux d\'épargne moyen', cur, prev, x => x.txAvg, true)}
+        ${txtDiff('🏠 Charges fixes totales', cur, prev, x => x.chgTotal, false, false)}
+      </div>` : '<p style="color:var(--text-3);font-size:0.82rem;">Aucune donnée pour ' + prevYear + '.</p>'}
+    </div>
+    <div class="card" style="margin-bottom:12px;">
+      <div class="card-header"><span class="card-title">📊 Solde mensuel : ${year} vs ${prevYear}</span></div>
+      <div class="chart-wrap" style="height:220px;">
+        <canvas id="${canvasId}" role="img" aria-label="Comparaison solde mensuel ${year} vs ${prevYear}"></canvas>
+      </div>
+    </div>
+  `;
+
+  const canvas = document.getElementById(canvasId);
+  if (canvas && (cur || prev)) {
+    const chart = new Chart(canvas, {
+      type: 'bar',
+      data: {
+        labels: MOIS_COURT,
+        datasets: [
+          {
+            label: String(year),
+            data: curData.map(r => r ? r.solde.total : null),
+            backgroundColor: 'rgba(108,99,255,0.7)',
+            borderRadius: 4,
+          },
+          ...(prev ? [{
+            label: String(prevYear),
+            data: prevData.map(r => r ? r.solde.total : null),
+            backgroundColor: 'rgba(156,163,175,0.5)',
+            borderRadius: 4,
+          }] : []),
+        ],
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { position: 'bottom', labels: { font: { size: 10 }, padding: 8 } },
+          tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${eur(ctx.raw ?? 0)}` } },
+        },
+        scales: {
+          y: { ticks: { callback: v => eur(v) } },
+        },
+      },
+    });
+    _charts.push(chart);
+  }
+}

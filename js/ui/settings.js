@@ -11,7 +11,8 @@ import { getAllSettings, getSetting, setSetting,
          getAvailableYears, getMonthsByYear, getChargesForMonth,
          getAchatsForMonth, getRepartition, saveArchive,
          getAllArchives, getAllUsers, getActiveUsers,
-         saveUser, softDeleteUser, restoreUser, USER_COLORS }                  from '../db.js';
+         saveUser, softDeleteUser, restoreUser, USER_COLORS,
+         saveCharge }                                            from '../db.js';
 import { calcMonth, calcYear }                                    from '../calculs.js';
 import { eur, escHtml, showToast, downloadJSON, pickJSONFile,
          openModal, closeModal, today }                           from '../utils.js';
@@ -212,6 +213,13 @@ function buildHTML(s, users, archived, N) {
       </p>
     </div>
 
+    <!-- Section : Templates de charges -->
+    <div class="card" style="margin-bottom:12px;">
+      <div class="card-header"><span class="card-title">📋 Charges types</span></div>
+      <p style="font-size:0.78rem;color:var(--text-3);margin-bottom:10px;">Importez des charges prédéfinies (loyer, EDF, internet…) pour démarrer rapidement.</p>
+      <button class="btn btn-outline btn-full" id="btn-import-templates">📋 Importer des charges types</button>
+    </div>
+
     <!-- Section : Données locales -->
     <div class="card" style="margin-bottom:12px;">
       <div class="card-header"><span class="card-title">💾 Sauvegarde locale</span></div>
@@ -235,6 +243,7 @@ function buildHTML(s, users, archived, N) {
     <div class="card" style="margin-bottom:24px; border-color:var(--danger);">
       <div class="card-header"><span class="card-title" style="color:var(--danger);">⚠️ Zone dangereuse</span></div>
       <button class="btn btn-outline btn-full" style="margin-bottom:8px;" id="btn-clear-cache">🔄 Vider le cache et recharger l'application</button>
+      <button class="btn btn-outline btn-full" style="margin-bottom:8px;" id="btn-replay-tour">🎓 Rejouer le tour guidé</button>
       <button class="btn btn-danger btn-full" id="btn-reset">Effacer toutes les données…</button>
     </div>
 
@@ -424,6 +433,71 @@ function bindEvents(container, s, users, archived, N) {
     });
   });
 
+  // ── Templates de charges ──
+  container.querySelector('#btn-import-templates')?.addEventListener('click', () => {
+    const TEMPLATES = [
+      { label: 'Loyer',              category: 'logement',   amount: 800,  qui: 'shared' },
+      { label: 'Électricité (EDF)',  category: 'logement',   amount: 80,   qui: 'shared' },
+      { label: 'Gaz',               category: 'logement',   amount: 50,   qui: 'shared' },
+      { label: 'Internet / Box',    category: 'abonnements', amount: 40,   qui: 'shared' },
+      { label: 'Eau',               category: 'logement',   amount: 30,   qui: 'shared' },
+      { label: 'Charges copro.',    category: 'logement',   amount: 120,  qui: 'shared' },
+      { label: 'Assurance habitation', category: 'assurances', amount: 25, qui: 'shared' },
+      { label: 'Assurance voiture 1',  category: 'assurances', amount: 60, qui: 'shared' },
+      { label: 'Assurance voiture 2',  category: 'assurances', amount: 55, qui: 'shared' },
+      { label: 'Mutuelle santé',    category: 'sante',      amount: 70,   qui: 'shared' },
+      { label: 'Forfait mobile 1',  category: 'abonnements', amount: 20,  qui: 'shared' },
+      { label: 'Forfait mobile 2',  category: 'abonnements', amount: 20,  qui: 'shared' },
+      { label: 'Netflix',           category: 'abonnements', amount: 18,  qui: 'shared' },
+      { label: 'Spotify',           category: 'abonnements', amount: 10,  qui: 'shared' },
+      { label: 'Crédit auto',       category: 'credit',     amount: 250,  qui: 'shared' },
+      { label: 'Prêt immobilier',   category: 'credit',     amount: 900,  qui: 'shared' },
+      { label: 'Crèche / Garde enfant', category: 'enfants', amount: 600, qui: 'shared' },
+      { label: 'Cantine scolaire',  category: 'enfants',    amount: 80,   qui: 'shared' },
+      { label: 'Abonnement sport',  category: 'loisirs',    amount: 30,   qui: 'shared' },
+      { label: 'Parking',           category: 'transport',  amount: 80,   qui: 'shared' },
+    ];
+    const rows = TEMPLATES.map((t, i) =>
+      `<label style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--border);cursor:pointer;">
+        <input type="checkbox" class="tmpl-check" data-i="${i}" style="width:16px;height:16px;flex-shrink:0;">
+        <span style="flex:1;font-size:0.85rem;">${escHtml(t.label)}</span>
+        <input type="number" class="form-input tmpl-amount" data-i="${i}" value="${t.amount}" min="0" step="1"
+          style="width:80px;padding:4px 8px;font-size:0.82rem;" placeholder="0">
+        <span style="font-size:0.75rem;color:var(--text-3);">€/mois</span>
+      </label>`
+    ).join('');
+    openModal('📋 Charges types',
+      `<p style="font-size:0.78rem;color:var(--text-3);margin-bottom:10px;">Cochez les charges à ajouter et ajustez les montants.</p>
+       <div>${rows}</div>`,
+      `<button class="btn btn-outline" id="tmpl-cancel">Annuler</button>
+       <button class="btn btn-primary" id="tmpl-confirm">Importer les sélectionnées</button>`
+    );
+    document.getElementById('tmpl-cancel')?.addEventListener('click', closeModal);
+    document.getElementById('tmpl-confirm')?.addEventListener('click', async () => {
+      const checks = document.querySelectorAll('.tmpl-check:checked');
+      if (!checks.length) { showToast('Sélectionnez au moins une charge', 'error'); return; }
+      let count = 0;
+      for (const cb of checks) {
+        const i = parseInt(cb.dataset.i);
+        const t = TEMPLATES[i];
+        const amt = parseFloat(document.querySelector(`.tmpl-amount[data-i="${i}"]`)?.value) || t.amount;
+        if (amt <= 0) continue;
+        await saveCharge({
+          id: Date.now() + count,
+          label: t.label,
+          category: t.category || 'autre',
+          active: true,
+          perso: false,
+          months: 'all',
+          lines: [{ id: 1, amount: amt, qui: t.qui, dayOfMonth: 1 }],
+        });
+        count++;
+      }
+      closeModal();
+      showToast(`${count} charge${count > 1 ? 's' : ''} importée${count > 1 ? 's' : ''} ✅`, 'success');
+    });
+  });
+
   // ── Export JSON ──
   container.querySelector('#btn-export')?.addEventListener('click', async () => {
     try {
@@ -574,6 +648,12 @@ function bindEvents(container, s, users, archived, N) {
   });
 
   // ── Reset cache ──
+  container.querySelector('#btn-replay-tour')?.addEventListener('click', async () => {
+    await setSetting('tourCompleted', false);
+    const { _startTour } = await import('../app.js');
+    _startTour(true);
+  });
+
   container.querySelector('#btn-clear-cache')?.addEventListener('click', async () => {
     const btn = container.querySelector('#btn-clear-cache');
     if (btn) { btn.disabled = true; btn.textContent = '⏳ Nettoyage…'; }
