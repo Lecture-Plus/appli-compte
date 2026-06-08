@@ -580,7 +580,7 @@ async function renderBudgets(container) {
              <div class="item-list">${regularAchats.map(a => {
                const info = getCategoryInfo(a.category);
                const dateStr = a.day ? `${a.day} ${nomMois(a.month)} ${a.year}` : `${nomMois(a.month)} ${a.year}`;
-               return `<div class="list-item"><div class="list-item-icon" style="background:var(--warning-bg);">${info.emoji}</div><div class="list-item-body"><div class="list-item-title">${escHtml(a.label)}</div><div class="list-item-sub">${dateStr}</div></div><div class="list-item-right"><div class="list-item-amount" style="color:var(--danger);">−${eur(a.amount)}</div></div></div>`;
+               return `<div class="list-item" style="position:relative;"><div class="list-item-icon" style="background:var(--warning-bg);">${info.emoji}</div><div class="list-item-body"><div class="list-item-title">${escHtml(a.label)}</div><div class="list-item-sub">${dateStr}</div></div><div class="list-item-right"><div class="list-item-amount" style="color:var(--danger);">−${eur(a.amount)}</div><button class="btn-icon" data-del-achat="${a.id}" style="width:24px;height:24px;color:var(--text-3);font-size:0.8rem;" title="Supprimer">🗑️</button></div></div>`;
              }).join('')}</div>
            </div>`
       }
@@ -598,12 +598,10 @@ async function renderBudgets(container) {
 
   tc.querySelectorAll('[data-bgt-add-op]').forEach(btn => {
     btn.addEventListener('click', () => {
-      const catId     = btn.dataset.bgtAddOp;
-      const catName   = btn.dataset.catName || catId;
-      const catIcon   = btn.dataset.catIcon || '📌';
-      const catBudget = parseFloat(btn.dataset.catBudget) || 0;
-      const catSpent  = parseFloat(btn.dataset.catSpent)  || 0;
-      _showAddBudgetOpModal({ catId, catLabel:`${catIcon} ${catName}`, catBudget, catSpent }, users, year, month, () => renderBudgets(container));
+      const catId   = btn.dataset.bgtAddOp;
+      const catName = btn.dataset.catName || catId;
+      const catIcon = btn.dataset.catIcon || '📌';
+      _showAddBudgetOpModal({ catId, catLabel:`${catIcon} ${catName}` }, users, year, month, () => renderBudgets(container));
     });
   });
   tc.querySelectorAll('[data-bgt-del-op]').forEach(btn => {
@@ -681,6 +679,14 @@ async function renderBudgets(container) {
   // Achats exceptionnels: + button and ops collapse
   tc.querySelector('#bgt-add-achat')?.addEventListener('click', () => {
     showAchatModal(null, () => renderBudgets(container));
+  });
+  tc.querySelectorAll('[data-del-achat]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      if (!confirm('Supprimer cet achat exceptionnel ?')) return;
+      await deleteAchat(Number(btn.dataset.delAchat));
+      showToast('Achat supprimé', 'success');
+      renderBudgets(container);
+    });
   });
   tc.querySelector('#bgt-ops-toggle-achats')?.addEventListener('click', () => {
     const sec = tc.querySelector('#bgt-ops-achats');
@@ -764,17 +770,33 @@ function _buildBudCatSection({ id, icon, title, budget, spent, ops, users, hint,
   </div>`;
 }
 
-function _showAddBudgetOpModal({ catId, catLabel, catBudget = 0, catSpent = 0 }, users, year, month, onSave) {
+async function _showAddBudgetOpModal({ catId, catLabel }, users, year, month, onSave) {
+  // Fetch fresh budget and spent values before opening the modal
+  const [freshMd, freshSettings, freshBudgetOps] = await Promise.all([
+    getMonthlyData(year, month),
+    getAllSettings(),
+    getBudgetOpsForMonth(year, month),
+  ]);
+  const freshCustom = freshSettings.customBudgets || [];
+  const customEntry = freshCustom.find(b => b.id === catId);
+  const catBudget = customEntry
+    ? (Number(customEntry.amount) || 0)
+    : users.reduce((s, u) => s + (Number(freshMd?.users?.[String(u.id)]?.[catId]) || 0), 0);
+  const catSpent = freshBudgetOps
+    .filter(op => op.category === catId)
+    .reduce((s, op) => s + (Number(op.amount) || 0), 0);
+
   const daysInMonth = new Date(year, month, 0).getDate();
   const todayDay    = new Date().getDate();
   const userSelect  = users.length > 1
     ? `<div class="form-group" style="margin-bottom:10px;"><label class="form-label">Personne</label><select class="form-input" id="bop-user"><option value="">— Sans attribution —</option><option value="tous">👥 Tous (diviser en parts égales)</option>${users.map(u=>`<option value="${u.id}">${escHtml(u.name)}</option>`).join('')}</select></div>`
     : '';
-  const budgetInfo = catBudget > 0
+  const remaining0  = catBudget > 0 ? Math.max(0, catBudget - catSpent) : null;
+  const budgetInfo  = catBudget > 0
     ? `<div style="background:var(--bg-2);border-radius:var(--radius-sm);padding:8px 10px;margin-bottom:10px;font-size:0.78rem;display:flex;gap:12px;flex-wrap:wrap;">
         <span>Plafond : <strong>${eur(catBudget)}</strong></span>
         <span>Dépensé : <strong>${eur(catSpent)}</strong></span>
-        <span style="color:${catBudget - catSpent <= 0 ? 'var(--danger)' : 'var(--success)'};">Restant : <strong>${eur(Math.max(0, catBudget - catSpent))}</strong></span>
+        <span style="color:${remaining0 <= 0 ? 'var(--danger)' : 'var(--success)'};">Restant : <strong>${eur(remaining0)}</strong></span>
       </div>`
     : '';
   openModal(`+ Opération ${catLabel}`, `
@@ -789,31 +811,16 @@ function _showAddBudgetOpModal({ catId, catLabel, catBudget = 0, catSpent = 0 },
   `, `<button class="btn btn-primary btn-full" id="bop-save">Enregistrer</button>`);
   document.getElementById('bop-label')?.focus();
   document.getElementById('bop-save')?.addEventListener('click', async () => {
-    const label  = document.getElementById('bop-label')?.value.trim();
-    const amount = parseFloat(document.getElementById('bop-amount')?.value);
-    const day    = parseInt(document.getElementById('bop-day')?.value, 10) || null;
+    const label   = document.getElementById('bop-label')?.value.trim();
+    const amount  = parseFloat(document.getElementById('bop-amount')?.value);
+    const day     = parseInt(document.getElementById('bop-day')?.value, 10) || null;
     const userVal = document.getElementById('bop-user')?.value || null;
-    if (!label) { showToast('Saisissez une description', 'error'); return; }
+    if (!label)              { showToast('Saisissez une description', 'error'); return; }
     if (!amount || amount <= 0) { showToast('Montant invalide', 'error'); return; }
 
-    // Re-fetch real-time budget and spent values to avoid stale data
-    const [freshMd, freshSettings, freshBudgetOps] = await Promise.all([
-      getMonthlyData(year, month),
-      getAllSettings(),
-      getBudgetOpsForMonth(year, month),
-    ]);
-    const freshCustom = freshSettings.customBudgets || [];
-    const customEntry = freshCustom.find(b => b.id === catId);
-    const freshBudget = customEntry
-      ? (Number(customEntry.amount) || 0)
-      : users.reduce((s, u) => s + (Number(freshMd?.users?.[String(u.id)]?.[catId]) || 0), 0);
-    const freshSpent  = freshBudgetOps
-      .filter(op => op.category === catId)
-      .reduce((s, op) => s + (Number(op.amount) || 0), 0);
-
-    // Overflow detection using fresh data
-    const remaining    = freshBudget > 0 ? Math.max(0, freshBudget - freshSpent) : Infinity;
-    const hasOverflow  = freshBudget > 0 && amount > remaining;
+    // Overflow detection using values fetched before modal opened (captured in closure)
+    const remaining    = catBudget > 0 ? Math.max(0, catBudget - catSpent) : Infinity;
+    const hasOverflow  = catBudget > 0 && amount > remaining;
     const cappedAmount = hasOverflow ? remaining : amount;
     const overflowAmt  = hasOverflow ? +(amount - remaining).toFixed(2) : 0;
 
