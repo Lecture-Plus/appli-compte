@@ -27,6 +27,7 @@ export async function render(container) {
       <button class="tab-btn ${_tab === 'recurrentes' ? 'active' : ''}" data-tab="recurrentes">Récurrentes</button>
       <button class="tab-btn ${_tab === 'achats'      ? 'active' : ''}" data-tab="achats">Exceptionnels</button>
       <button class="tab-btn ${_tab === 'budgets'     ? 'active' : ''}" data-tab="budgets">Budgets</button>
+      <button class="tab-btn ${_tab === 'calendrier'  ? 'active' : ''}" data-tab="calendrier">📅 Calendrier</button>
     </div>
     <div id="tab-content"></div>
     <button class="fab" id="fab-add" aria-label="Ajouter" style="${_tab === 'budgets' ? 'display:none;' : ''}">
@@ -37,6 +38,7 @@ export async function render(container) {
   const renderTab = () => {
     if (_tab === 'recurrentes') renderRecurrentes(container);
     else if (_tab === 'achats') renderAchats(container);
+    else if (_tab === 'calendrier') renderCalendrier(container);
     else                        renderBudgets(container);
   };
 
@@ -46,7 +48,7 @@ export async function render(container) {
       btn.classList.add('active');
       _tab = btn.dataset.tab;
       const fab = container.querySelector('#fab-add');
-      if (fab) fab.style.display = _tab === 'budgets' ? 'none' : '';
+      if (fab) fab.style.display = (_tab === 'budgets' || _tab === 'calendrier') ? 'none' : '';
       renderTab();
     });
   });
@@ -1239,5 +1241,70 @@ function getQuiLabel(qui) {
   if (!qui || qui === 'shared') return '🤝 Partagé (tous)';
   const u = _users.find(u => String(u.id) === String(qui));
   return u ? u.name : String(qui);
+}
+
+// ── Vue calendrier des charges ─────────────────────────────
+async function renderCalendrier(container) {
+  const tabContent = container.querySelector('#tab-content');
+  const month = State.month;
+  const year  = State.year;
+  const charges = await getAllCharges();
+  const active  = charges.filter(c => !c.archived);
+
+  // Regrouper les charges par jour de prélèvement (1-31)
+  const byDay = {};
+  active.forEach(c => {
+    const day = Number(c.day) || 1;
+    if (!byDay[day]) byDay[day] = [];
+    byDay[day].push(c);
+  });
+
+  const daysInMonth = new Date(year, month, 0).getDate();
+  const firstDow    = new Date(year, month - 1, 1).getDay(); // 0=dim
+  // Convert to Monday-first (0=lun)
+  const startOffset = (firstDow + 6) % 7;
+
+  const dayLabels = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
+  const headerCells = dayLabels.map(d =>
+    `<div style="text-align:center;font-size:0.72rem;font-weight:700;color:var(--text-3);padding:4px 0;">${d}</div>`
+  ).join('');
+
+  const cells = [];
+  for (let i = 0; i < startOffset; i++) cells.push('<div></div>');
+  const today_ = new Date();
+  const todayDay = today_.getFullYear() === year && today_.getMonth() + 1 === month ? today_.getDate() : -1;
+
+  for (let d = 1; d <= daysInMonth; d++) {
+    const charges_ = byDay[d] || [];
+    const total = charges_.reduce((s, c) => s + (Number(c.amount) || 0), 0);
+    const isToday = d === todayDay;
+    const hasCh   = charges_.length > 0;
+    const dots = charges_.slice(0, 3).map(c => {
+      const cat = getCategoryInfo(c.category || '');
+      return `<span title="${escHtml(c.name)}: ${eur(Number(c.amount)||0)}" style="font-size:0.75rem;line-height:1;">${cat?.icon || '💳'}</span>`;
+    }).join('');
+    cells.push(`
+      <div style="border-radius:8px;padding:4px;min-height:52px;border:1px solid ${isToday ? 'var(--primary)' : 'var(--border)'};background:${isToday ? 'var(--primary-light,#e8f0ff)' : hasCh ? 'var(--bg-2)' : 'transparent'};cursor:default;position:relative;">
+        <div style="font-size:0.75rem;font-weight:${isToday ? '800' : '600'};color:${isToday ? 'var(--primary)' : 'var(--text-1)'};text-align:right;">${d}</div>
+        <div style="font-size:0.7rem;color:var(--danger);text-align:center;font-weight:700;">${hasCh ? eur(total) : ''}</div>
+        <div style="display:flex;flex-wrap:wrap;gap:1px;justify-content:center;">${dots}</div>
+      </div>`);
+  }
+
+  // Résumé total mensuel
+  const totalMonth = active.reduce((s, c) => s + (Number(c.amount) || 0), 0);
+
+  tabContent.innerHTML = `
+    <div style="padding:12px 0;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <span style="font-size:0.82rem;color:var(--text-3);">${active.length} charges récurrentes</span>
+        <span style="font-size:0.9rem;font-weight:700;color:var(--danger);">${eur(totalMonth)}/mois</span>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-bottom:16px;">
+        ${headerCells}
+        ${cells.join('')}
+      </div>
+      <div style="font-size:0.72rem;color:var(--text-3);margin-bottom:8px;">Les icônes indiquent les charges prévues ce jour. Saisissez le jour de prélèvement sur chaque charge.</div>
+    </div>`;
 }
 

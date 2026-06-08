@@ -11,7 +11,7 @@ import { getAllSavingsOperations, saveSavingsOperation,
                                                              from '../db.js';
 import { calcSavingsBalance }                                from '../calculs.js';
 import { eur, escHtml, showToast, showToastWithUndo, openModal, closeModal,
-         today, nomMois }                                    from '../utils.js';
+         today, nomMois, MOIS }                              from '../utils.js';
 
 export async function render(container) {
   await _renderPage(container);
@@ -230,6 +230,21 @@ async function _renderEconomies(el, container) {
       </div>
       <button class="btn btn-primary btn-full" id="sv-save-goal">Enregistrer</button>
     </div>
+
+    <!-- Section : Projection épargne 12 mois -->
+    <div class="card" style="margin-bottom:12px;">
+      <div class="card-header"><span class="card-title">🔭 Projection épargne</span></div>
+      <p style="font-size:0.78rem;color:var(--text-3);margin-bottom:10px;">Simulez l'impact d'un versement mensuel supplémentaire sur votre épargne.</p>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
+        <label class="form-label" style="margin:0;white-space:nowrap;">Versement mensuel</label>
+        <div class="input-wrap" style="flex:1;">
+          <input type="number" class="form-input input-euro" id="proj-monthly" min="0" step="10" placeholder="Ex: 200">
+          <span class="input-suffix">€</span>
+        </div>
+        <button class="btn btn-outline btn-sm" id="proj-calc">Calculer</button>
+      </div>
+      <div id="proj-result"></div>
+    </div>
   `;
 
   // ── Événements ──
@@ -254,6 +269,38 @@ async function _renderEconomies(el, container) {
     ]);
     showToast('Objectif enregistré ✅', 'success');
     _renderPage(container);
+  });
+
+  // ── Projection épargne ──
+  el.querySelector('#proj-calc')?.addEventListener('click', () => {
+    const monthly  = Math.max(0, Number(el.querySelector('#proj-monthly')?.value) || 0);
+    const current  = balance ?? 0;
+    const goal     = Number(s.savingsGoal) || 0;
+    const resultEl = el.querySelector('#proj-result');
+    if (!resultEl) return;
+    if (!monthly && !current && !goal) {
+      resultEl.innerHTML = '<p style="color:var(--text-3);font-size:0.82rem;">Saisissez un montant mensuel.</p>';
+      return;
+    }
+    const months = Array.from({ length: 12 }, (_, i) => {
+      const bal = current + monthly * (i + 1);
+      return bal;
+    });
+    const goalMonth = goal > 0 ? months.findIndex(b => b >= goal) : -1;
+    const rows = months.map((b, i) => {
+      const isMilestone = goal > 0 && Math.floor(b / goal) > Math.floor((b - monthly) / goal);
+      return `<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);${isMilestone ? 'font-weight:700;color:var(--success);' : ''}">
+        <span style="font-size:0.82rem;">${MOIS[i] || 'M'+(i+1)}</span>
+        <span style="font-size:0.82rem;">${eur(b)}</span>
+        ${goal > 0 ? `<div class="progress-track" style="width:80px;height:5px;margin:auto 0;"><div class="progress-bar ${b >= goal ? 'success' : 'primary'}" style="width:${Math.min(100, Math.round(b / goal * 100))}%;"></div></div>` : ''}
+      </div>`;
+    }).join('');
+    resultEl.innerHTML = `
+      ${goalMonth >= 0
+        ? `<p style="font-size:0.82rem;font-weight:700;color:var(--success);margin-bottom:8px;">🎯 Objectif atteint en ${goalMonth + 1} mois (${MOIS[goalMonth]}) !</p>`
+        : goal > 0 ? `<p style="font-size:0.78rem;color:var(--text-3);margin-bottom:8px;">Objectif ${eur(goal)} non atteint en 12 mois (${eur(months[11])} atteint).</p>` : ''}
+      <div>${rows}</div>
+    `;
   });
 
   el.querySelectorAll('[data-savings-tab]').forEach(btn => {

@@ -262,7 +262,7 @@ async function _renderResume(container, s, users) {
     <div class="hero-card" style="margin-bottom:12px;">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;">
         <div style="flex:1;min-width:0;">
-          <div class="hero-label">Solde de ${nomMois(month)} ${year}</div>
+          <div class="hero-label">Solde de ${nomMois(month)} ${year} <span title="Solde = Revenus + Aides − Charges − Dépenses du mois" style="cursor:help;color:var(--primary);font-size:0.75em;">ⓘ</span></div>
           <div class="hero-amount" style="color:${soldeColor};">${eur(kpi.solde.total)}</div>
           <div class="hero-meta">
             <span>${eur(kpi.revenus.total + (kpi.aides?.total ?? 0))} revenus</span>
@@ -271,7 +271,7 @@ async function _renderResume(container, s, users) {
           </div>
           ${users.length > 1 ? `<div style="font-size:0.67rem;color:var(--text-3);margin-top:3px;">${users.map(u => `${escHtml(u.name)}: ${eur(kpi.solde.byUser?.[u.id] ?? 0)}`).join(' · ')}</div>` : ''}
           <div style="margin-top:8px;padding:8px 10px;background:var(--bg-2);border-radius:8px;display:flex;justify-content:space-between;align-items:center;">
-            <span style="font-size:0.68rem;color:var(--text-3);">${_dailyLabel}</span>
+            <span style="font-size:0.68rem;color:var(--text-3);">${_dailyLabel} <span title="(Solde − Objectif mensuel) ÷ Jours restants. Vert ≥ 30 €/j, orange ≥ 0, rouge < 0." style="cursor:help;color:var(--primary);font-size:0.9em;">ⓘ</span></span>
             <span style="font-size:1.05rem;font-weight:800;color:${_dailyColor};">${eur(_dailyBudg)}<span style="font-size:0.62rem;font-weight:400;color:var(--text-3);">/j</span></span>
           </div>
         </div>
@@ -376,7 +376,7 @@ async function _renderResume(container, s, users) {
       </div>
 
       <div class="card" style="margin-bottom:12px;">
-        <div class="card-header"><span class="card-title">💚 Bilan épargne</span></div>
+        <div class="card-header"><span class="card-title">💚 Bilan épargne <span title="Possible = solde prévisionnel si vous mettez tout de côté. Mise de côté = opérations épargne réellement enregistrées ce mois." style="cursor:help;color:var(--primary);font-size:0.85em;">ⓘ</span></span></div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
           <div style="background:var(--success-bg);border-radius:var(--radius-sm);padding:12px;">
             <div style="font-size:0.62rem;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Possible</div>

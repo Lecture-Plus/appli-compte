@@ -371,11 +371,17 @@ export async function render(container) {
   // ── Marquer complet ──
   container.querySelector('#btn-complete')?.addEventListener('click', async () => {
     syncFormToState(container);
-    _md.isComplete = !_md.isComplete;
-    await saveMonthlyData(_md);
-    showToast(_md.isComplete ? 'Mois marqué comme complet ✅' : 'Mois marqué comme en cours', 'success');
-    const btn = container.querySelector('#btn-complete');
-    if (btn) btn.style.color = _md.isComplete ? 'var(--success)' : '';
+    if (_md.isComplete) {
+      // Démarquer directement
+      _md.isComplete = false;
+      await saveMonthlyData(_md);
+      showToast('Mois marqué comme en cours', 'success');
+      const btn = container.querySelector('#btn-complete');
+      if (btn) btn.style.color = '';
+    } else {
+      // Wizard de fin de mois
+      await _showEndOfMonthWizard(container, month, year);
+    }
   });
 
   if (_md.isComplete) {
@@ -1046,3 +1052,56 @@ function inputField(id, user, value, suffix) {
     </div>`;
 }
 
+// ── Wizard de fin de mois ──────────────────────────────────
+async function _showEndOfMonthWizard(container, month, year) {
+  const kpi = calcMonth(_md, _chargesCache, _achatsCache, _repCfg, _users, _budgetOpsCache);
+  const txEp   = kpi.txEpargne?.total ?? 0;
+  const solde  = kpi.solde.total;
+  const txColor = txEp >= 0.15 ? 'var(--success)' : txEp >= 0.05 ? 'var(--warning)' : 'var(--danger)';
+  const soldeColor = solde >= 0 ? 'var(--success)' : 'var(--danger)';
+
+  const step1 = `
+    <div style="text-align:center;padding:8px 0 16px;">
+      <div style="font-size:2rem;margin-bottom:8px;">🎉</div>
+      <div style="font-size:1rem;font-weight:700;margin-bottom:4px;">Récapitulatif de ${nomMois(month)} ${year}</div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px;">
+      <div style="background:var(--bg-2);border-radius:10px;padding:12px;text-align:center;">
+        <div style="font-size:0.7rem;color:var(--text-3);text-transform:uppercase;">Solde</div>
+        <div style="font-size:1.3rem;font-weight:800;color:${soldeColor};">${eur(solde)}</div>
+      </div>
+      <div style="background:var(--bg-2);border-radius:10px;padding:12px;text-align:center;">
+        <div style="font-size:0.7rem;color:var(--text-3);text-transform:uppercase;">Taux épargne</div>
+        <div style="font-size:1.3rem;font-weight:800;color:${txColor};">${pct(txEp)}</div>
+      </div>
+      <div style="background:var(--bg-2);border-radius:10px;padding:12px;text-align:center;">
+        <div style="font-size:0.7rem;color:var(--text-3);text-transform:uppercase;">Revenus</div>
+        <div style="font-size:1rem;font-weight:700;">${eur(kpi.revenus.total)}</div>
+      </div>
+      <div style="background:var(--bg-2);border-radius:10px;padding:12px;text-align:center;">
+        <div style="font-size:0.7rem;color:var(--text-3);text-transform:uppercase;">Dépenses</div>
+        <div style="font-size:1rem;font-weight:700;color:var(--danger);">${eur(kpi.depenses.total)}</div>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">📝 Note du mois (optionnel)</label>
+      <textarea class="form-input" id="wizard-note" rows="2" style="resize:none;font-size:0.85rem;" placeholder="Événements particuliers ce mois…">${escHtml(_md.notes || '')}</textarea>
+    </div>`;
+
+  openModal(`✅ Clôturer ${nomMois(month)} ${year}`, step1,
+    `<button class="btn btn-outline" id="wiz-cancel">Annuler</button>
+     <button class="btn btn-primary" id="wiz-confirm">Marquer complet ✅</button>`
+  );
+
+  document.getElementById('wiz-cancel')?.addEventListener('click', closeModal);
+  document.getElementById('wiz-confirm')?.addEventListener('click', async () => {
+    const note = document.getElementById('wizard-note')?.value?.trim();
+    if (note !== undefined) _md.notes = note;
+    _md.isComplete = true;
+    await saveMonthlyData(_md);
+    closeModal();
+    showToast('Mois clôturé ✅', 'success');
+    const btn = container.querySelector('#btn-complete');
+    if (btn) btn.style.color = 'var(--success)';
+  });
+}
