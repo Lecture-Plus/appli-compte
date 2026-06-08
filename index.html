@@ -266,7 +266,8 @@
     });
   }
 
-  let getColor1, getColor2;
+  let _obColorGetters = [];
+  let _obExtraCount = 0;
 
   (async () => {
     const users = await getActiveUsers();
@@ -274,37 +275,68 @@
 
     document.getElementById('onboarding').classList.remove('hidden');
 
-    getColor1 = buildColorPicker('ob-colors-1', USER_COLORS[0]);
-    getColor2 = buildColorPicker('ob-colors-2', USER_COLORS[1] || USER_COLORS[0]);
+    _obColorGetters[0] = buildColorPicker('ob-colors-1', USER_COLORS[0]);
 
-    // ── Step create : interactions ──
-    document.getElementById('ob-add-second')?.addEventListener('click', () => {
-      document.getElementById('ob-user-2').style.display = '';
-      document.getElementById('ob-add-second').style.display = 'none';
-    });
-    document.getElementById('ob-remove-second')?.addEventListener('click', () => {
-      document.getElementById('ob-user-2').style.display = 'none';
-      document.getElementById('ob-add-second').style.display = '';
+    // ── Ajouter une personne (sans limite) ──
+    document.getElementById('ob-add-person')?.addEventListener('click', () => {
+      _obExtraCount++;
+      const color   = USER_COLORS[_obExtraCount % USER_COLORS.length] || USER_COLORS[0];
+      const colorId = `ob-colors-extra-${_obExtraCount}`;
+      const card    = document.createElement('div');
+      card.className         = 'card';
+      card.dataset.obUser    = String(_obExtraCount);
+      card.style.cssText     = 'text-align:left;padding:16px;';
+      card.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+          <div style="font-size:0.78rem;font-weight:700;color:var(--primary);text-transform:uppercase;letter-spacing:.05em;">Personne ${_obExtraCount + 1}</div>
+          <button type="button" class="btn btn-sm btn-outline ob-remove-extra" style="padding:2px 8px;font-size:0.72rem;">× Retirer</button>
+        </div>
+        <div class="form-group" style="margin-bottom:10px;">
+          <label class="form-label">Prénom</label>
+          <input type="text" class="form-input ob-extra-name" placeholder="Ex: Océane" maxlength="30">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Couleur</label>
+          <div id="${colorId}" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px;"></div>
+        </div>
+      `;
+      card.querySelector('.ob-remove-extra')?.addEventListener('click', () => card.remove());
+      document.getElementById('ob-extra-users').appendChild(card);
+      _obColorGetters[_obExtraCount] = buildColorPicker(colorId, color);
     });
 
+    // ── Démarrer ──
     document.getElementById('ob-start')?.addEventListener('click', async () => {
       const name1 = document.getElementById('ob-name-1')?.value.trim();
       if (!name1) { document.getElementById('ob-name-1').focus(); return; }
 
-      const now = new Date().toISOString();
-      const u1  = await saveUser({ name: name1, color: getColor1(), active: true, createdAt: now });
-      localStorage.setItem('currentDeviceUserId', String(u1));
-      State.currentUserId = String(u1);
+      const now          = new Date().toISOString();
+      const createdUsers = [];
+      const u1Id = await saveUser({ name: name1, color: _obColorGetters[0](), active: true, createdAt: now });
+      createdUsers.push({ id: u1Id, name: name1, color: _obColorGetters[0]() });
 
-      const name2 = document.getElementById('ob-user-2')?.style.display !== 'none'
-        ? document.getElementById('ob-name-2')?.value.trim() : '';
-      if (name2) {
-        await saveUser({ name: name2, color: getColor2(), active: true, createdAt: now });
+      const extraCards = document.querySelectorAll('#ob-extra-users .card[data-ob-user]');
+      for (let i = 0; i < extraCards.length; i++) {
+        const card  = extraCards[i];
+        const name  = card.querySelector('.ob-extra-name')?.value.trim();
+        if (!name) continue;
+        const ci    = Number(card.dataset.obUser);
+        const color = (_obColorGetters[ci] ? _obColorGetters[ci]() : null) || USER_COLORS[(i + 1) % USER_COLORS.length];
+        const uId   = await saveUser({ name, color, active: true, createdAt: now });
+        createdUsers.push({ id: uId, name, color });
       }
 
       await reloadUsers();
-      document.getElementById('onboarding').classList.add('hidden');
-      navigateTo('dashboard');
+      if (createdUsers.length > 1) {
+        const titleEl = document.querySelector('#ob-step-whoami > p');
+        if (titleEl) titleEl.textContent = 'Profils créés ! Qui êtes-vous sur cet appareil ?';
+        _showWhoAmI(createdUsers);
+      } else {
+        localStorage.setItem('currentDeviceUserId', String(createdUsers[0].id));
+        State.currentUserId = String(createdUsers[0].id);
+        document.getElementById('onboarding').classList.add('hidden');
+        navigateTo('dashboard');
+      }
     });
 
     // ── Bouton "J'ai déjà un espace" ──

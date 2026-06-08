@@ -146,6 +146,12 @@ async function _renderResume(container, s, users) {
   const sR = 22, sCirc = 2 * Math.PI * sR;
   const sOffset   = sCirc - (score / 100) * sCirc;
 
+  // ── Suivi budgets rapide (résumé) ──
+  const budgCourses = users.reduce((acc, u) => acc + (Number(md?.users?.[String(u.id)]?.courses) || 0), 0) || (Number(s.budgetCibles?.courses) || 0);
+  const budgExtras  = users.reduce((acc, u) => acc + (Number(md?.users?.[String(u.id)]?.extras)  || 0), 0) || (Number(s.budgetCibles?.extras)  || 0);
+  const spentCourses = achats.filter(a => a.craquage_source === 'courses').reduce((acc, a) => acc + (Number(a.amount) || 0), 0);
+  const spentExtras  = achats.filter(a => a.craquage_source === 'extras').reduce((acc, a) => acc + (Number(a.amount) || 0), 0);
+
   const el = container.querySelector('#dash-content');
   el.innerHTML = `
     <!-- ── HERO compact + score ring ── -->
@@ -180,10 +186,17 @@ async function _renderResume(container, s, users) {
     </div>
 
     <!-- ── Actions rapides ── -->
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
-      <button class="btn btn-primary" id="btn-go-saisie">✏️ Saisir</button>
-      <button class="btn btn-secondary" id="btn-go-savings">💰 Épargne</button>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px;">
+      <button class="btn btn-primary" id="btn-go-saisie" style="font-size:0.8rem;padding:10px 4px;">✏️ Saisir</button>
+      <button class="btn btn-secondary" id="btn-go-savings" style="font-size:0.8rem;padding:10px 4px;">💰 Épargne</button>
+      <button class="btn btn-danger" id="btn-go-craquage" style="font-size:0.8rem;padding:10px 4px;">💥 Craquage</button>
     </div>
+
+    <!-- ── Suivi budgets rapide ── -->
+    ${(budgCourses > 0 || budgExtras > 0) ? `<div style="display:grid;grid-template-columns:${[budgCourses > 0, budgExtras > 0].filter(Boolean).map(() => '1fr').join(' ')};gap:8px;margin-bottom:12px;align-items:stretch;">
+      ${budgCourses > 0 ? _buildBudgetCard('🛒 Courses', budgCourses, spentCourses, 'Budget') : ''}
+      ${budgExtras  > 0 ? _buildBudgetCard('🎮 Loisirs',  budgExtras,  spentExtras,  'Budget') : ''}
+    </div>` : '<div style="margin-bottom:12px;"></div>'}
 
     <!-- ── Détail collapsible ── -->
     <button id="btn-toggle-detail" style="display:flex;align-items:center;justify-content:space-between;width:100%;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:11px 14px;margin-bottom:12px;font-size:0.82rem;font-weight:600;color:var(--text-2);cursor:pointer;transition:all var(--transition);">
@@ -316,6 +329,14 @@ async function _renderResume(container, s, users) {
     _renderContent(container, s, users);
   });
   el.querySelector('#btn-go-savings')?.addEventListener('click', () => navigateTo('argent', { tab: 'epargne' }));
+  el.querySelector('#btn-go-craquage')?.addEventListener('click', () => {
+    _activeTab = 'saisie';
+    const nav = container.querySelector('#dash-month-nav');
+    if (nav) nav.style.display = 'none';
+    container.querySelectorAll('#dash-tabs .tab-btn').forEach(b => b.classList.remove('active'));
+    container.querySelector('[data-tab="saisie"]')?.classList.add('active');
+    _renderContent(container, s, users);
+  });
 }
 // ══════════════════════════════════════════════════
 // ONGLET PRÉVISIONNEL
@@ -352,7 +373,7 @@ async function _renderPrevisionnel(container, s, users) {
   const simDay      = isCurrentM ? now.getDate() : 0;
   // Courses : déduites chaque semaine (tous les 7 jours) plutôt qu'en une fois
   const weeklyGroceries = totalCourses > 0 ? Math.round(totalCourses * 7 / daysInMonth) : 0;
-  const totalDeductions = totalExtras + totalImprévus;
+  const totalDeductions = totalImprévus; // Loisirs non déduits d'office : ils ont leur propre budget
 
   const { days, todayDay } = calcPrevisionnel({ totalIncome, charges, year, month, simDay, deductions: totalDeductions, weeklyGroceries });
 
@@ -363,7 +384,7 @@ async function _renderPrevisionnel(container, s, users) {
        </div>`
     : '';
 
-  const displayDays = simDay > 0 ? days.filter(d => d.day <= simDay) : days;
+  const displayDays = days; // Afficher tous les jours du mois
 
   const el = container.querySelector('#dash-content');
   el.innerHTML = `
@@ -382,7 +403,7 @@ async function _renderPrevisionnel(container, s, users) {
         budgImpr    > 0 ? _buildBudgetCard('⚡ Imprévus', budgImpr,    totalImprSpent, 'Cible') : '',
       ].filter(Boolean);
       return cards.length > 0
-        ? `<div style="display:grid;grid-template-columns:${cards.map(() => '1fr').join(' ')};gap:8px;margin-bottom:12px;">${cards.join('')}</div>`
+        ? `<div style="display:grid;grid-template-columns:${cards.map(() => '1fr').join(' ')};gap:8px;margin-bottom:12px;align-items:stretch;">${cards.join('')}</div>`
         : '';
     })()}
 
@@ -390,7 +411,7 @@ async function _renderPrevisionnel(container, s, users) {
       <span class="section-label">Projection jour par jour</span>
       <div style="display:flex;align-items:center;gap:6px;">
         <span class="chip ${totalIncome > 0 ? 'primary' : 'danger'}">Base : ${eur(totalIncome)}</span>
-        ${totalDeductions > 0 ? `<span class="chip danger">−${eur(totalDeductions)} loisirs/imprévus</span>` : ''}
+        ${totalDeductions > 0 ? `<span class="chip danger">−${eur(totalDeductions)} imprévus</span>` : ''}
         ${weeklyGroceries > 0 ? `<span class="chip warning">🛒 ${eur(weeklyGroceries)}/sem</span>` : ''}
       </div>
     </div>
@@ -500,7 +521,7 @@ function _buildBudgetCard(title, budget, spent, budgetLabel = 'Budget') {
   const pctUsed   = budget > 0 ? Math.min(100, Math.round((spent / budget) * 100)) : 0;
   const color     = pctUsed >= 90 ? 'danger' : pctUsed >= 70 ? 'warning' : 'success';
   return `
-    <div class="card" style="padding:12px;height:100%;box-sizing:border-box;display:flex;flex-direction:column;justify-content:space-between;">
+    <div class="card" style="padding:12px;box-sizing:border-box;display:flex;flex-direction:column;justify-content:space-between;">
       <div style="font-size:0.72rem;font-weight:600;color:var(--text-3);margin-bottom:6px;">${title}</div>
       <div class="progress-track" style="height:6px;margin-bottom:6px;">
         <div class="progress-bar ${color}" style="width:${pctUsed}%;"></div>

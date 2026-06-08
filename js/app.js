@@ -3,8 +3,9 @@
 // ============================================================
 
 import { getAllSettings, getSetting, setSetting, getActiveUsers } from './db.js';
-import { initDriveSync, startAutoSave, initActivityTracking }     from './sync.js';
-import { today, showToast, closeModal, nomMois }                  from './utils.js';
+import { initDriveSync, startAutoSave, initActivityTracking,
+         testDriveConnection }                                     from './sync.js';
+import { today, showToast, closeModal, openModal, nomMois }      from './utils.js';
 import { DRIVE_URL_KEY, isValidDriveUrl }                         from './drive.js';
 
 // ── État global de l'application ──
@@ -394,7 +395,68 @@ function showDriveWarningBanner(s) {
   document.getElementById('drive-banner-close')?.addEventListener('click', closeBanner);
   document.getElementById('drive-banner-go')?.addEventListener('click', async () => {
     await closeBanner();
-    navigateTo('settings');
+    _showDriveConfigModal(s);
+  });
+}
+
+// ── Modal de configuration Drive ──
+async function _showDriveConfigModal(s) {
+  const currentUrl = (s && s[DRIVE_URL_KEY]) || '';
+  openModal('☁️ Configurer la Sync Drive', `
+    <p style="font-size:0.82rem;color:var(--text-2);margin-bottom:12px;">
+      La synchronisation Drive sauvegarde vos données sur Google et les partage entre vos appareils.
+    </p>
+    <div style="background:var(--bg-2);border-radius:var(--radius);padding:12px;margin-bottom:14px;">
+      <div style="font-size:0.78rem;font-weight:700;color:var(--text);margin-bottom:8px;">&#x1F4CB; Étapes de configuration :</div>
+      <ol style="font-size:0.78rem;color:var(--text-2);padding-left:18px;margin:0;line-height:2;">
+        <li>Aller sur <a href="https://script.google.com" target="_blank" rel="noopener" style="color:var(--primary);text-decoration:underline;">script.google.com</a></li>
+        <li>Créer un projet → nom : <strong>Budget Foyer Sync</strong></li>
+        <li>Copier-coller le contenu de <strong>setup/Code.gs</strong></li>
+        <li>Cliquer <strong>Déployer → Application Web</strong></li>
+        <li>Accès : <strong>Tout le monde</strong> → Copier l'URL</li>
+      </ol>
+    </div>
+    <div class="form-group" style="margin-bottom:8px;">
+      <label class="form-label">URL du Web App Apps Script</label>
+      <input type="url" class="form-input" id="modal-drive-url"
+        placeholder="https://script.google.com/macros/s/…"
+        value="${currentUrl}">
+      <p class="form-hint">Doit commencer par https://script.google.com/macros/s/</p>
+    </div>
+    <div id="modal-drive-result" style="display:none;font-size:0.78rem;padding:8px 10px;border-radius:var(--radius-sm);margin-top:8px;"></div>
+  `,
+  `<button class="btn btn-primary" id="modal-drive-save">Enregistrer et tester</button>
+   <button class="btn btn-outline" id="modal-drive-cancel">Annuler</button>`);
+
+  document.getElementById('modal-drive-cancel')?.addEventListener('click', closeModal);
+  document.getElementById('modal-drive-save')?.addEventListener('click', async () => {
+    const url     = document.getElementById('modal-drive-url')?.value.trim();
+    const resultEl = document.getElementById('modal-drive-result');
+    resultEl.style.display = '';
+    if (!url || !isValidDriveUrl(url)) {
+      resultEl.style.background = 'var(--danger-bg)';
+      resultEl.style.color      = 'var(--danger)';
+      resultEl.textContent      = '❌ URL invalide. Elle doit commencer par https://script.google.com/macros/s/';
+      return;
+    }
+    await setSetting(DRIVE_URL_KEY, url);
+    const saveBtn = document.getElementById('modal-drive-save');
+    if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = '⏳ Test en cours…'; }
+    resultEl.style.background = 'var(--bg-2)';
+    resultEl.style.color      = 'var(--text-2)';
+    resultEl.textContent      = 'Test de la connexion…';
+    const res = await testDriveConnection();
+    if (res.ok) {
+      resultEl.style.background = 'var(--success-bg)';
+      resultEl.style.color      = 'var(--success)';
+      resultEl.textContent      = `✅ Connexion OK — ${res.count} sauvegarde(s) trouvée(s). URL enregistrée !`;
+      setTimeout(() => closeModal(), 2000);
+    } else {
+      resultEl.style.background = 'var(--danger-bg)';
+      resultEl.style.color      = 'var(--danger)';
+      resultEl.textContent      = `❌ ${res.error}`;
+      if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Enregistrer et tester'; }
+    }
   });
 }
 
