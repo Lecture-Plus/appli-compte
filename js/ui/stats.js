@@ -784,7 +784,7 @@ async function exportPDF(year, month, users, s) {
 
     // Achats
     const achatsForPDF=[];
-    for (const m of months) { const list=(achatMap[m]||[]).filter(a=>!(a.category==='craquage'&&a.craquage_source==='pending')); for (const a of list) achatsForPDF.push({...a,_month:m}); }
+    for (const m of months) { const list=(achatMap[m]||[]).filter(a=>a.category==='craquage'&&a.craquage_source!=='pending'); for (const a of list) achatsForPDF.push({...a,_month:m}); }
     achatsForPDF.sort((a,b)=>(b._month*100+(b.day||0))-(a._month*100+(a.day||0)));
     const achatRows=achatsForPDF.slice(0,30).map((a,i)=>{ const info=getCategoryInfo(a.category); const d=a.day?`${a.day} ${MOIS_SHORT[a._month-1]}`:MOIS_SHORT[a._month-1]; return `<tr style="${i%2?'background:#FFF5F5;':''}"><td style="display:flex;align-items:center;gap:6px;"><span>${info.emoji}</span><span>${esc(a.label||'')}</span></td><td style="color:#94A3B8;text-align:right;">${d}</td><td style="color:#EF4444;font-weight:700;text-align:right;">${fmt(a.amount)}</td></tr>`; }).join('');
 
@@ -798,7 +798,7 @@ async function exportPDF(year, month, users, s) {
   *,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
   html{width:210mm;}
   body{font-family:'Inter',system-ui,sans-serif;background:#fff;color:#1E293B;font-size:12px;line-height:1.55;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
-  @page{size:A4 portrait;margin:14mm 14mm 18mm;}
+  @page{size:A4 portrait;margin:0;}
   @media print{.pb{page-break-before:always;}}
   .cover{background:linear-gradient(135deg,#1E1B4B 0%,#312E81 50%,#4C1D95 100%);color:#fff;padding:36px 40px 30px;position:relative;overflow:hidden;}
   .cover::before{content:'';position:absolute;top:-80px;right:-80px;width:280px;height:280px;border-radius:50%;background:rgba(167,139,250,.15);}
@@ -811,7 +811,7 @@ async function exportPDF(year, month, users, s) {
   .cr-date{font-size:10px;color:rgba(255,255,255,.45);margin-top:6px;}
   .cr-chips{display:flex;gap:8px;justify-content:flex-end;margin-top:12px;flex-wrap:wrap;}
   .chip{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);border-radius:20px;padding:4px 12px;font-size:10px;font-weight:600;color:rgba(255,255,255,.9);}
-  .ct{padding:22px 0 10px;}
+  .ct{padding:22px 14mm 14mm;}
   .kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px;}
   .kc{border-radius:12px;padding:14px 12px;position:relative;overflow:hidden;}
   .kc::after{content:'';position:absolute;top:-20px;right:-20px;width:70px;height:70px;border-radius:50%;background:var(--kc);opacity:.1;}
@@ -933,7 +933,7 @@ ${Object.keys(chargesByCat).length > 0 ? `<div class="st">🏠 Charges fixes</di
   ${yearKPI ? `<tfoot><tr><td>TOTAL / CUMUL</td>${users.map(u=>`<td>${fmt(yearKPI.revenus.byUser?.[u.id]??0)}</td>`).join('')}<td>${fmt(yearKPI.charges.total)}</td><td>${fmt(yearKPI.depenses.total)}</td><td style="color:#A5F3C4;">${fmt(yearKPI.solde.total)}</td><td style="color:#A5F3C4;">${fmtPct(yearKPI.txEpargne.total)}</td></tr></tfoot>` : ''}
 </table></div>
 
-${achatsForPDF.length > 0 ? `<div class="st">🛍️ Achats exceptionnels${achatsForPDF.length>30?' (30 premiers)':''}</div>
+${achatsForPDF.length > 0 ? `<div class="st">⚠️ Imprévus${achatsForPDF.length>30?' (30 premiers)':''}</div>
 <div class="ac-wrap"><table class="ac"><thead><tr><th>Description</th><th>Date</th><th>Montant</th></tr></thead><tbody>${achatRows}</tbody></table></div>` : ''}
 
 <div class="pf"><span><strong>Compta+</strong> — Bilan Financier Personnel</span><span>${esc(periodLabel)} · Généré le ${genDate}</span></div>
