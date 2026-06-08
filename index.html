@@ -276,8 +276,22 @@
     document.getElementById('onboarding').classList.remove('hidden');
 
     _obColorGetters[0] = buildColorPicker('ob-colors-1', USER_COLORS[0]);
+    _obColorGetters[1] = buildColorPicker('ob-colors-2', USER_COLORS[1]);
 
-    // ── Ajouter une personne (sans limite) ──
+    // ── Bouton "Ajouter une 2e personne" ──
+    document.getElementById('ob-add-second')?.addEventListener('click', () => {
+      document.getElementById('ob-user-2').style.display = '';
+      document.getElementById('ob-add-second').style.display = 'none';
+      document.getElementById('ob-name-2')?.focus();
+    });
+    document.getElementById('ob-remove-second')?.addEventListener('click', () => {
+      document.getElementById('ob-user-2').style.display = 'none';
+      document.getElementById('ob-add-second').style.display = '';
+      const inp = document.getElementById('ob-name-2');
+      if (inp) inp.value = '';
+    });
+
+    // ── Ajouter une personne supplémentaire (sans limite) ──
     document.getElementById('ob-add-person')?.addEventListener('click', () => {
       _obExtraCount++;
       const color   = USER_COLORS[_obExtraCount % USER_COLORS.length] || USER_COLORS[0];
@@ -315,6 +329,15 @@
       const u1Id = await saveUser({ name: name1, color: _obColorGetters[0](), active: true, createdAt: now });
       createdUsers.push({ id: u1Id, name: name1, color: _obColorGetters[0]() });
 
+      // User 2 (static card)
+      const user2Visible = document.getElementById('ob-user-2')?.style.display !== 'none';
+      const name2 = document.getElementById('ob-name-2')?.value.trim();
+      if (user2Visible && name2) {
+        const u2Id = await saveUser({ name: name2, color: _obColorGetters[1](), active: true, createdAt: now });
+        createdUsers.push({ id: u2Id, name: name2, color: _obColorGetters[1]() });
+      }
+
+      // Extra users (dynamic cards)
       const extraCards = document.querySelectorAll('#ob-extra-users .card[data-ob-user]');
       for (let i = 0; i < extraCards.length; i++) {
         const card  = extraCards[i];
