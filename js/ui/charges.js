@@ -251,10 +251,12 @@ function _renderHistorySection(el, history, onUpdate) {
 function _renderLineRow(line, idx, container) {
   const lineHistory = line.priceHistory ? [...line.priceHistory] : [];
 
-  const quiOpts = `
-    <option value="shared" ${!line.qui || line.qui === 'shared' ? 'selected' : ''}>🤝 Partagé</option>
-    ${_users.map(u => `<option value="${u.id}" ${String(line.qui) === String(u.id) ? 'selected' : ''}>${escHtml(u.name)}</option>`).join('')}
-  `;
+  const _N = _users.length;
+  const _defaultQui = _N === 1 ? String(_users[0]?.id ?? 'shared') : (line.qui === 'shared' || !line.qui ? 'shared' : String(line.qui));
+  const quiOpts = (
+    (_N > 1 ? `<option value="shared" ${_defaultQui === 'shared' ? 'selected' : ''}>🤝 Partagé</option>` : '') +
+    _users.map(u => `<option value="${u.id}" ${_defaultQui === String(u.id) ? 'selected' : ''}>${escHtml(u.name)}</option>`).join('')
+  );
 
   // Wrapper (contient la ligne + la section historique)
   const wrapper = document.createElement('div');
@@ -924,7 +926,7 @@ async function _showAddBudgetOpModal({ catId, catLabel }, users, year, month, on
     const label   = document.getElementById('bop-label')?.value.trim();
     const amount  = parseFloat(document.getElementById('bop-amount')?.value);
     const day     = parseInt(document.getElementById('bop-day')?.value, 10) || null;
-    const userVal = document.getElementById('bop-user')?.value || null;
+    const userVal = (() => { const el = document.getElementById('bop-user'); return el ? (el.value || null) : (users.length === 1 ? String(users[0].id) : null); })();
     if (!label)              { showToast('Saisissez une description', 'error'); return; }
     if (!amount || amount <= 0) { showToast('Montant invalide', 'error'); return; }
 
@@ -1048,8 +1050,8 @@ function showAchatModal(achat, onSave) {
     <div class="form-group" style="margin-bottom:10px;">
       <label class="form-label">Qui paie ?</label>
       <select class="form-select" id="a-qui">
-        <option value="shared" ${a.qui === 'shared' ? 'selected' : ''}>🤝 Partagé (tous)</option>
-        ${_users.map(u => `<option value="${u.id}" ${String(a.qui) === String(u.id) ? 'selected' : ''}>${escHtml(u.name)}</option>`).join('')}
+        ${_users.length > 1 ? `<option value="shared" ${a.qui === 'shared' ? 'selected' : ''}>🤝 Partagé (tous)</option>` : ''}
+        ${_users.map(u => `<option value="${u.id}" ${_users.length === 1 ? 'selected' : String(a.qui) === String(u.id) ? 'selected' : ''}>${escHtml(u.name)}</option>`).join('')}
       </select>
     </div>
     <div class="form-grid-2" style="margin-bottom:10px;">

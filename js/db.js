@@ -3,7 +3,7 @@
 // ============================================================
 
 const DB_NAME    = 'budgetFoyer';
-const DB_VERSION = 4;  // v4 : budget_ops store
+const DB_VERSION = 5;  // v5 : salary_savings + salary_abondements stores
 
 let _db = null;
 
@@ -91,6 +91,15 @@ async function openDB() {
         const s = db.createObjectStore('budget_ops', { keyPath: 'id', autoIncrement: true });
         s.createIndex('yearMonth',  ['year', 'month'],            { unique: false });
         s.createIndex('category',   'category',                   { unique: false });
+      }
+
+      // ── v5 : Épargne salariale ──
+      if (!db.objectStoreNames.contains('salary_savings')) {
+        const s = db.createObjectStore('salary_savings', { keyPath: 'id', autoIncrement: true });
+        s.createIndex('yearMonth', ['year', 'month'], { unique: false });
+      }
+      if (!db.objectStoreNames.contains('salary_abondements')) {
+        db.createObjectStore('salary_abondements', { keyPath: 'id', autoIncrement: true });
       }
     };
   });
@@ -440,7 +449,8 @@ export async function importAllData(data) {
   }
 
   const stores = ['users', 'settings', 'monthlyData', 'charges', 'achats',
-                  'repartition', 'archives', 'savings_operations', 'savings_confirmed'];
+                  'repartition', 'archives', 'savings_operations', 'savings_confirmed',
+                  'salary_savings', 'salary_abondements'];
   const db     = await openDB();
 
   for (const storeName of stores) {
@@ -460,7 +470,8 @@ export async function importAllData(data) {
 
 export async function resetAllData() {
   const stores = ['users', 'settings', 'monthlyData', 'charges', 'achats',
-                  'repartition', 'archives', 'savings_operations', 'savings_confirmed'];
+                  'repartition', 'archives', 'savings_operations', 'savings_confirmed',
+                  'salary_savings', 'salary_abondements'];
   for (const s of stores) await _clear(s);
   _settingsCache = null; _usersCache = null; _db = null;
 }
@@ -515,3 +526,11 @@ export async function getBudgetOpsForMonth(year, month) {
 export async function getAllBudgetOps() { return _getAll('budget_ops'); }
 export async function saveBudgetOp(op) { return _put('budget_ops', op); }
 export async function deleteBudgetOp(id) { return _delete('budget_ops', id); }
+
+/* ── Épargne salariale ── */
+export async function getAllSalarySavings()           { return _getAll('salary_savings'); }
+export async function saveSalarySaving(op)           { return _put('salary_savings', op); }
+export async function deleteSalarySaving(id)         { return _delete('salary_savings', id); }
+export async function getAllSalaryAbondements()      { return _getAll('salary_abondements'); }
+export async function saveSalaryAbondement(ab)      { return _put('salary_abondements', ab); }
+export async function deleteSalaryAbondement(id)    { return _delete('salary_abondements', id); }

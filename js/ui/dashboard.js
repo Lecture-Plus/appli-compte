@@ -113,6 +113,26 @@ async function _renderResume(container, s, users) {
   }
   const status = completenessStatus(md);
 
+  // ── Charges réelles : filtrer les charges dont le jour de passage est passé ──
+  // (pour le mode réel uniquement – si mois courant, exclure les charges futures)
+  const { year: _cy, month: _cm, day: _cday } = (() => { const t = new Date(); return { year: t.getFullYear(), month: t.getMonth()+1, day: t.getDate() }; })();
+  const _isCurrentMonth = (year === _cy && month === _cm);
+  const chargesReel = _isCurrentMonth
+    ? charges.map(chg => {
+        if (!chg.lines || chg.lines.length === 0) {
+          // Single-line charge
+          if (chg.dayOfMonth && Number(chg.dayOfMonth) > _cday) return null; // not yet
+          return chg;
+        }
+        // Multi-line charge: filter lines by dayOfMonth
+        const passedLines = chg.lines.filter(l => !l.dayOfMonth || Number(l.dayOfMonth) <= _cday);
+        if (passedLines.length === 0) return null;
+        return { ...chg, lines: passedLines };
+      }).filter(Boolean)
+    : charges; // past months: all charges count
+
+  const kpiReel = calcMonth(md, chargesReel, achats, repCfg, users, allBudgetOps);
+
   // Pinned budget cards data
   const budgCourses  = users.reduce((acc, u) => acc + (Number(md?.users?.[String(u.id)]?.courses) || 0), 0) || (Number(s.budgetCibles?.courses) || 0);
   const budgExtras   = users.reduce((acc, u) => acc + (Number(md?.users?.[String(u.id)]?.extras)  || 0), 0) || (Number(s.budgetCibles?.extras)  || 0);
@@ -213,10 +233,11 @@ async function _renderResume(container, s, users) {
     </div>
 
     <!-- ── Actions rapides ── -->
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px;">
-      <button class="btn btn-primary" id="btn-go-saisie" style="font-size:0.8rem;padding:10px 4px;">✏️ Saisir</button>
-      <button class="btn btn-secondary" id="btn-go-savings" style="font-size:0.8rem;padding:10px 4px;">💰 Épargne</button>
-      <button class="btn btn-danger" id="btn-go-craquage" style="font-size:0.8rem;padding:10px 4px;">💥 Craquage</button>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:6px;margin-bottom:8px;">
+      <button class="btn btn-primary" id="btn-go-saisie" style="font-size:0.75rem;padding:10px 2px;">✏️ Saisir</button>
+      <button class="btn btn-outline" id="btn-go-budgets" style="font-size:0.75rem;padding:10px 2px;">📊 Budgets</button>
+      <button class="btn btn-secondary" id="btn-go-savings" style="font-size:0.75rem;padding:10px 2px;">💰 Épargne</button>
+      <button class="btn btn-danger" id="btn-go-craquage" style="font-size:0.75rem;padding:10px 2px;">💥 Craquage</button>
     </div>
 
     <!-- ── Suivi budgets épinglés ── -->
@@ -298,8 +319,8 @@ async function _renderResume(container, s, users) {
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
           <div style="background:var(--success-bg);border-radius:var(--radius-sm);padding:12px;">
             <div style="font-size:0.62rem;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Possible</div>
-            <div style="font-size:1.1rem;font-weight:800;color:var(--success);">${eur(Math.max(0, kpi.ecoPossible.total))}</div>
-            <div style="font-size:0.68rem;color:var(--text-3);margin-top:2px;">${pct(kpi.txEcoPossible?.total ?? 0, 0)} du revenu</div>
+            <div style="font-size:1.1rem;font-weight:800;color:var(--success);">${eur(Math.max(0, kpiPrev.solde.total))}</div>
+            <div style="font-size:0.68rem;color:var(--text-3);margin-top:2px;">${pct(kpiPrev.txEpargne?.total ?? 0, 0)} du revenu · prévisionnel</div>
           </div>
           <div style="background:${realSavings >= 0 ? 'var(--primary-bg)' : 'var(--danger-bg)'};border-radius:var(--radius-sm);padding:12px;">
             <div style="font-size:0.62rem;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Mise de côté</div>
@@ -337,7 +358,7 @@ async function _renderResume(container, s, users) {
     chv.style.transform = _detailOpen ? 'rotate(180deg)' : '';
     lbl.textContent = _detailOpen ? 'Masquer le détail' : 'Voir le détail du mois';
     if (_detailOpen) {
-      _fillDetailTable(el, { kpi, kpiPrev, realCourses, realExtras }, users);
+      _fillDetailTable(el, { kpi: kpiReel, kpiPrev, realCourses, realExtras }, users);
       _renderAnnualQuickView(el.querySelector('#annual-quick-view'), year, users);
       const projEl = el.querySelector('#projection-objectif');
       if (projEl && goal > 0) _renderProjection(projEl, year, month, goal, savInfo.balance, users);
@@ -353,10 +374,11 @@ async function _renderResume(container, s, users) {
       b.classList.toggle('btn-primary', b.dataset.dmode === _detailMode);
       b.classList.toggle('btn-outline',  b.dataset.dmode !== _detailMode);
     });
-    _fillDetailTable(el, { kpi, kpiPrev, realCourses, realExtras }, users);
+    _fillDetailTable(el, { kpi: kpiReel, kpiPrev, realCourses, realExtras }, users);
   });
 
   el.querySelector('#btn-go-saisie')?.addEventListener('click', () => navigateTo('argent', { tab: 'saisir' }));
+  el.querySelector('#btn-go-budgets')?.addEventListener('click', () => navigateTo('argent', { tab: 'budgets' }));
   el.querySelector('#btn-go-savings')?.addEventListener('click', () => navigateTo('argent', { tab: 'epargne' }));
   el.querySelector('#btn-go-craquage')?.addEventListener('click', () => {
     showCraquageModal(null, month, year, users, async () => {
@@ -611,7 +633,7 @@ async function _renderAnnualQuickView(el, year, users) {
 }
 
 // ── Rendu du tableau Réel/Prévisionnel ──
-function _fillDetailTable(el, { kpi, kpiPrev, realCourses, realExtras }, users) {
+function _fillDetailTable(el, { kpi: kpiReel, kpiPrev, realCourses, realExtras }, users) {
   const wrap = el.querySelector('#detail-table-wrap');
   const hint = el.querySelector('#detail-mode-hint');
   if (!wrap) return;
@@ -620,8 +642,8 @@ function _fillDetailTable(el, { kpi, kpiPrev, realCourses, realExtras }, users) 
   const dc     = isReel ? realCourses : kpiPrev.courses;
   const de     = isReel ? realExtras  : kpiPrev.extras;
   if (hint) hint.textContent = isReel
-    ? '✅ Opérations confirmées uniquement — les budgets non confirmés affichent 0 €'
-    : '📅 Simulation avec les plafonds de budget et la répartition configurée';
+    ? '✅ Opérations confirmées + charges dont la date de prélèvement est passée'
+    : '📅 Simulation avec tous les budgets et charges du mois configurés';
   wrap.innerHTML = `
     <table class="data-table">
       <thead>

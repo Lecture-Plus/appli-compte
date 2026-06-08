@@ -5,7 +5,10 @@
 import { getAllSavingsOperations, saveSavingsOperation,
          deleteSavingsOperation, getLatestSavingsConfirmed,
          saveSavingsConfirmed, getAllSettings, setSetting,
-         getActiveUsers }                                    from '../db.js';
+         getActiveUsers,
+         getAllSalarySavings, saveSalarySaving, deleteSalarySaving,
+         getAllSalaryAbondements, saveSalaryAbondement, deleteSalaryAbondement }
+                                                             from '../db.js';
 import { calcSavingsBalance }                                from '../calculs.js';
 import { eur, escHtml, showToast, openModal, closeModal,
          today, nomMois }                                    from '../utils.js';
@@ -15,8 +18,38 @@ export async function render(container) {
 }
 
 let _savingsHistTab = 'all';
+let _savingsMainTab = 'economies'; // 'economies' | 'salariale'
 
 async function _renderPage(container) {
+  // Wrapper tabs : Économies | Épargne salariale
+  container.innerHTML = `
+    <div class="tabs" style="margin-bottom:12px;">
+      <button class="tab-btn ${_savingsMainTab === 'economies' ? 'active' : ''}" data-sv-main="economies">💰 Économies</button>
+      <button class="tab-btn ${_savingsMainTab === 'salariale' ? 'active' : ''}" data-sv-main="salariale">🏦 Épargne salariale</button>
+    </div>
+    <div id="sv-main-body"></div>
+  `;
+  container.querySelectorAll('[data-sv-main]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      container.querySelectorAll('[data-sv-main]').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      _savingsMainTab = btn.dataset.svMain;
+      _renderSvBody(container.querySelector('#sv-main-body'), container);
+    });
+  });
+  _renderSvBody(container.querySelector('#sv-main-body'), container);
+}
+
+async function _renderSvBody(body, container) {
+  if (!body) return;
+  if (_savingsMainTab === 'salariale') {
+    await _renderSalariale(body, container);
+  } else {
+    await _renderEconomies(body, container);
+  }
+}
+
+async function _renderEconomies(el, container) {
   const [allOps, latest, users, s] = await Promise.all([
     getAllSavingsOperations(),
     getLatestSavingsConfirmed(),
@@ -55,7 +88,7 @@ async function _renderPage(container) {
 
   const balanceClass = balance >= 0 ? 'positive' : 'negative';
 
-  container.innerHTML = `
+  el.innerHTML = `
     <!-- Solde total -->
     <div class="kpi-card success" style="--kpi-color:var(--success); margin-bottom:12px; padding:20px 20px 16px;">
       <div class="kpi-label">💰 Solde total des économies</div>
@@ -200,37 +233,37 @@ async function _renderPage(container) {
   `;
 
   // ── Événements ──
-  container.querySelector('#btn-confirm')?.addEventListener('click', () => showConfirmModal(users, () => _renderPage(container)));
-  container.querySelector('#btn-quick-confirm')?.addEventListener('click', () => showConfirmModal(users, () => _renderPage(container)));
-  container.querySelector('#btn-add-op')?.addEventListener('click', () => showOpModal('add', users, () => _renderPage(container)));
-  container.querySelector('#btn-withdraw-op')?.addEventListener('click', () => showOpModal('withdraw', users, () => _renderPage(container)));
+  el.querySelector('#btn-confirm')?.addEventListener('click', () => showConfirmModal(users, () => _renderPage(container)));
+  el.querySelector('#btn-quick-confirm')?.addEventListener('click', () => showConfirmModal(users, () => _renderPage(container)));
+  el.querySelector('#btn-add-op')?.addEventListener('click', () => showOpModal('add', users, () => _renderPage(container)));
+  el.querySelector('#btn-withdraw-op')?.addEventListener('click', () => showOpModal('withdraw', users, () => _renderPage(container)));
 
   // ── Objectif épargne ──
-  container.querySelector('#sv-save-goal')?.addEventListener('click', async () => {
+  el.querySelector('#sv-save-goal')?.addEventListener('click', async () => {
     const goalsByUserNew = {};
-    container.querySelectorAll('.sv-goal-user').forEach(inp => {
+    el.querySelectorAll('.sv-goal-user').forEach(inp => {
       const v = Number(inp.value);
       if (v > 0) goalsByUserNew[inp.dataset.uid] = v;
     });
     await Promise.all([
-      setSetting('savingsGoal',        Number(container.querySelector('#sv-goal')?.value) || 0),
-      setSetting('savingsGoalLabel',   container.querySelector('#sv-goal-label')?.value.trim() || 'Mon objectif'),
-      setSetting('savingsGoalYear',    Number(container.querySelector('#sv-goal-year')?.value) || today().year),
-      setSetting('epargneThreshold',   Number(container.querySelector('#sv-threshold')?.value) || 100),
+      setSetting('savingsGoal',        Number(el.querySelector('#sv-goal')?.value) || 0),
+      setSetting('savingsGoalLabel',   el.querySelector('#sv-goal-label')?.value.trim() || 'Mon objectif'),
+      setSetting('savingsGoalYear',    Number(el.querySelector('#sv-goal-year')?.value) || today().year),
+      setSetting('epargneThreshold',   Number(el.querySelector('#sv-threshold')?.value) || 100),
       setSetting('savingsGoalsByUser', goalsByUserNew),
     ]);
     showToast('Objectif enregistré ✅', 'success');
     _renderPage(container);
   });
 
-  container.querySelectorAll('[data-savings-tab]').forEach(btn => {
+  el.querySelectorAll('[data-savings-tab]').forEach(btn => {
     btn.addEventListener('click', () => {
       _savingsHistTab = btn.dataset.savingsTab;
       _renderPage(container);
     });
   });
 
-  container.querySelectorAll('.op-delete').forEach(btn => {
+  el.querySelectorAll('.op-delete').forEach(btn => {
     btn.addEventListener('click', async (e) => {
       e.stopPropagation();
       const id = Number(btn.dataset.id);
@@ -580,3 +613,387 @@ function showOpModal(type, users, onSave) {
     onSave();
   });
 }
+
+// ══════════════════════════════════════════════════
+// ÉPARGNE SALARIALE
+// ══════════════════════════════════════════════════
+
+// Constantes d'abondement (personnalisables dans les settings)
+const ABON_RATIO     = 22.58 / 50;  // ex: 22.58€ d'abondement pour 50€ versés
+const ABON_MAX_YEAR  = 1000;        // max abondement net/an
+const ABON_MAX_HALF  = ABON_MAX_YEAR / 2; // 500€ par période
+// Seuil de versement pour maximiser chaque période
+const ABON_CONTRIB_FOR_MAX = ABON_MAX_HALF / ABON_RATIO; // ~1107€ par période
+
+// Périodes : mai 28 (période déc-mai) et nov 28 (période juin-nov)
+function _abon_period(year, month) {
+  // Returns { period, periodStart, periodEnd } for a given year/month
+  if (month >= 6 && month <= 11) return { period: 'novembre', periodStart: { year, month: 6 }, periodEnd: { year, month: 11 } };
+  if (month === 12)              return { period: 'mai',       periodStart: { year, month: 12 }, periodEnd: { year: year + 1, month: 5 } };
+  /* month 1-5 */                return { period: 'mai',       periodStart: { year: year - 1, month: 12 }, periodEnd: { year, month: 5 } };
+}
+
+function _inPeriod(ym_year, ym_month, start, end) {
+  const ym  = ym_year * 100 + ym_month;
+  const s   = start.year * 100 + start.month;
+  const e   = end.year * 100 + end.month;
+  return ym >= s && ym <= e;
+}
+
+function _abon_label(period, year) {
+  return period === 'mai' ? `28 mai ${year}` : `28 novembre ${year}`;
+}
+
+async function _renderSalariale(el, container) {
+  const [allOps, allAbons, users] = await Promise.all([
+    getAllSalarySavings(),
+    getAllSalaryAbondements(),
+    getActiveUsers(),
+  ]);
+
+  const { year, month, day } = today();
+
+  // ── Totaux globaux ──
+  const totalNet  = allOps.reduce((s, op) => s + (Number(op.amount) || 0), 0);
+  const totalAbon = allAbons.reduce((s, a) => s + (Number(a.amount) || 0), 0);
+  const totalBrut = totalNet + totalAbon;
+
+  // ── Période courante ──
+  const curPeriod = _abon_period(year, month);
+  const periodOps = allOps.filter(op => _inPeriod(op.year, op.month, curPeriod.periodStart, curPeriod.periodEnd));
+  const periodContrib = periodOps.reduce((s, op) => s + (Number(op.amount) || 0), 0);
+  const estimatedAbon = Math.min(periodContrib * ABON_RATIO, ABON_MAX_HALF);
+  const abonMissing   = Math.max(0, ABON_CONTRIB_FOR_MAX - periodContrib);
+  const pctPeriod     = Math.min(100, Math.round(periodContrib / ABON_CONTRIB_FOR_MAX * 100));
+
+  // Prochain abondement
+  const nextAbonDate  = curPeriod.period === 'mai' ? `28 mai ${curPeriod.periodEnd.year}` : `28 novembre ${curPeriod.periodEnd.year}`;
+
+  // ── Mois courant ──
+  const monthlyOps = allOps.filter(op => op.year === year && op.month === month);
+  const monthlyTotal = monthlyOps.reduce((s, op) => s + (Number(op.amount) || 0), 0);
+
+  // ── Tri historique ──
+  const sortedOps = [...allOps].sort((a, b) => {
+    if (b.year !== a.year) return b.year - a.year;
+    if (b.month !== a.month) return b.month - a.month;
+    return (b.day || 0) - (a.day || 0);
+  });
+
+  el.innerHTML = `
+    <!-- KPI net / abondé -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
+      <div class="kpi-card" style="--kpi-color:var(--primary);padding:16px;text-align:center;">
+        <div class="kpi-label" style="font-size:0.67rem;">💶 Montant net versé</div>
+        <div class="kpi-value" style="font-size:1.5rem;color:var(--primary);">${eur(totalNet)}</div>
+        <div style="font-size:0.68rem;color:var(--text-3);margin-top:2px;">de notre poche</div>
+      </div>
+      <div class="kpi-card" style="--kpi-color:var(--success);padding:16px;text-align:center;">
+        <div class="kpi-label" style="font-size:0.67rem;">🏦 Montant abondé total</div>
+        <div class="kpi-value" style="font-size:1.5rem;color:var(--success);">${eur(totalBrut)}</div>
+        <div style="font-size:0.68rem;color:var(--text-3);margin-top:2px;">net + ${eur(totalAbon)} d'abondement</div>
+      </div>
+    </div>
+
+    <!-- Période courante + progrès vers abondement -->
+    <div class="card" style="margin-bottom:12px;">
+      <div class="card-header">
+        <span class="card-title">🎯 Progression vers l'abondement</span>
+        <span class="chip primary">${nextAbonDate}</span>
+      </div>
+      <div style="margin-bottom:10px;">
+        <div class="progress-wrap" style="margin-bottom:4px;">
+          <div class="progress-labels">
+            <span>Versé cette période : ${eur(periodContrib)}</span>
+            <span style="color:var(--text-3);">/ ${eur(ABON_CONTRIB_FOR_MAX)}</span>
+          </div>
+          <div class="progress-track"><div class="progress-bar ${pctPeriod >= 100 ? 'success' : 'primary'}" style="width:${pctPeriod}%;"></div></div>
+        </div>
+        <div style="font-size:0.75rem;color:var(--text-3);">${pctPeriod >= 100
+          ? '✅ Vous pouvez bénéficier du maximum d\'abondement pour cette période !'
+          : `Il manque ${eur(abonMissing)} pour maximiser l'abondement de cette période`}</div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+        <div style="background:var(--success-bg);border-radius:var(--radius-sm);padding:10px;text-align:center;">
+          <div style="font-size:0.65rem;color:var(--text-3);font-weight:700;text-transform:uppercase;">Abondement estimé</div>
+          <div style="font-size:1.1rem;font-weight:800;color:var(--success);margin-top:2px;">${eur(estimatedAbon)}</div>
+          <div style="font-size:0.65rem;color:var(--text-3);">sur ${eur(ABON_MAX_HALF)} max</div>
+        </div>
+        <div style="background:var(--bg-secondary);border-radius:var(--radius-sm);padding:10px;text-align:center;">
+          <div style="font-size:0.65rem;color:var(--text-3);font-weight:700;text-transform:uppercase;">Ce mois (${nomMois(month)})</div>
+          <div style="font-size:1.1rem;font-weight:800;color:var(--primary);margin-top:2px;">${eur(monthlyTotal)}</div>
+          <div style="font-size:0.65rem;color:var(--text-3);">${monthlyOps.length} versement(s)</div>
+        </div>
+      </div>
+      <div style="margin-top:10px;font-size:0.72rem;color:var(--text-3);padding:8px 10px;background:var(--bg-secondary);border-radius:var(--radius-sm);">
+        <strong>Règle :</strong> l'employeur abonde à hauteur de <strong>${eur(ABON_RATIO * 100)}</strong> pour 100€ versés,
+        jusqu'à <strong>${eur(ABON_MAX_YEAR)}</strong> d'abondement par an (2 versements le 28 mai et 28 novembre).
+      </div>
+    </div>
+
+    <!-- Abondements confirmés -->
+    <div class="card" style="margin-bottom:12px;">
+      <div class="card-header">
+        <span class="card-title">✅ Abondements confirmés</span>
+        <span class="chip">${allAbons.length}</span>
+      </div>
+      ${allAbons.length === 0
+        ? '<p style="font-size:0.82rem;color:var(--text-3);">Aucun abondement enregistré.</p>'
+        : `<div class="item-list">${
+            [...allAbons].sort((a,b) => b.year - a.year || (b.period === 'mai' ? -1 : 1)).map(ab => `
+              <div class="list-item">
+                <div class="list-item-icon" style="background:var(--success-bg);">🏦</div>
+                <div class="list-item-body">
+                  <div class="list-item-title">${escHtml(_abon_label(ab.period, ab.year))}</div>
+                  <div class="list-item-sub">${ab.note ? escHtml(ab.note) : 'Abondement employeur'} · Versé : ${eur(ab.contributions ?? 0)}</div>
+                </div>
+                <div class="list-item-right">
+                  <div class="list-item-amount" style="color:var(--success);">+${eur(ab.amount)}</div>
+                  <button class="btn btn-sm btn-outline abon-delete" data-id="${ab.id}" style="margin-top:4px;font-size:0.65rem;padding:2px 6px;color:var(--danger);">✕</button>
+                </div>
+              </div>
+            `).join('')}
+          </div>`
+      }
+    </div>
+
+    <!-- Actions -->
+    <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px;">
+      <button class="btn btn-primary" id="sal-btn-add">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="15" height="15"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Ajouter un versement
+      </button>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+        <button class="btn btn-success" id="sal-btn-abon">🏦 Valider un abondement</button>
+        <button class="btn btn-secondary" id="sal-btn-transfer">💸 Transférer vers économies</button>
+      </div>
+    </div>
+
+    <!-- Historique versements -->
+    <div class="section-header" style="margin-bottom:8px;">
+      <span class="section-label">📋 Historique des versements</span>
+      <span class="chip">${sortedOps.length}</span>
+    </div>
+    ${sortedOps.length === 0
+      ? `<div class="empty-state"><div class="empty-state-icon">🏦</div><div class="empty-state-title">Aucun versement</div><div class="empty-state-text">Ajoutez vos versements mensuels pour suivre votre épargne salariale.</div></div>`
+      : `<div class="item-list">${sortedOps.map(op => `
+          <div class="list-item">
+            <div class="list-item-icon" style="background:var(--primary-bg);">💶</div>
+            <div class="list-item-body">
+              <div class="list-item-title">${escHtml(op.label || 'Versement')}</div>
+              <div class="list-item-sub">${nomMois(op.month)} ${op.year}${op.day ? ' · j.' + op.day : ''}${op.type === 'extra' ? ' · ponctuel' : ''}</div>
+            </div>
+            <div class="list-item-right">
+              <div class="list-item-amount" style="color:var(--primary);">+${eur(op.amount)}</div>
+              <button class="btn btn-sm btn-outline sal-op-delete" data-id="${op.id}" style="margin-top:4px;font-size:0.65rem;padding:2px 6px;color:var(--danger);">✕</button>
+            </div>
+          </div>
+        `).join('')}</div>`
+    }
+    <div style="height:24px;"></div>
+  `;
+
+  // ── Événements ──
+  el.querySelector('#sal-btn-add')?.addEventListener('click', () => _showSalAddModal(users, () => _renderPage(container)));
+  el.querySelector('#sal-btn-abon')?.addEventListener('click', () => _showSalAbonModal(allOps, allAbons, users, () => _renderPage(container)));
+  el.querySelector('#sal-btn-transfer')?.addEventListener('click', () => _showSalTransferModal(totalBrut, users, () => _renderPage(container)));
+
+  el.querySelectorAll('.sal-op-delete').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      if (!confirm('Supprimer ce versement ?')) return;
+      await deleteSalarySaving(Number(btn.dataset.id));
+      showToast('Versement supprimé', 'success');
+      _renderPage(container);
+    });
+  });
+
+  el.querySelectorAll('.abon-delete').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      if (!confirm('Supprimer cet abondement ?')) return;
+      await deleteSalaryAbondement(Number(btn.dataset.id));
+      showToast('Abondement supprimé', 'success');
+      _renderPage(container);
+    });
+  });
+}
+
+// ── Modal : ajouter un versement salarial ──
+function _showSalAddModal(users, onSave) {
+  const { year, month } = today();
+  const now = new Date();
+  openModal('💶 Ajouter un versement', `
+    <div class="form-group" style="margin-bottom:10px;">
+      <label class="form-label">Montant (€) *</label>
+      <div class="input-wrap">
+        <input type="number" class="form-input input-euro" id="sal-amount" min="0.01" step="0.01" placeholder="50.00">
+        <span class="input-suffix">€</span>
+      </div>
+    </div>
+    <div class="form-group" style="margin-bottom:10px;">
+      <label class="form-label">Libellé</label>
+      <input type="text" class="form-input" id="sal-label" placeholder="Ex: Versement mensuel, Versement exceptionnel…">
+    </div>
+    <div class="form-grid-2" style="margin-bottom:10px;">
+      <div class="form-group">
+        <label class="form-label">Mois</label>
+        <input type="number" class="form-input" id="sal-month" min="1" max="12" value="${month}">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Année</label>
+        <input type="number" class="form-input" id="sal-year" min="2020" max="2099" value="${year}">
+      </div>
+    </div>
+    <div class="form-group" style="margin-bottom:10px;">
+      <label class="form-label">Jour</label>
+      <input type="number" class="form-input" id="sal-day" min="1" max="31" value="${now.getDate()}">
+    </div>
+    <div class="form-group" style="margin-bottom:10px;">
+      <label class="form-label">Type</label>
+      <select class="form-select" id="sal-type">
+        <option value="monthly">📅 Versement mensuel régulier</option>
+        <option value="extra">⚡ Versement ponctuel (extra)</option>
+      </select>
+    </div>
+  `, `
+    <button class="btn btn-outline" id="sal-cancel">Annuler</button>
+    <button class="btn btn-primary" id="sal-save">+ Ajouter</button>
+  `);
+
+  document.getElementById('sal-cancel')?.addEventListener('click', closeModal);
+  document.getElementById('sal-save')?.addEventListener('click', async () => {
+    const amount = Number(document.getElementById('sal-amount')?.value);
+    if (!amount || amount <= 0) { showToast('Montant invalide', 'error'); return; }
+    const label = document.getElementById('sal-label')?.value.trim() || 'Versement';
+    const m     = Number(document.getElementById('sal-month')?.value) || month;
+    const y     = Number(document.getElementById('sal-year')?.value)  || year;
+    const d     = Number(document.getElementById('sal-day')?.value)   || now.getDate();
+    const type  = document.getElementById('sal-type')?.value || 'monthly';
+    await saveSalarySaving({ amount, label, type, year: y, month: m, day: d, createdAt: now.toISOString() });
+    closeModal();
+    showToast(`+${eur(amount)} enregistré ✅`, 'success');
+    onSave();
+  });
+}
+
+// ── Modal : valider un abondement ──
+function _showSalAbonModal(allOps, allAbons, users, onSave) {
+  const { year, month } = today();
+  // Proposer mai ou novembre selon la période courante
+  const period = _abon_period(year, month);
+  const abonYear = period.period === 'mai' ? period.periodEnd.year : period.periodEnd.year;
+  const periodOps = allOps.filter(op => _inPeriod(op.year, op.month, period.periodStart, period.periodEnd));
+  const periodContrib = periodOps.reduce((s, op) => s + (Number(op.amount) || 0), 0);
+  const estimated = Math.round(Math.min(periodContrib * ABON_RATIO, ABON_MAX_HALF) * 100) / 100;
+
+  openModal('🏦 Valider un abondement', `
+    <p style="font-size:0.82rem;color:var(--text-2);margin-bottom:12px;">
+      Renseignez le montant réel de l'abondement reçu. Il sera ajouté à votre total abondé.
+    </p>
+    <div class="form-grid-2" style="margin-bottom:10px;">
+      <div class="form-group">
+        <label class="form-label">Période</label>
+        <select class="form-select" id="abon-period">
+          <option value="mai" ${period.period === 'mai' ? 'selected' : ''}>28 mai</option>
+          <option value="novembre" ${period.period === 'novembre' ? 'selected' : ''}>28 novembre</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Année</label>
+        <input type="number" class="form-input" id="abon-year" min="2020" max="2099" value="${abonYear}">
+      </div>
+    </div>
+    <div class="form-group" style="margin-bottom:10px;">
+      <label class="form-label">Montant de l'abondement reçu (€) *</label>
+      <div class="input-wrap">
+        <input type="number" class="form-input input-euro" id="abon-amount" min="0" step="0.01" value="${estimated}" placeholder="${estimated}">
+        <span class="input-suffix">€</span>
+      </div>
+      <p class="form-hint">Montant calculé estimé : ${eur(estimated)} — modifiez si l'employeur a appliqué un montant différent.</p>
+    </div>
+    <div class="form-group" style="margin-bottom:10px;">
+      <label class="form-label">Versements de la période (€)</label>
+      <div class="input-wrap">
+        <input type="number" class="form-input input-euro" id="abon-contribs" min="0" step="0.01" value="${periodContrib}">
+        <span class="input-suffix">€</span>
+      </div>
+      <p class="form-hint">Versements que vous avez effectués sur la période (calculé : ${eur(periodContrib)}).</p>
+    </div>
+    <div class="form-group" style="margin-bottom:10px;">
+      <label class="form-label">Note</label>
+      <input type="text" class="form-input" id="abon-note" placeholder="Ex: Abondement mai 2026…">
+    </div>
+  `, `
+    <button class="btn btn-outline" id="abon-cancel">Annuler</button>
+    <button class="btn btn-success" id="abon-save">✅ Valider l'abondement</button>
+  `);
+
+  document.getElementById('abon-cancel')?.addEventListener('click', closeModal);
+  document.getElementById('abon-save')?.addEventListener('click', async () => {
+    const amount      = Number(document.getElementById('abon-amount')?.value);
+    if (!amount || amount <= 0) { showToast('Montant invalide', 'error'); return; }
+    const abon_period = document.getElementById('abon-period')?.value || 'mai';
+    const abon_year   = Number(document.getElementById('abon-year')?.value) || year;
+    const contributions = Number(document.getElementById('abon-contribs')?.value) || 0;
+    const note        = document.getElementById('abon-note')?.value.trim() || '';
+    await saveSalaryAbondement({
+      period: abon_period, year: abon_year, amount, contributions,
+      note, confirmedAt: new Date().toISOString(),
+    });
+    closeModal();
+    showToast(`Abondement de ${eur(amount)} validé ✅`, 'success');
+    onSave();
+  });
+}
+
+// ── Modal : transférer vers les économies ──
+function _showSalTransferModal(totalBrut, users, onSave) {
+  const { year, month } = today();
+  const now = new Date();
+  const N = users.length;
+  const userSection = N > 1 ? `
+    <div class="form-group" style="margin-bottom:10px;">
+      <label class="form-label">Transférer au compte de</label>
+      <select class="form-select" id="sal-trf-user">
+        ${users.map(u => `<option value="${u.id}">${escHtml(u.name)}</option>`).join('')}
+      </select>
+    </div>
+  ` : `<input type="hidden" id="sal-trf-user" value="${users[0]?.id ?? ''}">`;
+
+  openModal('💸 Transférer vers les économies', `
+    <p style="font-size:0.82rem;color:var(--text-2);margin-bottom:12px;">
+      Ce transfert enregistre un versement dans vos économies (sortie de l'épargne salariale).
+    </p>
+    <div class="form-group" style="margin-bottom:10px;">
+      <label class="form-label">Montant à transférer (€) *</label>
+      <div class="input-wrap">
+        <input type="number" class="form-input input-euro" id="sal-trf-amount" min="0.01" step="0.01" value="${totalBrut.toFixed(2)}">
+        <span class="input-suffix">€</span>
+      </div>
+      <p class="form-hint">Total disponible (abondé) : ${eur(totalBrut)}</p>
+    </div>
+    ${userSection}
+    <div class="form-group" style="margin-bottom:10px;">
+      <label class="form-label">Libellé</label>
+      <input type="text" class="form-input" id="sal-trf-label" value="Transfert épargne salariale" placeholder="Ex: Déblocage PEE…">
+    </div>
+  `, `
+    <button class="btn btn-outline" id="sal-trf-cancel">Annuler</button>
+    <button class="btn btn-primary" id="sal-trf-save">Transférer</button>
+  `);
+
+  document.getElementById('sal-trf-cancel')?.addEventListener('click', closeModal);
+  document.getElementById('sal-trf-save')?.addEventListener('click', async () => {
+    const amount = Number(document.getElementById('sal-trf-amount')?.value);
+    if (!amount || amount <= 0) { showToast('Montant invalide', 'error'); return; }
+    const userId = document.getElementById('sal-trf-user')?.value || null;
+    const label  = document.getElementById('sal-trf-label')?.value.trim() || 'Transfert épargne salariale';
+    await saveSavingsOperation({
+      amount, label, type: 'add', userId: userId || undefined,
+      year, month, day: now.getDate(), createdAt: now.toISOString(),
+    });
+    closeModal();
+    showToast(`${eur(amount)} transféré vers les économies ✅`, 'success');
+    onSave();
+  });
+}
+

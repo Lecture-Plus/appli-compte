@@ -605,10 +605,10 @@ function showWhatIfModal(container, month, year) {
 // ── Modal Imprévu ──
 function showImprévuModal(container, month, year) {
   const now  = new Date();
-  const quiOptions = `
-    <option value="shared">🤝 Partagé (tous)</option>
-    ${_users.map(u => `<option value="${u.id}">${escHtml(u.name)}</option>`).join('')}
-  `;
+  const quiOptions = (
+    (_users.length > 1 ? `<option value="shared">🤝 Partagé (tous)</option>` : '') +
+    _users.map(u => `<option value="${u.id}" ${_users.length === 1 ? 'selected' : ''}>${escHtml(u.name)}</option>`).join('')
+  );
 
   openModal('⚡ Ajouter un imprévu', `
     <p style="font-size:0.82rem;color:var(--text-2);margin-bottom:14px;">
