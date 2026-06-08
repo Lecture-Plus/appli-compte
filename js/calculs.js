@@ -150,6 +150,25 @@ export function calcMonth(monthData, charges, achats, repartCfg, users, budgetOp
 
   // ── Part totale par user ──
   const partU = _mk(uids);
+
+  // ── Part des charges partagées par user (pour charges.byUser précis) ──
+  const sharedChgU = _mk(uids);
+  if (mode === 'solo') {
+    if (uids[0]) sharedChgU[uids[0]] = totalSharedChg;
+  } else if (mode === 'fixe') {
+    const pcts    = repartCfg?.pcts ?? {};
+    const sumPcts = uids.reduce((s, uid) => s + (Number(pcts[uid]) || 0), 0) || 100;
+    for (const uid of uids) sharedChgU[uid] = totalSharedChg * ((Number(pcts[uid]) || 0) / sumPcts);
+  } else if (mode === 'equitable') {
+    const aidesRep   = repartCfg?.aidesRepartition || {};
+    const revForDist2 = _mk(uids);
+    for (const uid of uids) revForDist2[uid] = revU[uid] + (aidesRep[uid] ? aidesU[uid] : 0);
+    const base2 = _sum(revForDist2) || 1;
+    for (const uid of uids) sharedChgU[uid] = totalSharedChg * (revForDist2[uid] / base2);
+  } else {
+    for (const uid of uids) sharedChgU[uid] = totalSharedChg / N;
+  }
+
   for (const uid of uids) {
     // en mode solo, partSharedU inclut déjà les extras/budgetOps
     partU[uid] = partSharedU[uid]
@@ -219,7 +238,7 @@ export function calcMonth(monthData, charges, achats, repartCfg, users, budgetOp
     revenus:      mkKPI(revU),
     primes:       mkKPI(priU),
     aides:        mkKPI(aidesU),
-    charges:      { total: totalSharedChg + _sum(chgPersonalU) + _sum(chgCustomU), byUser: Object.fromEntries(uids.map(uid => [uid, chgPersonalU[uid] + chgCustomU[uid] + partSharedU[uid] * (totalSharedChg / (totalCommon || 1))])) },
+    charges:      { total: totalSharedChg + _sum(chgPersonalU) + _sum(chgCustomU), byUser: Object.fromEntries(uids.map(uid => [uid, chgPersonalU[uid] + chgCustomU[uid] + sharedChgU[uid]])) },
     chargesPerso: mkKPI(chgPersoU),
     courses:      mkKPI(crsU),
     extras:       mkKPI(extU),

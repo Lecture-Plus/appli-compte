@@ -113,7 +113,9 @@ export function escHtml(str) {
 
 /** Génère un ID unique simple */
 export function uid() {
-  return Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  const arr = new Uint32Array(3);
+  crypto.getRandomValues(arr);
+  return arr[0].toString(36) + arr[1].toString(36) + arr[2].toString(36);
 }
 
 /** Debounce : retarde l'exécution de fn après delay ms d'inactivité */
@@ -216,12 +218,39 @@ export function openModal(title, bodyHTML, footerHTML = '') {
   document.getElementById('modal-title').textContent = title;
   document.getElementById('modal-body').innerHTML    = bodyHTML;
   document.getElementById('modal-footer').innerHTML  = footerHTML;
-  document.getElementById('modal-overlay').classList.remove('hidden');
+  const overlay = document.getElementById('modal-overlay');
+  overlay.classList.remove('hidden');
+  overlay.removeAttribute('aria-hidden');
+
+  // Focus trap : garder le focus à l'intérieur de la modal
+  const focusable = Array.from(overlay.querySelectorAll(
+    'button, input, select, textarea, a[href], [tabindex]:not([tabindex="-1"])'
+  )).filter(el => !el.disabled && !el.closest('[style*="display:none"]'));
+  if (focusable.length) focusable[0].focus();
+
+  const _trapFocus = (e) => {
+    if (e.key !== 'Tab') return;
+    if (!focusable.length) { e.preventDefault(); return; }
+    const first = focusable[0], last = focusable[focusable.length - 1];
+    if (e.shiftKey) {
+      if (document.activeElement === first) { e.preventDefault(); last.focus(); }
+    } else {
+      if (document.activeElement === last)  { e.preventDefault(); first.focus(); }
+    }
+  };
+  overlay._focusTrapHandler = _trapFocus;
+  overlay.addEventListener('keydown', _trapFocus);
 }
 
 /** Ferme la modal */
 export function closeModal() {
-  document.getElementById('modal-overlay').classList.add('hidden');
+  const overlay = document.getElementById('modal-overlay');
+  overlay.classList.add('hidden');
+  overlay.setAttribute('aria-hidden', 'true');
+  if (overlay._focusTrapHandler) {
+    overlay.removeEventListener('keydown', overlay._focusTrapHandler);
+    overlay._focusTrapHandler = null;
+  }
   document.getElementById('modal-body').innerHTML   = '';
   document.getElementById('modal-footer').innerHTML = '';
 }

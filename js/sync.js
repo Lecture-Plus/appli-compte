@@ -11,6 +11,15 @@ import { showToast }                                             from './utils.j
 let _lastActivity = Date.now();
 let _autoSaveTimer = null;
 
+// ── Mutex : évite l'auto-save pendant un import en cours ──
+let _isSyncing = false;
+
+// ── Dirty flag : ne syncer que si des modifications ont eu lieu ──
+let _isDirty = false;
+
+/** Marquer les données comme modifiées (appelé après toute écriture IDB) */
+export function markDirty() { _isDirty = true; }
+
 // ── Indicateur de sync ──
 let _syncStatus = 'none'; // 'none' | 'ok' | 'syncing' | 'error'
 
@@ -63,6 +72,7 @@ export async function initDriveSync() {
   const overlay = document.getElementById('sync-overlay');
   if (overlay) overlay.classList.remove('hidden');
   setSyncStatus('syncing');
+  _isSyncing = true;
 
   try {
     const backups = await listBackups(url);
@@ -85,6 +95,8 @@ export async function initDriveSync() {
     console.warn('[Sync] Impossible de synchroniser avec Drive :', err.message);
     setSyncStatus('error');
     // Silencieux — l'app peut fonctionner hors-ligne
+  } finally {
+    _isSyncing = false;
   }
 
   if (overlay) overlay.classList.add('hidden');
@@ -100,6 +112,8 @@ export function startAutoSave() {
 
   _autoSaveTimer = setInterval(async () => {
     if (!isActive()) return;
+    if (_isSyncing) return;  // import en cours, ne pas écraser
+    if (!_isDirty) return;   // rien de nouveau, économiser bande passante et batterie
 
     const url = await getSetting(DRIVE_URL_KEY);
     if (!isValidDriveUrl(url)) return;
@@ -129,6 +143,7 @@ export function startAutoSave() {
       const data = await exportAllData();
       await pushVersionedBackup(url, data);
       await setSetting(DRIVE_SYNC_KEY, new Date().toISOString());
+      _isDirty = false;  // reset dirty flag après push réussi
       setSyncStatus('ok');
       console.log('[Sync] Auto-save Drive OK');
     } catch (err) {

@@ -297,6 +297,8 @@ function renderKPIAnnuel(container, kpi, monthLabel = null) {
 function renderChartRevDep(displayResults) {
   const canvas = document.getElementById('chart-rev-dep');
   if (!canvas) return;
+  canvas.setAttribute('role', 'img');
+  canvas.setAttribute('aria-label', 'Graphique barres : revenus et dépenses mensuels');
   const chart = new Chart(canvas, {
     type: 'bar',
     data: {
@@ -326,8 +328,9 @@ function renderChartRevPrimes(displayResults, users = []) {
     },
   ]) : [];
 
+  canvas.setAttribute('role', 'img');
+  canvas.setAttribute('aria-label', 'Graphique barres : revenus et primes mensuels');
   const chart = new Chart(canvas, {
-    type: 'bar',
     data: {
       labels: MOIS_COURT,
       datasets: [
@@ -363,6 +366,8 @@ function renderChartEpargne(displayResults) {
   const textColor = getComputedStyle(document.documentElement).getPropertyValue('--text-2').trim() || '#666';
   const gridColor = getComputedStyle(document.documentElement).getPropertyValue('--border').trim() || 'rgba(0,0,0,0.1)';
 
+  canvas.setAttribute('role', 'img');
+  canvas.setAttribute('aria-label', 'Évolution de l\'épargne mensuelle');
   const chart = new Chart(canvas, {
     type: 'bar',
     data: {
@@ -489,8 +494,9 @@ async function renderChartSavingsBalance(year, curYear, curMonth, users = []) {
     spanGaps: false,
   })) : [];
 
+  canvas.setAttribute('role', 'img');
+  canvas.setAttribute('aria-label', 'Évolution du solde d\'épargne cumulé');
   const chart = new Chart(canvas, {
-    type: 'line',
     data: {
       labels: MOIS_COURT,
       datasets: [
@@ -543,8 +549,9 @@ function renderChartChargesCat(yearKPI, allCharges = []) {
   const labels = entries.map(([id]) => { const i = getCategoryInfo(id); return `${i.emoji} ${i.label}`; });
   const data   = entries.map(([, v]) => v);
 
+  canvas.setAttribute('role', 'img');
+  canvas.setAttribute('aria-label', 'Graphique répartition des charges par catégorie');
   const chart  = new Chart(canvas, {
-    type: 'doughnut',
     data: {
       labels,
       datasets: [{ data, backgroundColor: COLORS.slice(0, entries.length), borderWidth: 0 }],
@@ -573,6 +580,8 @@ function renderChartRepartition(yearKPI) {
   const labels = ['Charges fixes', 'Courses', 'Loisirs', 'Achats exc.', 'Imprévus'];
   const data   = [yearKPI.charges.total, yearKPI.courses.total, yearKPI.extras.total, yearKPI.achats.total, yearKPI.imprevus.total];
   const total  = data.reduce((s, v) => s + v, 0);
+  canvas.setAttribute('role', 'img');
+  canvas.setAttribute('aria-label', 'Graphique répartition des dépenses annuelles');
   const chart  = new Chart(canvas, {
     type: 'doughnut',
     data: {
@@ -1011,9 +1020,9 @@ function renderChartTendances(results, allCharges) {
     };
   });
 
+  canvas.setAttribute('role', 'img');
+  canvas.setAttribute('aria-label', 'Graphique tendances mensuelle des catégories de dépenses');
   const chart = new Chart(canvas, {
-    type: 'line',
-    data: { labels: MOIS_COURT, datasets },
     options: {
       responsive: true, maintainAspectRatio: false,
       interaction: { mode: 'index', intersect: false },

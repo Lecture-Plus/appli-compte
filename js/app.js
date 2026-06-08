@@ -2,9 +2,9 @@
 // js/app.js – Application principale : router, navigation, état global
 // ============================================================
 
-import { getAllSettings, getSetting, setSetting, getActiveUsers, getMonthsByYear } from './db.js';
+import { getAllSettings, getSetting, setSetting, getActiveUsers, getMonthsByYear, onWrite } from './db.js';
 import { initDriveSync, startAutoSave, initActivityTracking,
-         testDriveConnection }                                     from './sync.js';
+         markDirty, testDriveConnection }                         from './sync.js';
 import { today, showToast, closeModal, openModal, nomMois,
          isMonthEmpty }                                           from './utils.js';
 import { DRIVE_URL_KEY, isValidDriveUrl }                         from './drive.js';
@@ -133,7 +133,7 @@ async function _checkAndFireNotification(year, month, md) {
     // Déclencher seulement avant le jour configuré (défaut 7)
     const day    = new Date().getDate();
     const cutoff = Number(settings.notifDay) || 7;
-    if (day > cutoff) return;
+    if (day < cutoff) return;
 
     // Stocker la date de notification pour éviter les doublons
     await setSetting('lastNotifSent', new Date().toISOString());
@@ -257,6 +257,9 @@ async function init() {
   // Tracking d'activité (pour auto-save)
   initActivityTracking();
 
+  // Connecter le dirty flag IDB → sync
+  onWrite(markDirty);
+
   // Navigation
   document.querySelectorAll('.nav-item').forEach(btn => {
     btn.addEventListener('click', () => navigateTo(btn.dataset.page));
@@ -276,7 +279,6 @@ async function init() {
 
   // Hash URL
   const hash   = window.location.hash.replace('#', '').trim();
-  const urlPage = hash && PAGES[hash] ? hash : 'dashboard';
 
   // ── Synchronisation Drive au lancement ──
   await initDriveSync();
@@ -284,8 +286,13 @@ async function init() {
   // Re-charger les users après import potentiel depuis Drive
   await reloadUsers();
 
-  // Première page
-  await navigateTo(urlPage);
+  // Alias #saisie → page argent onglet saisir
+  if (hash === 'saisie') {
+    await navigateTo('argent', { tab: 'saisir' });
+  } else {
+    const urlPage = hash && PAGES[hash] ? hash : 'dashboard';
+    await navigateTo(urlPage);
+  }
 
   // Vérifications en arrière-plan
   setTimeout(checkUnfilledMonths, 1500);

@@ -354,6 +354,13 @@ export async function render(container) {
     debouncedSave();
   });
 
+  // Lier #ext-foyer si le mode foyer est déjà actif au premier rendu
+  if (_extrasFoyerMode) {
+    container.querySelector('#ext-foyer')?.addEventListener('input', () => {
+      syncFormToState(container); updatePreview(container); debouncedSave();
+    });
+  }
+
   // ── Imprévus (liste dynamique) ──
   _recomputeImprévus();
   _renderImprévusList(container);

@@ -1,7 +1,7 @@
 // Service Worker – Compta+
 // Stratégie : Network First pour l'app shell (auto-update), Cache pour CDN
 
-const CACHE_NAME = 'compta-plus-v41';
+const CACHE_NAME = 'compta-plus-v42';
 
 const APP_SHELL = [
   './index.html',
@@ -42,7 +42,6 @@ self.addEventListener('install', event => {
         return cache.addAll(requests);
       })
       .then(() => self.skipWaiting())
-      .catch(err => console.warn('[SW] Erreur cache install:', err))
   );
 });
 

@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' cdn.jsdelivr.net; style-src 'self' fonts.googleapis.com 'unsafe-inline'; font-src fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://script.google.com https://script.googleusercontent.com;">
 
   <!-- PWA -->
   <meta name="theme-color" content="#7C5CFC" media="(prefers-color-scheme: light)">
@@ -124,7 +125,7 @@
 <div id="toast" class="toast hidden" role="alert" aria-live="polite"></div>
 
 <!-- ── Modal ── -->
-<div id="modal-overlay" class="hidden" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+  <div id="modal-overlay" class="hidden" role="dialog" aria-modal="true" aria-labelledby="modal-title" aria-hidden="true">
   <div id="modal">
     <div id="modal-header">
       <h2 id="modal-title"></h2>
@@ -249,22 +250,36 @@
   import { pullFromDrive, isValidDriveUrl, DRIVE_URL_KEY, DRIVE_SYNC_KEY }    from './js/drive.js';
   import { navigateTo, reloadUsers, State }                                    from './js/app.js';
 
-  function buildColorPicker(containerId, defaultColor) {
+  function buildColorPicker(containerId, defaultColor, getOtherColors = () => []) {
     const cont = document.getElementById(containerId);
     if (!cont) return () => defaultColor;
     let selected = defaultColor;
-    cont.innerHTML = USER_COLORS.map(c => `
-      <button type="button" class="ob-color-btn" data-color="${c}"
-        style="width:28px;height:28px;border-radius:50%;background:${c};border:3px solid ${c === defaultColor ? '#fff' : 'transparent'};box-shadow:${c === defaultColor ? '0 0 0 2px '+c : 'none'};cursor:pointer;flex-shrink:0;"></button>
-    `).join('');
-    cont.querySelectorAll('.ob-color-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        cont.querySelectorAll('.ob-color-btn').forEach(b => { b.style.border='3px solid transparent'; b.style.boxShadow='none'; });
-        btn.style.border = '3px solid #fff';
-        btn.style.boxShadow = `0 0 0 2px ${btn.dataset.color}`;
-        selected = btn.dataset.color;
+
+    function render() {
+      const others = getOtherColors();
+      cont.innerHTML = USER_COLORS.map(c => {
+        const taken = others.includes(c);
+        return `<button type="button" class="ob-color-btn" data-color="${c}" ${taken ? 'disabled' : ''}
+          style="width:28px;height:28px;border-radius:50%;background:${c};border:3px solid ${c === selected ? '#fff' : 'transparent'};box-shadow:${c === selected ? '0 0 0 2px '+c : 'none'};cursor:${taken ? 'not-allowed' : 'pointer'};opacity:${taken ? '0.3' : '1'};flex-shrink:0;"></button>`;
+      }).join('');
+      cont.querySelectorAll('.ob-color-btn:not([disabled])').forEach(btn => {
+        btn.addEventListener('click', () => {
+          selected = btn.dataset.color;
+          render();
+          // Rafraîchir les autres pickers pour qu'ils reflètent le nouveau choix
+          document.querySelectorAll('.ob-color-btn').forEach(b => {
+            const pickerEl = b.closest('[id^="ob-colors"]');
+            if (pickerEl && pickerEl.id !== containerId) {
+              // Déclencher un re-rendu du sibling picker via custom event
+              pickerEl.dispatchEvent(new CustomEvent('ob-rerender'));
+            }
+          });
+        });
       });
-    });
+    }
+
+    cont.addEventListener('ob-rerender', render);
+    render();
     return () => selected;
   }
 
@@ -284,8 +299,8 @@
 
     document.getElementById('onboarding').classList.remove('hidden');
 
-    _obColorGetters[0] = buildColorPicker('ob-colors-1', USER_COLORS[0]);
-    _obColorGetters[1] = buildColorPicker('ob-colors-2', USER_COLORS[1]);
+    _obColorGetters[0] = buildColorPicker('ob-colors-1', USER_COLORS[0], () => [_obColorGetters[1] ? _obColorGetters[1]() : USER_COLORS[1]]);
+    _obColorGetters[1] = buildColorPicker('ob-colors-2', USER_COLORS[1], () => [_obColorGetters[0] ? _obColorGetters[0]() : USER_COLORS[0]]);
 
     // ── Bouton "Ajouter une 2e personne" ──
     document.getElementById('ob-add-second')?.addEventListener('click', () => {

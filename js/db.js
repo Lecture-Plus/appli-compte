@@ -7,6 +7,11 @@ const DB_VERSION = 5;  // v5 : salary_savings + salary_abondements stores
 
 let _db = null;
 
+// ── Dirty flag callback (évite la dépendance circulaire avec sync.js) ──
+let _onWriteCallback = null;
+/** Enregistre une fonction à appeler à chaque écriture IDB (ex: markDirty de sync.js) */
+export function onWrite(fn) { _onWriteCallback = fn; }
+
 // ── Cache mémoire (évite les lectures IDB répétées) ──
 let _settingsCache = null; // invalidé par setSetting / importAllData / resetAllData
 let _usersCache    = null; // invalidé par saveUser / softDeleteUser / restoreUser / importAllData / resetAllData
@@ -122,7 +127,7 @@ async function _put(store, value) {
   return new Promise((resolve, reject) => {
     const tx  = db.transaction(store, 'readwrite');
     const req = tx.objectStore(store).put(value);
-    req.onsuccess = () => resolve(req.result);
+    req.onsuccess = () => { if (_onWriteCallback) _onWriteCallback(); resolve(req.result); };
     req.onerror   = () => reject(req.error);
   });
 }
@@ -132,7 +137,7 @@ async function _delete(store, key) {
   return new Promise((resolve, reject) => {
     const tx  = db.transaction(store, 'readwrite');
     const req = tx.objectStore(store).delete(key);
-    req.onsuccess = () => resolve();
+    req.onsuccess = () => { if (_onWriteCallback) _onWriteCallback(); resolve(); };
     req.onerror   = () => reject(req.error);
   });
 }
@@ -319,7 +324,9 @@ export function resolveChargeAmount(charge, year, month) {
  * priceHistory peut aussi exister au niveau de la ligne.
  */
 export function resolveLineAmount(line, charge, year, month) {
-  const history = line.priceHistory || charge.priceHistory;
+  // Utiliser uniquement l'historique de la ligne elle-même (pas celui de la charge parente)
+  // pour éviter d'appliquer le montant total de la charge à chaque ligne individuelle
+  const history = line.priceHistory;
   if (!history?.length) return Number(line.amount) || 0;
   const key = `${year}-${String(month).padStart(2, '0')}`;
   let best = null;
@@ -452,21 +459,49 @@ export async function importAllData(data) {
   if (!data || !data.appName) {
     throw new Error('Format de sauvegarde invalide.');
   }
+  // Validation basique de la structure
+  if (data.version && data.version < 1) throw new Error('Version de sauvegarde trop ancienne.');
+  if (data.users !== undefined && !Array.isArray(data.users)) throw new Error('Champ users invalide.');
+  if (data.monthlyData !== undefined && !Array.isArray(data.monthlyData)) throw new Error('Champ monthlyData invalide.');
+  if (data.charges !== undefined && !Array.isArray(data.charges)) throw new Error('Champ charges invalide.');
+
+  // Backup automatique des données actuelles avant détruction
+  let _rollbackData = null;
+  try { _rollbackData = await exportAllData(); } catch (_) {}
 
   const stores = ['users', 'settings', 'monthlyData', 'charges', 'achats',
                   'repartition', 'archives', 'savings_operations', 'savings_confirmed',
                   'budget_ops', 'salary_savings', 'salary_abondements'];
   const db     = await openDB();
 
-  for (const storeName of stores) {
-    await new Promise((resolve, reject) => {
-      const tx    = db.transaction(storeName, 'readwrite');
-      const store = tx.objectStore(storeName);
-      store.clear();
-      (data[storeName] || []).forEach(item => store.put(item));
-      tx.oncomplete = resolve;
-      tx.onerror    = () => reject(tx.error);
-    });
+  try {
+    for (const storeName of stores) {
+      await new Promise((resolve, reject) => {
+        const tx    = db.transaction(storeName, 'readwrite');
+        const store = tx.objectStore(storeName);
+        store.clear();
+        (data[storeName] || []).forEach(item => store.put(item));
+        tx.oncomplete = resolve;
+        tx.onerror    = () => reject(tx.error);
+      });
+    }
+  } catch (err) {
+    // Tentative de rollback en cas d'échec
+    if (_rollbackData) {
+      try {
+        for (const storeName of stores) {
+          await new Promise((resolve, reject) => {
+            const tx    = db.transaction(storeName, 'readwrite');
+            const store = tx.objectStore(storeName);
+            store.clear();
+            (_rollbackData[storeName] || []).forEach(item => store.put(item));
+            tx.oncomplete = resolve;
+            tx.onerror    = () => reject(tx.error);
+          });
+        }
+      } catch (_) {}
+    }
+    throw err;
   }
 
   _settingsCache = null; _usersCache = null; // invalider après import
@@ -478,7 +513,9 @@ export async function resetAllData() {
                   'repartition', 'archives', 'savings_operations', 'savings_confirmed',
                   'budget_ops', 'salary_savings', 'salary_abondements'];
   for (const s of stores) await _clear(s);
-  _settingsCache = null; _usersCache = null; _db = null;
+  _settingsCache = null; _usersCache = null;
+  if (_db) { try { _db.close(); } catch (_) {} }
+  _db = null;
 }
 
 /* ══════════════════════════════════════════════════
@@ -511,11 +548,15 @@ export async function computeCurrentSavingsBalance() {
 
   const opsSince = latest
     ? allOps.filter(op => {
+        // Comparer par timestamp ISO si disponible, sinon par année/mois/jour
+        if (op.createdAt && latest.confirmedAt) {
+          return op.createdAt > latest.confirmedAt;
+        }
         if (op.year  > latest.year)  return true;
         if (op.year  < latest.year)  return false;
         if (op.month > latest.month) return true;
         if (op.month < latest.month) return false;
-        return (op.day || 1) >= (latest.confirmedDay || 1);
+        return (op.day || 1) > (latest.confirmedDay || 1);
       })
     : allOps;
 
