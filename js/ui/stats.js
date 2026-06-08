@@ -7,9 +7,8 @@ import { getMonthsByYear, getChargesForMonth,
          getAchatsForMonth, getRepartition,
          getAllSettings, getAvailableYears,
          getActiveUsers, getAllUsers,
-         getSavingsOperations }                            from '../db.js';
-import { calcMonth, calcYear }                             from '../calculs.js';
-import { calcSavingsBalance }                              from '../calculs.js';
+         getAllSavingsOperations }                          from '../db.js';
+import { calcMonth, calcYear, calcSavingsBalance }         from '../calculs.js';
 import { eur, pct, nomMoisCourt, escHtml, showToast,
          downloadBlob, buildCSV, MOIS_COURT, MOIS }        from '../utils.js';
 
@@ -205,7 +204,7 @@ async function renderChartSavingsBalance(year) {
   if (!canvas) return;
 
   // Récupère toutes les opérations d'épargne jusqu'à cette année
-  const ops = await getSavingsOperations();
+  const ops = await getAllSavingsOperations();
   const pointsByMonth = [];
   let runningBalance = 0;
   let lastConfirmed  = null;
