@@ -306,8 +306,8 @@ async function _renderResume(container, s, users) {
         <div class="card-header" style="flex-wrap:wrap;gap:6px;">
           <span class="card-title">📋 Détail du mois</span>
           <div style="margin-left:auto;display:flex;gap:4px;">
-            <button class="btn btn-sm btn-dmode btn-primary" data-dmode="reel" style="font-size:0.68rem;padding:2px 8px;">✅ Réel</button>
-            <button class="btn btn-sm btn-dmode btn-outline" data-dmode="previsionnel" style="font-size:0.68rem;padding:2px 8px;">📅 Prévisionnel</button>
+            <button class="btn btn-sm btn-dmode ${_detailMode === 'reel' ? 'btn-primary' : 'btn-outline'}" data-dmode="reel" style="font-size:0.68rem;padding:2px 8px;">✅ Réel</button>
+            <button class="btn btn-sm btn-dmode ${_detailMode === 'previsionnel' ? 'btn-primary' : 'btn-outline'}" data-dmode="previsionnel" style="font-size:0.68rem;padding:2px 8px;">📅 Prévisionnel</button>
           </div>
         </div>
         <p id="detail-mode-hint" style="font-size:0.72rem;color:var(--text-3);margin-bottom:8px;"></p>

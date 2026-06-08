@@ -618,12 +618,11 @@ function showOpModal(type, users, onSave) {
 // ÉPARGNE SALARIALE
 // ══════════════════════════════════════════════════
 
-// Constantes d'abondement (personnalisables dans les settings)
-const ABON_RATIO     = 22.58 / 50;  // ex: 22.58€ d'abondement pour 50€ versés
-const ABON_MAX_YEAR  = 1000;        // max abondement net/an
-const ABON_MAX_HALF  = ABON_MAX_YEAR / 2; // 500€ par période
-// Seuil de versement pour maximiser chaque période
-const ABON_CONTRIB_FOR_MAX = ABON_MAX_HALF / ABON_RATIO; // ~1107€ par période
+// Constantes d'abondement
+const ABON_RATIO         = 22.58 / 50;            // 45.16% — l'employeur abonde 22.58€ par 50€ versés
+const ABON_MAX_YEAR      = 1000;                   // max 1 000€ d'abondement par AN (total des 2 périodes)
+// Versements nécessaires pour atteindre les 1 000€ d'abondement sur l'année
+const ABON_CONTRIB_FOR_YEAR_MAX = ABON_MAX_YEAR / ABON_RATIO; // ≈ 2 215€/an
 
 // Périodes : mai 28 (période déc-mai) et nov 28 (période juin-nov)
 function _abon_period(year, month) {
@@ -658,13 +657,24 @@ async function _renderSalariale(el, container) {
   const totalAbon = allAbons.reduce((s, a) => s + (Number(a.amount) || 0), 0);
   const totalBrut = totalNet + totalAbon;
 
+  // ── Abondement annuel (année civile courante) ──
+  const yearAbons         = allAbons.filter(a => a.year === year);
+  const yearAbonTotal     = yearAbons.reduce((s, a) => s + (Number(a.amount) || 0), 0);
+  const yearAbonRemaining = Math.max(0, ABON_MAX_YEAR - yearAbonTotal);
+
+  // ── Versements de l'année courante ──
+  const yearOps    = allOps.filter(op => op.year === year);
+  const yearContrib = yearOps.reduce((s, op) => s + (Number(op.amount) || 0), 0);
+
   // ── Période courante ──
-  const curPeriod = _abon_period(year, month);
-  const periodOps = allOps.filter(op => _inPeriod(op.year, op.month, curPeriod.periodStart, curPeriod.periodEnd));
+  const curPeriod     = _abon_period(year, month);
+  const periodOps     = allOps.filter(op => _inPeriod(op.year, op.month, curPeriod.periodStart, curPeriod.periodEnd));
   const periodContrib = periodOps.reduce((s, op) => s + (Number(op.amount) || 0), 0);
-  const estimatedAbon = Math.min(periodContrib * ABON_RATIO, ABON_MAX_HALF);
-  const abonMissing   = Math.max(0, ABON_CONTRIB_FOR_MAX - periodContrib);
-  const pctPeriod     = Math.min(100, Math.round(periodContrib / ABON_CONTRIB_FOR_MAX * 100));
+  // Abondement de cette période : plafonné au reste disponible sur l'année
+  const estimatedAbonPeriod = Math.min(periodContrib * ABON_RATIO, yearAbonRemaining);
+  // Versements manquants pour épuiser la capacité restante annuelle
+  const abonMissing   = yearAbonRemaining <= 0 ? 0 : Math.max(0, (yearAbonRemaining / ABON_RATIO) - periodContrib);
+  const pctPeriod     = yearAbonRemaining <= 0 ? 100 : Math.min(100, Math.round((periodContrib / (yearAbonRemaining / ABON_RATIO)) * 100));
 
   // Prochain abondement
   const nextAbonDate  = curPeriod.period === 'mai' ? `28 mai ${curPeriod.periodEnd.year}` : `28 novembre ${curPeriod.periodEnd.year}`;
@@ -705,29 +715,37 @@ async function _renderSalariale(el, container) {
         <div class="progress-wrap" style="margin-bottom:4px;">
           <div class="progress-labels">
             <span>Versé cette période : ${eur(periodContrib)}</span>
-            <span style="color:var(--text-3);">/ ${eur(ABON_CONTRIB_FOR_MAX)}</span>
+            <span style="color:var(--text-3);">${yearAbonRemaining <= 0 ? '✅ Plafond annuel atteint' : `capacité restante ${eur(yearAbonRemaining)} d'abond.`}</span>
           </div>
-          <div class="progress-track"><div class="progress-bar ${pctPeriod >= 100 ? 'success' : 'primary'}" style="width:${pctPeriod}%;"></div></div>
+          <div class="progress-track"><div class="progress-bar ${pctPeriod >= 100 || yearAbonRemaining <= 0 ? 'success' : 'primary'}" style="width:${pctPeriod}%;"></div></div>
         </div>
-        <div style="font-size:0.75rem;color:var(--text-3);">${pctPeriod >= 100
-          ? '✅ Vous pouvez bénéficier du maximum d\'abondement pour cette période !'
-          : `Il manque ${eur(abonMissing)} pour maximiser l'abondement de cette période`}</div>
+        <div style="font-size:0.75rem;color:var(--text-3);">${yearAbonRemaining <= 0
+          ? '✅ Le plafond de 1 000€ d\'abondement annuel est atteint !'
+          : pctPeriod >= 100
+            ? `✅ Vous avez versé assez pour épuiser la capacité restante (${eur(yearAbonRemaining)} d'abond. disponible)`
+            : `Il manque ${eur(abonMissing)} de versements pour utiliser toute la capacité restante`}</div>
       </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
         <div style="background:var(--success-bg);border-radius:var(--radius-sm);padding:10px;text-align:center;">
-          <div style="font-size:0.65rem;color:var(--text-3);font-weight:700;text-transform:uppercase;">Abondement estimé</div>
-          <div style="font-size:1.1rem;font-weight:800;color:var(--success);margin-top:2px;">${eur(estimatedAbon)}</div>
-          <div style="font-size:0.65rem;color:var(--text-3);">sur ${eur(ABON_MAX_HALF)} max</div>
+          <div style="font-size:0.62rem;color:var(--text-3);font-weight:700;text-transform:uppercase;">Abond. période</div>
+          <div style="font-size:1rem;font-weight:800;color:var(--success);margin-top:2px;">${eur(estimatedAbonPeriod)}</div>
+          <div style="font-size:0.62rem;color:var(--text-3);">sur ${eur(yearAbonRemaining)} dispo</div>
         </div>
         <div style="background:var(--bg-secondary);border-radius:var(--radius-sm);padding:10px;text-align:center;">
-          <div style="font-size:0.65rem;color:var(--text-3);font-weight:700;text-transform:uppercase;">Ce mois (${nomMois(month)})</div>
-          <div style="font-size:1.1rem;font-weight:800;color:var(--primary);margin-top:2px;">${eur(monthlyTotal)}</div>
-          <div style="font-size:0.65rem;color:var(--text-3);">${monthlyOps.length} versement(s)</div>
+          <div style="font-size:0.62rem;color:var(--text-3);font-weight:700;text-transform:uppercase;">Abond. année ${year}</div>
+          <div style="font-size:1rem;font-weight:800;color:var(--primary);margin-top:2px;">${eur(yearAbonTotal)}</div>
+          <div style="font-size:0.62rem;color:var(--text-3);">/ ${eur(ABON_MAX_YEAR)} max</div>
+        </div>
+        <div style="background:var(--bg-secondary);border-radius:var(--radius-sm);padding:10px;text-align:center;">
+          <div style="font-size:0.62rem;color:var(--text-3);font-weight:700;text-transform:uppercase;">Ce mois</div>
+          <div style="font-size:1rem;font-weight:800;color:var(--primary);margin-top:2px;">${eur(monthlyTotal)}</div>
+          <div style="font-size:0.62rem;color:var(--text-3);">${monthlyOps.length} versement(s)</div>
         </div>
       </div>
       <div style="margin-top:10px;font-size:0.72rem;color:var(--text-3);padding:8px 10px;background:var(--bg-secondary);border-radius:var(--radius-sm);">
-        <strong>Règle :</strong> l'employeur abonde à hauteur de <strong>${eur(ABON_RATIO * 100)}</strong> pour 100€ versés,
-        jusqu'à <strong>${eur(ABON_MAX_YEAR)}</strong> d'abondement par an (2 versements le 28 mai et 28 novembre).
+        <strong>Règle :</strong> taux d'abondement <strong>${(ABON_RATIO * 100).toFixed(2)}%</strong>
+        (${eur(22.58)} pour ${eur(50)} versés) — plafond <strong>${eur(ABON_MAX_YEAR)}/an</strong> sur 2 périodes (28 mai · 28 novembre).
+        Pour maximiser les 1 000€ sur l'année, il faut verser ${eur(ABON_CONTRIB_FOR_YEAR_MAX)} au total.
       </div>
     </div>
 
@@ -883,7 +901,10 @@ function _showSalAbonModal(allOps, allAbons, users, onSave) {
   const abonYear = period.period === 'mai' ? period.periodEnd.year : period.periodEnd.year;
   const periodOps = allOps.filter(op => _inPeriod(op.year, op.month, period.periodStart, period.periodEnd));
   const periodContrib = periodOps.reduce((s, op) => s + (Number(op.amount) || 0), 0);
-  const estimated = Math.round(Math.min(periodContrib * ABON_RATIO, ABON_MAX_HALF) * 100) / 100;
+  // Capacité annuelle restante (abondements déjà confirmés cette année)
+  const yearAbonsConfirmed = allAbons.filter(a => a.year === year).reduce((s, a) => s + (Number(a.amount) || 0), 0);
+  const yearCapLeft = Math.max(0, ABON_MAX_YEAR - yearAbonsConfirmed);
+  const estimated = Math.round(Math.min(periodContrib * ABON_RATIO, yearCapLeft) * 100) / 100;
 
   openModal('🏦 Valider un abondement', `
     <p style="font-size:0.82rem;color:var(--text-2);margin-bottom:12px;">
@@ -908,7 +929,7 @@ function _showSalAbonModal(allOps, allAbons, users, onSave) {
         <input type="number" class="form-input input-euro" id="abon-amount" min="0" step="0.01" value="${estimated}" placeholder="${estimated}">
         <span class="input-suffix">€</span>
       </div>
-      <p class="form-hint">Montant calculé estimé : ${eur(estimated)} — modifiez si l'employeur a appliqué un montant différent.</p>
+      <p class="form-hint">Estimé : ${eur(estimated)} (${(ABON_RATIO*100).toFixed(2)}% × ${eur(periodContrib)}, plafonné à la capacité restante ${eur(yearCapLeft)}) — modifiez si nécessaire.</p>
     </div>
     <div class="form-group" style="margin-bottom:10px;">
       <label class="form-label">Versements de la période (€)</label>

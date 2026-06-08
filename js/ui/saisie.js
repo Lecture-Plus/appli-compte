@@ -128,9 +128,10 @@ export async function render(container) {
     <div class="form-section" style="margin-bottom:10px;">
       <div class="form-section-title"><span class="section-icon">⚖️</span>Répartition des charges</div>
       <div class="tabs" id="mode-tabs">
-        <button class="tab-btn ${_repCfg.mode === 'separe'    ? 'active' : ''}" data-mode="separe">Séparé</button>
-        <button class="tab-btn ${_repCfg.mode === 'fixe'      ? 'active' : ''}" data-mode="fixe">Fixe %</button>
-        <button class="tab-btn ${_repCfg.mode === 'equitable' ? 'active' : ''}" data-mode="equitable">Équitable</button>
+        <button class="tab-btn ${_repCfg.mode === 'separe'       ? 'active' : ''}" data-mode="separe">Séparé</button>
+        <button class="tab-btn ${_repCfg.mode === 'fixe'         ? 'active' : ''}" data-mode="fixe">Fixe %</button>
+        <button class="tab-btn ${_repCfg.mode === 'equitable'    ? 'active' : ''}" data-mode="equitable">Équitable</button>
+        <button class="tab-btn ${_repCfg.mode === 'personnalise' ? 'active' : ''}" data-mode="personnalise">🎛 Perso</button>
       </div>
       <div id="mode-options" class="form-grid-${Math.min(N, 4)}" style="margin-top:8px;${_repCfg.mode !== 'fixe' ? 'display:none;' : ''}">
         ${_users.map(u => `
@@ -435,7 +436,10 @@ function _recomputeImprévus() {
   });
   for (const item of (_md.imprévusList || [])) {
     const amt = Number(item.amount) || 0;
-    if (item.qui === 'shared') {
+    if (item.qui === 'shared' && item.splitPcts && typeof item.splitPcts === 'object') {
+      const sumPcts = _users.reduce((s, u) => s + (Number(item.splitPcts[String(u.id)]) || 0), 0) || 100;
+      _users.forEach(u => { _md.users[String(u.id)].imprevus += amt * ((Number(item.splitPcts[String(u.id)]) || 0) / sumPcts); });
+    } else if (item.qui === 'shared') {
       _users.forEach(u => { _md.users[String(u.id)].imprevus += amt / N; });
     } else {
       const uid = String(item.qui);
@@ -635,12 +639,42 @@ function showImprévuModal(container, month, year) {
       <label class="form-label">Qui est concerné ?</label>
       <select class="form-select" id="imp-qui">${quiOptions}</select>
     </div>
+    ${_users.length > 1 ? `
+    <div id="imp-split-section" style="display:none;padding:8px;background:var(--bg-secondary);border-radius:var(--radius-sm);margin-top:8px;">
+      <div style="font-size:0.7rem;color:var(--text-3);margin-bottom:6px;">Répartition personnalisée (%) — total doit faire 100%</div>
+      ${_users.map(u => {
+        const defPct = Math.round(100 / _users.length);
+        return `<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+          <span style="width:8px;height:8px;border-radius:50%;background:${escHtml(u.color||'#6C63FF')};display:inline-block;"></span>
+          <span style="flex:1;font-size:0.78rem;">${escHtml(u.name)}</span>
+          <input type="number" class="form-input imp-split-pct" data-uid="${u.id}" min="0" max="100" step="1" value="${defPct}" style="width:62px;text-align:right;padding:4px 6px;">
+          <span style="color:var(--text-3);font-size:0.78rem;">%</span>
+        </div>`;
+      }).join('')}
+      <div id="imp-split-hint" style="text-align:right;font-size:0.7rem;margin-top:2px;"></div>
+    </div>` : ''}
   `, `
     <button class="btn btn-outline" id="imp-cancel">Annuler</button>
     <button class="btn btn-danger" id="imp-save">Enregistrer</button>
   `);
 
   document.getElementById('imp-cancel')?.addEventListener('click', closeModal);
+
+  // ── Répartition personnalisée ──
+  const impQuiSel = document.getElementById('imp-qui');
+  const impSplitSec = document.getElementById('imp-split-section');
+  const updateImpSplitHint = () => {
+    const total = [...document.querySelectorAll('.imp-split-pct')].reduce((s, i) => s + (Number(i.value)||0), 0);
+    const hint = document.getElementById('imp-split-hint');
+    if (hint) { hint.style.color = Math.abs(total-100)<0.5 ? 'var(--success)' : 'var(--danger)'; hint.textContent = `Total : ${total}%${Math.abs(total-100)>=0.5?' ⚠️':' ✅'}`; }
+  };
+  if (impSplitSec) {
+    impQuiSel?.addEventListener('change', () => {
+      impSplitSec.style.display = impQuiSel.value === 'shared' ? '' : 'none';
+      if (impQuiSel.value === 'shared') updateImpSplitHint();
+    });
+    document.querySelectorAll('.imp-split-pct').forEach(i => i.addEventListener('input', updateImpSplitHint));
+  }
 
   document.getElementById('imp-save')?.addEventListener('click', async () => {
     const label = document.getElementById('imp-label')?.value.trim();
@@ -649,10 +683,14 @@ function showImprévuModal(container, month, year) {
     if (!amount || amount <= 0) { showToast('Montant invalide', 'error'); return; }
     const quiRaw = document.getElementById('imp-qui')?.value;
     const qui = quiRaw === 'shared' ? 'shared' : Number(quiRaw);
+    const splitInputs = document.querySelectorAll('.imp-split-pct');
+    const splitPcts = (qui === 'shared' && splitInputs.length > 0 && impSplitSec?.style.display !== 'none')
+      ? Object.fromEntries([...splitInputs].map(inp => [inp.dataset.uid, Number(inp.value)||0]))
+      : null;
     const day = Number(document.getElementById('imp-day')?.value) || now.getDate();
 
     if (!_md.imprévusList) _md.imprévusList = [];
-    _md.imprévusList.push({ id: uid(), label, amount, qui, day, createdAt: now.toISOString() });
+    _md.imprévusList.push({ id: uid(), label, amount, qui, ...(splitPcts ? { splitPcts } : {}), day, createdAt: now.toISOString() });
     _recomputeImprévus();
     closeModal();
     _renderImprévusList(container);
@@ -974,8 +1012,9 @@ function _buildExtrasContent(N) {
 }
 
 function getModeDesc(mode) {
-  if (mode === 'fixe')      return 'Les charges communes sont partagées selon des pourcentages fixes.';
-  if (mode === 'equitable') return 'Les charges communes sont partagées au prorata des revenus de chacun.';
+  if (mode === 'fixe')         return 'Les charges communes sont partagées selon des pourcentages fixes.';
+  if (mode === 'equitable')    return 'Les charges communes sont partagées au prorata des revenus de chacun.';
+  if (mode === 'personnalise') return 'Chaque charge partagée peut avoir sa propre répartition (définie ligne par ligne dans les charges).';
   return 'Chaque personne assume ses charges personnelles + une part égale des charges communes et courses.';
 }
 

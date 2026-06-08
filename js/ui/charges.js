@@ -282,6 +282,53 @@ function _renderLineRow(line, idx, container) {
     <button type="button" class="btn btn-danger btn-sm cl-remove" style="flex-shrink:0;padding:4px 8px;" aria-label="Supprimer la ligne">✕</button>
   `;
 
+  // ── Section répartition personnalisée (visible si N > 1 et qui = shared) ──
+  const splitSection = document.createElement('div');
+  splitSection.className = 'charge-line-split';
+  const existingSplitPcts = line.splitPcts && typeof line.splitPcts === 'object' ? line.splitPcts : null;
+  const splitActive = !!existingSplitPcts && _N > 1 && _defaultQui === 'shared';
+  splitSection.style.cssText = `display:${splitActive ? '' : 'none'};padding:6px 8px 8px;margin-top:2px;background:var(--bg-secondary);border-radius:var(--radius-sm);font-size:0.78rem;`;
+  if (_N > 1) {
+    const sumPctsSaved = existingSplitPcts ? Object.values(existingSplitPcts).reduce((s, v) => s + (Number(v) || 0), 0) : 0;
+    splitSection.innerHTML = `
+      <div style="font-size:0.7rem;color:var(--text-3);margin-bottom:6px;">Répartition personnalisée (%) — total doit faire 100%</div>
+      <div style="display:flex;flex-direction:column;gap:4px;" class="split-rows">
+        ${_users.map(u => {
+          const defPct = existingSplitPcts ? (Number(existingSplitPcts[String(u.id)]) || 0) : Math.round(100 / _N);
+          return `<div style="display:flex;align-items:center;gap:6px;">
+            <span style="width:8px;height:8px;border-radius:50%;background:${escHtml(u.color||'#6C63FF')};display:inline-block;flex-shrink:0;"></span>
+            <span style="flex:1;font-size:0.78rem;">${escHtml(u.name)}</span>
+            <div style="display:flex;align-items:center;gap:2px;">
+              <input type="number" class="form-input cl-split-pct" data-uid="${u.id}" min="0" max="100" step="1" value="${defPct}" style="width:62px;text-align:right;padding:4px 6px;">
+              <span style="color:var(--text-3);">%</span>
+            </div>
+          </div>`;
+        }).join('')}
+      </div>
+      <div class="split-total-hint" style="text-align:right;font-size:0.7rem;margin-top:4px;color:var(--text-3);"></div>
+    `;
+    // Update total hint
+    const updateSplitHint = () => {
+      const total = [...splitSection.querySelectorAll('.cl-split-pct')].reduce((s, i) => s + (Number(i.value) || 0), 0);
+      const hint = splitSection.querySelector('.split-total-hint');
+      if (hint) hint.style.color = Math.abs(total - 100) < 0.5 ? 'var(--success)' : 'var(--danger)';
+      if (hint) hint.textContent = `Total : ${total}%${Math.abs(total - 100) >= 0.5 ? ' ⚠️ doit être 100%' : ' ✅'}`;
+    };
+    splitSection.querySelectorAll('.cl-split-pct').forEach(inp => inp.addEventListener('input', updateSplitHint));
+    updateSplitHint();
+  }
+
+  // Afficher/masquer la section split selon qui sélectionné
+  const quiSelect = row.querySelector('.cl-qui');
+  const toggleSplit = () => {
+    if (_N > 1 && quiSelect?.value === 'shared') {
+      if (splitSection.style.display === 'none') splitSection.style.display = '';
+    } else {
+      splitSection.style.display = 'none';
+    }
+  };
+  quiSelect?.addEventListener('change', toggleSplit);
+
   // Section historique (masquée par défaut)
   const histSection = document.createElement('div');
   histSection.className = 'charge-line-history';
@@ -311,6 +358,7 @@ function _renderLineRow(line, idx, container) {
   wrapper._lineHistory = lineHistory;
 
   wrapper.appendChild(row);
+  wrapper.appendChild(splitSection);
   wrapper.appendChild(histSection);
   container.appendChild(wrapper);
 }
@@ -434,12 +482,18 @@ function showChargeModal(charge, onSave) {
       const qui = quiRaw === 'shared' ? 'shared' : Number(quiRaw);
       const day = Number(row.querySelector('.cl-day')?.value) || null;
       const history = wrapper._lineHistory || [];
+      // Répartition personnalisée si splitSection visible et qui = shared
+      const splitInputs = wrapper.querySelectorAll('.cl-split-pct');
+      const splitPcts = (qui === 'shared' && splitInputs.length > 0 && wrapper.querySelector('.charge-line-split')?.style.display !== 'none')
+        ? Object.fromEntries([...splitInputs].map(inp => [inp.dataset.uid, Number(inp.value) || 0]))
+        : null;
       // Le montant courant = dernier dans l'historique (si existant) sinon le champ saisi
       const effectiveAmt = history.length > 0 ? history[history.length - 1].amount : amt;
       lines.push({
         amount: effectiveAmt,
         qui,
         dayOfMonth: day,
+        ...(splitPcts ? { splitPcts } : {}),
         ...(history.length ? { priceHistory: history } : {}),
       });
     }
@@ -1054,6 +1108,20 @@ function showAchatModal(achat, onSave) {
         ${_users.map(u => `<option value="${u.id}" ${_users.length === 1 ? 'selected' : String(a.qui) === String(u.id) ? 'selected' : ''}>${escHtml(u.name)}</option>`).join('')}
       </select>
     </div>
+    ${_users.length > 1 ? `
+    <div id="a-split-section" style="${(a.qui === 'shared' && a.splitPcts) ? '' : 'display:none;'}padding:8px;background:var(--bg-secondary);border-radius:var(--radius-sm);margin-bottom:10px;">
+      <div style="font-size:0.7rem;color:var(--text-3);margin-bottom:6px;">Répartition personnalisée (%) — total doit faire 100%</div>
+      ${_users.map(u => {
+        const defPct = a.splitPcts ? (Number(a.splitPcts[String(u.id)]) || 0) : Math.round(100 / _users.length);
+        return `<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+          <span style="width:8px;height:8px;border-radius:50%;background:${escHtml(u.color||'#6C63FF')};display:inline-block;"></span>
+          <span style="flex:1;font-size:0.78rem;">${escHtml(u.name)}</span>
+          <input type="number" class="form-input a-split-pct" data-uid="${u.id}" min="0" max="100" step="1" value="${defPct}" style="width:62px;text-align:right;padding:4px 6px;">
+          <span style="color:var(--text-3);font-size:0.78rem;">%</span>
+        </div>`;
+      }).join('')}
+      <div id="a-split-hint" style="text-align:right;font-size:0.7rem;margin-top:2px;"></div>
+    </div>` : ''}
     <div class="form-grid-2" style="margin-bottom:10px;">
       <div class="form-group">
         <label class="form-label">Jour</label>
@@ -1079,6 +1147,22 @@ function showAchatModal(achat, onSave) {
   openModal(isNew ? 'Nouvel achat exceptionnel' : 'Modifier l\'achat', body, footer);
 
   document.getElementById('a-cancel')?.addEventListener('click', closeModal);
+
+  // ── Répartition personnalisée : toggle & validation ──
+  const aQuiSel = document.getElementById('a-qui');
+  const aSplitSec = document.getElementById('a-split-section');
+  const updateASplitHint = () => {
+    const total = [...document.querySelectorAll('.a-split-pct')].reduce((s, i) => s + (Number(i.value)||0), 0);
+    const hint = document.getElementById('a-split-hint');
+    if (hint) { hint.style.color = Math.abs(total-100)<0.5 ? 'var(--success)' : 'var(--danger)'; hint.textContent = `Total : ${total}%${Math.abs(total-100)>=0.5?' ⚠️':' ✅'}`; }
+  };
+  if (aSplitSec) {
+    aQuiSel?.addEventListener('change', () => {
+      aSplitSec.style.display = aQuiSel.value === 'shared' ? '' : 'none';
+    });
+    document.querySelectorAll('.a-split-pct').forEach(i => i.addEventListener('input', updateASplitHint));
+    updateASplitHint();
+  }
   document.getElementById('a-delete')?.addEventListener('click', async () => {
     if (!confirm('Supprimer cet achat ?')) return;
     await deleteAchat(achat.id);
@@ -1092,6 +1176,10 @@ function showAchatModal(achat, onSave) {
     if (!label) { showToast('Le libellé est requis', 'error'); return; }
     const quiRaw = document.getElementById('a-qui')?.value;
     const qui    = quiRaw === 'shared' ? 'shared' : Number(quiRaw);
+    const splitInputs = document.querySelectorAll('.a-split-pct');
+    const splitPcts = (qui === 'shared' && splitInputs.length > 0 && aSplitSec?.style.display !== 'none')
+      ? Object.fromEntries([...splitInputs].map(inp => [inp.dataset.uid, Number(inp.value)||0]))
+      : null;
 
     await saveAchat({
       ...(isNew ? {} : { id: achat.id }),
@@ -1099,6 +1187,7 @@ function showAchatModal(achat, onSave) {
       category: document.getElementById('a-cat')?.value || 'autre',
       amount:   Number(document.getElementById('a-amount')?.value) || 0,
       qui,
+      ...(splitPcts ? { splitPcts } : {}),
       month:    Number(document.getElementById('a-month')?.value) || State.month,
       year:     Number(document.getElementById('a-year')?.value) || State.year,
       day:      Number(document.getElementById('a-day')?.value)   || now.getDate(),

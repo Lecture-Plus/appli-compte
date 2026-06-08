@@ -62,6 +62,8 @@ export function calcMonth(monthData, charges, achats, repartCfg, users, budgetOp
   const chgPersonalU = _mk(uids);   // charges dédiées à un user (non perso)
   const chgPersoU    = _mk(uids);   // charges perso (tracking only)
   let   totalSharedChg = 0;
+  // Charges partagées avec répartition personnalisée (splitPcts)
+  const chgCustomU   = _mk(uids);
 
   for (const c of (charges ?? [])) {
     const amt  = Number(c.amount) || 0;
@@ -69,6 +71,12 @@ export function calcMonth(monthData, charges, achats, repartCfg, users, budgetOp
     if (c.perso) {
       const target = uids.includes(qui) ? qui : uids[0];
       if (target) chgPersoU[target] += amt;
+    } else if ((c.qui === 'shared' || !uids.includes(qui)) && c.splitPcts && typeof c.splitPcts === 'object') {
+      // Répartition personnalisée : distribuer selon splitPcts
+      const sumPcts = uids.reduce((s, uid) => s + (Number(c.splitPcts[uid]) || 0), 0) || 100;
+      for (const uid of uids) {
+        chgCustomU[uid] += amt * ((Number(c.splitPcts[uid]) || 0) / sumPcts);
+      }
     } else if (c.qui === 'shared' || !uids.includes(qui)) {
       totalSharedChg += amt;
     } else {
@@ -79,12 +87,18 @@ export function calcMonth(monthData, charges, achats, repartCfg, users, budgetOp
   // ── Achats exceptionnels ──
   const achPersonalU = _mk(uids);
   let   totalSharedAch = 0;
+  const achCustomU = _mk(uids);
 
   for (const a of (achats ?? [])) {
     if (a.craquage_source === 'savings') continue;
     const amt = Number(a.amount) || 0;
     const qui = _uid(a.qui);
-    if (a.qui === 'shared' || !uids.includes(qui)) {
+    if ((a.qui === 'shared' || !uids.includes(qui)) && a.splitPcts && typeof a.splitPcts === 'object') {
+      const sumPcts = uids.reduce((s, uid) => s + (Number(a.splitPcts[uid]) || 0), 0) || 100;
+      for (const uid of uids) {
+        achCustomU[uid] += amt * ((Number(a.splitPcts[uid]) || 0) / sumPcts);
+      }
+    } else if (a.qui === 'shared' || !uids.includes(qui)) {
       totalSharedAch += amt;
     } else {
       achPersonalU[qui] += amt;
@@ -140,7 +154,9 @@ export function calcMonth(monthData, charges, achats, repartCfg, users, budgetOp
     // en mode solo, partSharedU inclut déjà les extras/budgetOps
     partU[uid] = partSharedU[uid]
       + chgPersonalU[uid]
+      + chgCustomU[uid]         // charges à répartition personnalisée
       + achPersonalU[uid]
+      + achCustomU[uid]         // achats à répartition personnalisée
       + (mode === 'solo' ? 0 : (useBudgetOps ? bopsU[uid] : extU[uid]));
   }
 
@@ -187,11 +203,11 @@ export function calcMonth(monthData, charges, achats, repartCfg, users, budgetOp
     revenus:      mkKPI(revU),
     primes:       mkKPI(priU),
     aides:        mkKPI(aidesU),
-    charges:      { total: totalSharedChg + _sum(chgPersonalU), byUser: Object.fromEntries(uids.map(uid => [uid, chgPersonalU[uid] + partSharedU[uid] * (totalSharedChg / (totalCommon || 1))])) },
+    charges:      { total: totalSharedChg + _sum(chgPersonalU) + _sum(chgCustomU), byUser: Object.fromEntries(uids.map(uid => [uid, chgPersonalU[uid] + chgCustomU[uid] + partSharedU[uid] * (totalSharedChg / (totalCommon || 1))])) },
     chargesPerso: mkKPI(chgPersoU),
     courses:      mkKPI(crsU),
     extras:       mkKPI(extU),
-    achats:       { total: totalSharedAch + _sum(achPersonalU), byUser: Object.fromEntries(uids.map(uid => [uid, achPersonalU[uid]])) },
+    achats:       { total: totalSharedAch + _sum(achPersonalU) + _sum(achCustomU), byUser: Object.fromEntries(uids.map(uid => [uid, achPersonalU[uid] + achCustomU[uid]])) },
     imprevus:     mkKPI(impU),
     depenses:     mkKPI(depU),
     part:         mkKPI(partU),
