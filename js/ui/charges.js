@@ -955,7 +955,7 @@ async function _showAddBudgetOpModal({ catId, catLabel }, users, year, month, on
   const daysInMonth = new Date(year, month, 0).getDate();
   const todayDay    = new Date().getDate();
   const userSelect  = users.length > 1
-    ? `<div class="form-group" style="margin-bottom:10px;"><label class="form-label">Personne</label><select class="form-input" id="bop-user"><option value="">— Sans attribution —</option><option value="tous">👥 Tous (diviser en parts égales)</option>${users.map(u=>`<option value="${u.id}">${escHtml(u.name)}</option>`).join('')}</select></div>`
+    ? `<div class="form-group" style="margin-bottom:10px;"><label class="form-label">Personne</label><select class="form-input" id="bop-user"><option value="">— Sans attribution —</option><option value="shared">🤝 Partagé (tous)</option>${users.map(u=>`<option value="${u.id}">${escHtml(u.name)}</option>`).join('')}</select></div>`
     : '';
   const remaining0  = catBudget > 0 ? Math.max(0, catBudget - catSpent) : null;
   const budgetInfo  = catBudget > 0
@@ -990,7 +990,7 @@ async function _showAddBudgetOpModal({ catId, catLabel }, users, year, month, on
     const cappedAmount = hasOverflow ? remaining : amount;
     const overflowAmt  = hasOverflow ? +(amount - remaining).toFixed(2) : 0;
 
-    if (userVal === 'tous' && users.length > 1) {
+    if (userVal === 'shared' && users.length > 1) {
       if (cappedAmount > 0) {
         const share = cappedAmount / users.length;
         for (const u of users) await saveBudgetOp({ category: catId, year, month, day, label, amount: share, userId: u.id });
@@ -1005,7 +1005,7 @@ async function _showAddBudgetOpModal({ catId, catLabel }, users, year, month, on
         amount: overflowAmt,
         category: 'craquage',
         craquage_source: 'pending',
-        qui: userVal === 'tous' ? 'shared' : (userVal || 'shared'),
+        qui: userVal === 'shared' ? 'shared' : (userVal || 'shared'),
         createdAt: new Date().toISOString(),
       });
       closeModal();
