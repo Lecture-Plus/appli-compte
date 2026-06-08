@@ -730,7 +730,7 @@ async function exportPDF(year, month, users, s) {
     let scoreVal=0, scoreColor='#EF4444', scoreLabel='À améliorer';
     if (refR) {
       const tx=refR.txEpargne?.total??0, thr=Number(s?.epargneThreshold)||100;
-      const pts=(tx>=0.15?40:tx>=0.05?25:tx>0?10:0)+(refR.solde.total>=thr?20:refR.solde.total>=0?10:0);
+      const pts=(tx>=0.35?40:tx>=0.05?25:tx>0?10:0)+(refR.solde.total>=thr?20:refR.solde.total>=0?10:0);
       scoreVal=Math.min(100,pts+20);
       scoreColor=scoreVal>=75?'#10B981':scoreVal>=50?'#F59E0B':'#EF4444';
       scoreLabel=scoreVal>=75?'Excellent':scoreVal>=50?'Satisfaisant':'À améliorer';
@@ -753,13 +753,13 @@ async function exportPDF(year, month, users, s) {
       sparkSVG=`<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="sg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#6C63FF" stop-opacity=".25"/><stop offset="100%" stop-color="#6C63FF" stop-opacity=".02"/></linearGradient></defs><path d="${area}" fill="url(#sg)"/><polyline points="${pts.join(' ')}" fill="none" stroke="#6C63FF" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>${sparkData.map((v,i)=>v!==null?`<circle cx="${toX(i).toFixed(1)}" cy="${toY(v).toFixed(1)}" r="3" fill="#6C63FF"/>`:'').filter(Boolean).join('')}</svg>`;
       const txData=allResults.map(r=>r?.txEpargne?.total??null), txNN=txData.filter(v=>v!==null);
       if (txNN.length>1) {
-        const tMin=Math.min(...txNN,0), tMax=Math.max(...txNN,0.2);
+        const tMin=Math.min(...txNN,0), tMax=Math.max(...txNN,0.4);
         const tyY=v=>H-pad-((v-tMin)/(tMax-tMin||0.01))*(H-2*pad);
         const tpts=txData.map((v,i)=>v!==null?`${toX(i).toFixed(1)},${tyY(v).toFixed(1)}`:null).filter(Boolean);
         const tfi=txData.findIndex(v=>v!==null), tli=txData.map((v,i)=>v!==null?i:-1).filter(i=>i>=0).pop();
         const tzerY=tyY(0).toFixed(1), tarea=`M${toX(tfi).toFixed(1)},${tzerY} `+tpts.map((p,i)=>(i===0?'L':'')+p).join(' ')+` L${toX(tli).toFixed(1)},${tzerY} Z`;
-        const obj10Y=tyY(0.10).toFixed(1);
-        txSparkSVG=`<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="tg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#10B981" stop-opacity=".25"/><stop offset="100%" stop-color="#10B981" stop-opacity=".02"/></linearGradient></defs><line x1="${pad}" y1="${obj10Y}" x2="${(W-pad).toFixed(1)}" y2="${obj10Y}" stroke="#F59E0B" stroke-width="1" stroke-dasharray="4,3"/><path d="${tarea}" fill="url(#tg)"/><polyline points="${tpts.join(' ')}" fill="none" stroke="#10B981" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>${txData.map((v,i)=>v!==null?`<circle cx="${toX(i).toFixed(1)}" cy="${tyY(v).toFixed(1)}" r="3" fill="${v>=0.1?'#10B981':'#F59E0B'}"/>`:'').filter(Boolean).join('')}</svg>`;
+        const obj35Y=tyY(0.35).toFixed(1);
+        txSparkSVG=`<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="tg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#10B981" stop-opacity=".25"/><stop offset="100%" stop-color="#10B981" stop-opacity=".02"/></linearGradient></defs><line x1="${pad}" y1="${obj35Y}" x2="${(W-pad).toFixed(1)}" y2="${obj35Y}" stroke="#F59E0B" stroke-width="1" stroke-dasharray="4,3"/><path d="${tarea}" fill="url(#tg)"/><polyline points="${tpts.join(' ')}" fill="none" stroke="#10B981" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>${txData.map((v,i)=>v!==null?`<circle cx="${toX(i).toFixed(1)}" cy="${tyY(v).toFixed(1)}" r="3" fill="${v>=0.35?'#10B981':'#F59E0B'}"/>`:'').filter(Boolean).join('')}</svg>`;
       }
     }
 
@@ -774,7 +774,7 @@ async function exportPDF(year, month, users, s) {
     const chargesRows=Object.values(chargesByCat).sort((a,b)=>b.total-a.total).map((c,i)=>{ const bg=i%2?'background:#F8FAFC;':''; const info=getCategoryInfo(c.label); const monthly=months.length>1?(c.total/months.length):c.total; return `<tr style="${bg}"><td>${info.emoji} ${esc(info.name||c.label)}</td><td style="text-align:right;color:#64748B;">${fmt(monthly)}</td><td style="text-align:right;font-weight:700;color:#4F46E5;">${fmt(c.total)}</td></tr>`; }).join('');
 
     // Objectif épargne
-    const epObjectif=Number(s?.epargneObjectif)||0, epTxObjectif=Number(s?.epargneRate)||0.10;
+    const epObjectif=Number(s?.epargneObjectif)||0, epTxObjectif=Number(s?.epargneRate)||0.35;
     const epActualTotal=yearKPI?.solde?.total??0, epActualTx=yearKPI?.txEpargne?.total??0;
     const epProgress=epObjectif>0?Math.min(100,Math.round((epActualTotal/epObjectif)*100)):0;
     const epProgressBar=epObjectif>0?`<div style="background:#E2E8F0;border-radius:8px;overflow:hidden;height:12px;margin:8px 0;"><div style="height:12px;width:${epProgress}%;background:linear-gradient(90deg,#10B981,#34D399);border-radius:8px;min-width:4px;"></div></div><div style="font-size:9px;color:#64748B;">${epProgress}% de l'objectif annuel de ${fmt(epObjectif)}</div>`:'';
@@ -910,7 +910,7 @@ ${yearKPI ? `
   <div class="kc kr"><span class="kc-ico">💰</span><div class="kc-lbl">Revenus nets</div><div class="kc-val">${fmt(yearKPI.revenus.total+(yearKPI.aides?.total??0))}</div><div class="kc-sub">Primes : ${fmt(yearKPI.primes.total)}</div></div>
   <div class="kc kd"><span class="kc-ico">💸</span><div class="kc-lbl">Dépenses</div><div class="kc-val">${fmt(yearKPI.depenses.total)}</div><div class="kc-sub">Charges : ${fmt(yearKPI.charges.total)}</div></div>
   <div class="kc ks" style="--bg:${Number(yearKPI.solde.total)>=0?'#ECFDF5':'#FEF2F2'};--fc:${clr(yearKPI.solde.total)};"><span class="kc-ico">⚖️</span><div class="kc-lbl">Solde cumulé</div><div class="kc-val">${fmt(yearKPI.solde.total)}</div><div class="kc-sub">${Number(yearKPI.solde.total)>=0?'Positif ✓':'Négatif !'}</div></div>
-  <div class="kc ke"><span class="kc-ico">📈</span><div class="kc-lbl">Taux d'épargne</div><div class="kc-val">${fmtPct(yearKPI.txEpargne.total)}</div><div class="kc-sub">${yearKPI.txEpargne.total>=0.15?'Excellent ✓':yearKPI.txEpargne.total>=0.1?'Bon ✓':'Objectif : 10 %'}</div></div>
+  <div class="kc ke"><span class="kc-ico">📈</span><div class="kc-lbl">Taux d'épargne</div><div class="kc-val">${fmtPct(yearKPI.txEpargne.total)}</div><div class="kc-sub">${yearKPI.txEpargne.total>=0.15?'Excellent ✓':yearKPI.txEpargne.total>=0.35?'Bon ✓':'Objectif : 35 %'}</div></div>
 </div>
 <div class="ss-row">
   <div class="score-box">
@@ -926,7 +926,7 @@ ${yearKPI ? `
 ${txSparkSVG ? `<div class="st">📉 Évolution du taux d'épargne</div>
 <div class="tx-box"><h4>Taux d'épargne — ${periodLabel}</h4>
   <div class="tx-row"><div><div class="tx-val" style="color:${yearKPI.txEpargne.total>=0.1?'#10B981':'#F59E0B'};">${fmtPct(yearKPI.txEpargne.total)}</div><div style="font-size:9px;color:#64748B;margin-top:2px;">Moyenne période</div></div>${txSparkSVG}</div>
-  <div class="tx-leg"><span style="display:inline-flex;align-items:center;gap:4px;margin-right:12px;"><span style="display:inline-block;width:16px;height:1.5px;background:#F59E0B;border-radius:2px;margin-right:4px;"></span>Objectif 10 %</span><span style="display:inline-flex;align-items:center;gap:4px;"><span style="display:inline-block;width:16px;height:2.5px;background:#10B981;border-radius:2px;margin-right:4px;"></span>Taux réel</span></div>
+  <div class="tx-leg"><span style="display:inline-flex;align-items:center;gap:4px;margin-right:12px;"><span style="display:inline-block;width:16px;height:1.5px;background:#F59E0B;border-radius:2px;margin-right:4px;"></span>Objectif 35 %</span><span style="display:inline-flex;align-items:center;gap:4px;"><span style="display:inline-block;width:16px;height:2.5px;background:#10B981;border-radius:2px;margin-right:4px;"></span>Taux réel</span></div>
 </div>` : ''}
 ${(epObjectif > 0 || epTxObjectif > 0) ? `<div class="st">🎯 Objectifs &amp; progression</div>
 <div class="obj-box"><h4>Objectifs épargne ${year}</h4>
