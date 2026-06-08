@@ -39,6 +39,9 @@ export async function render(container) {
       <button class="btn btn-outline btn-sm" id="btn-export-csv">📥 CSV</button>
     </div>
 
+    <!-- Auto-insights -->
+    <div id="insights-panel" style="margin-bottom:12px;"></div>
+
     <!-- KPIs annuels -->
     <div id="kpi-annuel" class="kpi-grid" style="margin-bottom:12px;">
       <div class="loading"><div class="spinner"></div></div>
@@ -250,6 +253,7 @@ async function loadAndRender(container, year, month, users, s) {
   await renderProjectionEpargne(container, year, curYear, curMonth);
   await renderMonthCompare(container, year, month > 0 ? month : curMonth, users, s, allChargesRaw, allAchats, allRepartitions, monthMap);
   renderScoreBudgetaire(container, singleMonth ? results[month - 1] : results[curMonth - 1], s);
+  renderInsights(container, results, singleMonth ? month : curMonth, year, s);
 }
 
 function renderKPIAnnuel(container, kpi, monthLabel = null) {
@@ -1067,5 +1071,64 @@ function chartOptions({ stacked = false } = {}) {
       y: { stacked, grid: { color: gridColor }, ticks: { color: textColor, font: { size: 10 }, callback: v => eur(v).replace(/\s€/, '') + '€' } },
     },
   };
+}
+
+// ════════════════════════════════════════════════════
+// AUTO-INSIGHTS
+// ════════════════════════════════════════════════════
+function renderInsights(container, results, curMonth, year, s) {
+  const panel = container.querySelector('#insights-panel');
+  if (!panel) return;
+  const validMonths = results.filter(r => r && r.revenus.total > 0);
+  if (!validMonths.length) { panel.innerHTML = ''; return; }
+
+  const insights = [];
+
+  // 1. Dépenses vs moyenne des mois précédents
+  const curResult = results[curMonth - 1];
+  if (curResult && validMonths.length >= 2) {
+    const past = validMonths.filter(r => r !== curResult);
+    if (past.length) {
+      const avgDep  = past.reduce((acc, r) => acc + r.depenses.total, 0) / past.length;
+      const curDep  = curResult.depenses.total;
+      const diffPct = avgDep > 0 ? Math.round((curDep - avgDep) / avgDep * 100) : 0;
+      if (Math.abs(diffPct) >= 8) {
+        const better = curDep < avgDep;
+        const mLabel = ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'][curMonth - 1];
+        insights.push({ type: better ? 'positive' : 'negative', icon: better ? '📉' : '📈',
+          text: `Dépenses de ${mLabel}\u202f: <strong>${better ? '-' : '+'}${Math.abs(diffPct)}%</strong> par rapport à la moyenne des mois précédents.` });
+      }
+    }
+  }
+
+  // 2. Taux d'épargne moyen
+  const avgTx = validMonths.reduce((acc, r) => acc + (r.txEpargne?.total ?? 0), 0) / validMonths.length;
+  if (avgTx < 0.05) {
+    insights.push({ type: 'warning', icon: '⚠️',
+      text: `Taux d'épargne moyen\u202f: <strong>${Math.round(avgTx * 100)}%</strong>. Essayez de viser au moins <strong>10%</strong>.` });
+  } else if (avgTx >= 0.15) {
+    insights.push({ type: 'positive', icon: '🎯',
+      text: `Excellent taux d'épargne moyen\u202f: <strong>${Math.round(avgTx * 100)}%</strong>. Continuez ainsi&nbsp;!` });
+  }
+
+  // 3. Budget courses dépassé ce mois
+  const cibles = s.budgetCibles || {};
+  const budgC  = Number(cibles.courses) || 0;
+  if (budgC > 0 && curResult) {
+    const curC = curResult.courses.total;
+    if (curC > budgC * 1.1) {
+      insights.push({ type: 'negative', icon: '🛒',
+        text: `Courses ce mois\u202f: <strong>${eur(curC)}</strong> — dépasse le budget de <strong>${Math.round((curC / budgC - 1) * 100)}%</strong>.` });
+    }
+  }
+
+  if (!insights.length) { panel.innerHTML = ''; return; }
+
+  panel.innerHTML = insights.map(i =>
+    `<div class="insight-card ${i.type}" style="margin-bottom:8px;">
+       <span class="insight-icon">${i.icon}</span>
+       <span class="insight-text">${i.text}</span>
+     </div>`
+  ).join('');
 }
 

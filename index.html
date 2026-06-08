@@ -8,8 +8,8 @@
   <meta http-equiv="Expires" content="0">
 
   <!-- PWA -->
-  <meta name="theme-color" content="#6C63FF" media="(prefers-color-scheme: light)">
-  <meta name="theme-color" content="#6C63FF" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#7C5CFC" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#7C5CFC" media="(prefers-color-scheme: dark)">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -45,39 +45,20 @@
       <span class="nav-badge hidden" id="badge-saisie"></span>
     </button>
 
-    <button class="nav-item" data-page="charges" aria-label="Charges et achats">
+    <button class="nav-item" data-page="argent" aria-label="Argent">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/>
-        <rect x="9" y="3" width="6" height="4" rx="2"/>
-        <line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/>
+        <rect x="1" y="4" width="22" height="16" rx="2" ry="2"/>
+        <line x1="1" y1="10" x2="23" y2="10"/>
       </svg>
-      <span>Charges</span>
+      <span>Argent</span>
     </button>
 
-    <button class="nav-item" data-page="savings" aria-label="Épargne">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M12 2C8 2 4 5 4 9c0 3 1.5 5 3 6.5V18a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-2.5C18.5 14 20 12 20 9c0-4-4-7-8-7z"/>
-        <line x1="12" y1="6" x2="12" y2="12"/>
-        <line x1="9" y1="9" x2="15" y2="9"/>
-        <line x1="9" y1="20" x2="15" y2="20"/>
-      </svg>
-      <span>Épargne</span>
-    </button>
-
-    <button class="nav-item" data-page="stats" aria-label="Statistiques">
+    <button class="nav-item" data-page="stats" aria-label="Analyse">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/>
         <line x1="6"  y1="20" x2="6"  y2="14"/>
       </svg>
-      <span>Stats</span>
-    </button>
-
-    <button class="nav-item" data-page="settings" aria-label="Réglages">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <circle cx="12" cy="12" r="3"/>
-        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.65 1.65 0 0 0 15 19.4a1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
-      </svg>
-      <span>Réglages</span>
+      <span>Analyse</span>
     </button>
 
     </div><!-- /.nav-items -->
@@ -99,6 +80,12 @@
             <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
           </svg>
           <span class="notif-badge hidden" id="notif-dot"></span>
+        </button>
+        <button id="btn-settings" class="btn-icon" aria-label="Réglages" title="Réglages">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.65 1.65 0 0 0 15 19.4a1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+          </svg>
         </button>
       </div>
     </header>

@@ -164,6 +164,13 @@ function buildHTML(s, users, archived, N) {
     <!-- Section : Archivage (masqué) -->
     <!-- <div class="card" ..>Archives</div> -->
 
+    <!-- Toggle options avancées -->
+    <button id="btn-toggle-advanced" class="btn btn-outline btn-full" style="margin-bottom:12px;font-size:0.8rem;">
+      ⚙️ Options avancées (Drive, Import/Export, Reset)
+    </button>
+
+    <div id="adv-section" style="display:none;">
+
     <!-- Section : Sync Google Drive -->
     <div class="card" style="margin-bottom:12px;">
       <div class="card-header">
@@ -229,6 +236,8 @@ function buildHTML(s, users, archived, N) {
       <button class="btn btn-danger btn-full" id="btn-reset">Effacer toutes les données…</button>
     </div>
 
+    </div><!-- /adv-section -->
+
     <div style="text-align:center;color:var(--text-3);font-size:0.75rem;margin-bottom:24px;">
       Budget Foyer · Données stockées localement sur cet appareil
     </div>
@@ -249,6 +258,16 @@ function buildUserRow(u) {
 }
 
 function bindEvents(container, s, users, archived, N) {
+  // ── Toggle options avancées ──
+  container.querySelector('#btn-toggle-advanced')?.addEventListener('click', () => {
+    const sec = container.querySelector('#adv-section');
+    const btn = container.querySelector('#btn-toggle-advanced');
+    if (!sec || !btn) return;
+    const open = sec.style.display !== 'none';
+    sec.style.display = open ? 'none' : '';
+    btn.textContent   = open ? '⚙️ Options avancées (Drive, Import/Export, Reset)' : '🔼 Masquer les options avancées';
+  });
+
   // ── Ajouter un utilisateur ──
   container.querySelector('#btn-add-user')?.addEventListener('click', () => {
     showUserModal(null, () => render(container));

@@ -128,164 +128,184 @@ async function _renderResume(container, s, users) {
     : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>`;
   const badgeText  = { done: 'Complet', partial: 'En cours', empty: 'Non rempli' }[status];
 
-  // ── KPI sous-texte par utilisateur ──
-  const byUserSub = (kpiField) => users.length <= 1 ? '' :
-    users.map(u => `${escHtml(u.name)}: ${eur(kpiField.byUser?.[u.id] ?? 0)}`).join('<br>');
-
   const soldeColor = kpi.solde.total >= 0 ? 'var(--success)' : 'var(--danger)';
   const txColor    = kpi.txEpargne.total >= 0.10 ? 'var(--success)' : kpi.txEpargne.total >= 0 ? 'var(--warning)' : 'var(--danger)';
 
+  // ── Score budgétaire (mini ring) ──
+  const cibles    = s.budgetCibles || {};
+  const threshold = Number(s.epargneThreshold) || 100;
+  const _tx       = kpi.txEpargne?.total ?? 0;
+  const _txPts    = _tx >= 0.15 ? 40 : _tx >= 0.05 ? 25 : _tx > 0 ? 10 : 0;
+  const _soldePts = kpi.solde.total >= threshold ? 20 : kpi.solde.total >= 0 ? 10 : 0;
+  const _budgC    = Number(cibles.courses) || 0;
+  const _cPts     = _budgC > 0 ? (_budgC >= kpi.courses.total ? 20 : Math.max(0, 20 - Math.round((kpi.courses.total - _budgC) / _budgC * 20))) : 10;
+  const _budgE    = Number(cibles.extras)  || 0;
+  const _ePts     = _budgE > 0 ? (_budgE >= kpi.extras.total  ? 20 : Math.max(0, 20 - Math.round((kpi.extras.total  - _budgE) / _budgE * 20))) : 10;
+  const score     = _txPts + _soldePts + _cPts + _ePts;
+  const scoreHex  = score >= 75 ? '#00D4A0' : score >= 50 ? '#FFB020' : '#FF5E57';
+  const sR = 22, sCirc = 2 * Math.PI * sR;
+  const sOffset   = sCirc - (score / 100) * sCirc;
+
   const el = container.querySelector('#dash-content');
   el.innerHTML = `
-    <!-- ── HERO : Solde du mois ── -->
+    <!-- ── HERO compact + score ring ── -->
     <div class="hero-card" style="margin-bottom:12px;">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
-        <div>
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;">
+        <div style="flex:1;min-width:0;">
           <div class="hero-label">Solde de ${nomMois(month)} ${year}</div>
           <div class="hero-amount" style="color:${soldeColor};">${eur(kpi.solde.total)}</div>
-          <div class="hero-meta" style="color:${txColor};">Taux d'épargne : ${pct(kpi.txEpargne.total, 0)}</div>
-          ${users.length > 1 ? `<div style="font-size:0.7rem;color:var(--text-3);margin-top:3px;">${users.map(u => `${escHtml(u.name)}: ${eur(kpi.solde.byUser?.[u.id] ?? 0)}`).join(' · ')}</div>` : ''}
+          <div class="hero-meta">
+            <span>${eur(kpi.revenus.total + (kpi.aides?.total ?? 0))} revenus</span>
+            <span style="color:var(--text-3);"> · </span>
+            <span style="color:var(--danger);">${eur(kpi.depenses.total)} dépensés</span>
+          </div>
+          ${users.length > 1 ? `<div style="font-size:0.67rem;color:var(--text-3);margin-top:3px;">${users.map(u => `${escHtml(u.name)}: ${eur(kpi.solde.byUser?.[u.id] ?? 0)}`).join(' · ')}</div>` : ''}
         </div>
-        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;flex-shrink:0;">
-          <span class="completeness-badge ${badgeClass}">${badgeIcon} ${badgeText}</span>
-          <button class="btn btn-sm btn-primary" id="btn-go-saisie">✏️ Saisir</button>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:2px;flex-shrink:0;">
+          <svg width="58" height="58" viewBox="0 0 56 56" style="overflow:visible;">
+            <circle cx="28" cy="28" r="${sR}" stroke-width="5" fill="none" stroke="var(--bg-2)"/>
+            <circle cx="28" cy="28" r="${sR}" stroke-width="5" fill="none"
+              stroke="${scoreHex}" stroke-dasharray="${sCirc.toFixed(2)}" stroke-dashoffset="${sCirc.toFixed(2)}"
+              stroke-linecap="round" transform="rotate(-90 28 28)" id="mini-score-arc"/>
+            <text x="28" y="33" text-anchor="middle" fill="${scoreHex}"
+              style="font-family:Inter,sans-serif;font-size:13px;font-weight:900;">${score}</text>
+          </svg>
+          <div style="font-size:0.55rem;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:0.06em;">Score</div>
         </div>
       </div>
-      <div class="hero-divider"></div>
-      <div class="hero-mini-grid">
-        <div class="hero-mini-item">
-          <div class="hero-mini-label">Revenus</div>
-          <div class="hero-mini-value">${eur(kpi.revenus.total + (kpi.aides?.total ?? 0))}</div>
-          ${kpi.primes.total > 0 ? `<div class="hero-mini-note">+${eur(kpi.primes.total)} primes</div>` : ''}
-        </div>
-        <div class="hero-mini-item">
-          <div class="hero-mini-label">Dépenses</div>
-          <div class="hero-mini-value" style="color:var(--danger);">${eur(kpi.depenses.total)}</div>
-          ${users.length > 1 ? `<div class="hero-mini-note">${users.map(u=>`${escHtml(u.name[0])}: ${eur(kpi.depenses.byUser?.[u.id]??0)}`).join(' ')}</div>` : ''}
-        </div>
-        <div class="hero-mini-item">
-          <div class="hero-mini-label">Charges</div>
-          <div class="hero-mini-value">${eur(kpi.charges.total)}</div>
-          ${kpi.imprevus.total > 0 ? `<div class="hero-mini-note" style="color:var(--danger);">+${eur(kpi.imprevus.total)}</div>` : ''}
-        </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-top:10px;gap:8px;">
+        <span class="completeness-badge ${badgeClass}">${badgeIcon} ${badgeText}</span>
+        ${kpi.primes.total > 0 ? `<span class="chip warning" style="font-size:0.62rem;">+${eur(kpi.primes.total)} primes</span>` : ''}
       </div>
     </div>
 
-    <!-- Économies disponibles -->
-    <div class="card" style="margin-bottom:12px;">
-      <div class="card-header">
-        <span class="card-title">💰 Économies disponibles</span>
-        <button class="btn btn-sm btn-secondary" id="btn-go-savings">Gérer</button>
-      </div>
-      <div style="font-size:1.4rem; font-weight:800; color:${savInfo.balance >= 0 ? 'var(--success)' : 'var(--danger)'};">
-        ${eur(savInfo.balance)}
-      </div>
-      <div style="font-size:0.75rem; color:var(--text-3); margin-top:4px;">
-        ${savInfo.latest
-          ? `Confirmé le ${new Date(savInfo.latest.confirmedAt).toLocaleDateString('fr-FR')}${savInfo.delta !== 0 ? ` · ${savInfo.delta >= 0 ? '+' : ''}${eur(savInfo.delta)} depuis la confirmation` : ''}`
-          : 'Aucune confirmation enregistrée'}
-      </div>
+    <!-- ── Actions rapides ── -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
+      <button class="btn btn-primary" id="btn-go-saisie">✏️ Saisir</button>
+      <button class="btn btn-secondary" id="btn-go-savings">💰 Épargne</button>
     </div>
 
-    ${goal > 0 ? `
-    <div class="card" style="margin-bottom:12px;">
-      <div class="card-header">
-        <span class="card-title">🎯 ${escHtml(s.savingsGoalLabel || 'Objectif')} ${goalYear}</span>
-        <span class="chip ${pBarColor === 'success' ? 'success' : pBarColor === 'danger' ? 'danger' : 'primary'}">${goalPct}%</span>
-      </div>
-      <div class="progress-wrap">
-        <div class="progress-labels">
-          <span>${eur(epargneYTD)} épargnés</span>
-          <span style="color:var(--text-3)">/ ${eur(goal)}</span>
-        </div>
-        <div class="progress-track">
-          <div class="progress-bar ${pBarColor}" style="width:${Math.min(100, goalPct)}%"></div>
-        </div>
-      </div>
-      <div id="projection-objectif" style="margin-top:8px;font-size:0.75rem;color:var(--text-3);">Calcul projection…</div>
-    </div>` : ''}
+    <!-- ── Détail collapsible ── -->
+    <button id="btn-toggle-detail" style="display:flex;align-items:center;justify-content:space-between;width:100%;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:11px 14px;margin-bottom:12px;font-size:0.82rem;font-weight:600;color:var(--text-2);cursor:pointer;transition:all var(--transition);">
+      <span id="detail-toggle-label">Voir le détail du mois</span>
+      <svg id="chevron-detail" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="16" height="16" style="transition:transform 0.22s;flex-shrink:0;"><path d="M6 9l6 6 6-6"/></svg>
+    </button>
 
-    <!-- Tableau détail -->
-    <div class="card" style="margin-bottom:12px;">
-      <div class="card-header"><span class="card-title">📋 Détail du mois</span></div>
-      <div style="overflow-x:auto;">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>Catégorie</th>
-              ${users.map(u => `<th style="text-align:right">
-                <span class="user-color-dot" style="background:${escHtml(u.color||'#6C63FF')};width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:3px;"></span>
-                ${escHtml(u.name)}
-              </th>`).join('')}
-              <th style="text-align:right">Total</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${buildRow('Revenus & Aides', kpi.revenus, users)}
-            ${kpi.aides?.total > 0 ? buildRow('Aides',       kpi.aides,    users) : ''}
-            ${buildRow('Primes',      kpi.primes,   users)}
-            ${buildRow('Charges',     kpi.charges,  users)}
-            ${buildRow('Courses',     kpi.courses,  users)}
-            ${buildRow('Loisirs',      kpi.extras,   users)}
-            ${buildRow('Achats exc.', kpi.achats,   users)}
-            ${buildRow('Imprévus',    kpi.imprevus, users)}
-          </tbody>
-          <tfoot>
-            <tr class="row-total">
-              <td>À payer</td>
-              ${users.map(u => `<td style="text-align:right">${eur(kpi.aPayer.byUser?.[u.id] ?? 0)}</td>`).join('')}
-              <td style="text-align:right">${eur(kpi.aPayer.total)}</td>
-            </tr>
-            <tr class="row-total">
-              <td>Solde net</td>
-              ${users.map(u => {
-                const v = kpi.solde.byUser?.[u.id] ?? 0;
-                return `<td style="text-align:right;color:${v >= 0 ? 'var(--success)' : 'var(--danger)'};">${eur(v)}</td>`;
-              }).join('')}
-              <td style="text-align:right;color:${kpi.solde.total >= 0 ? 'var(--success)' : 'var(--danger)'};">${eur(kpi.solde.total)}</td>
-            </tr>
-          </tfoot>
-        </table>
-      </div>
-    </div>
-
-    <!-- Bilan Épargne du mois -->
-    <div class="card" style="margin-bottom:12px;">
-      <div class="card-header" style="margin-bottom:8px;">
-        <span class="card-title">💚 Bilan épargne du mois</span>
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
-        <div style="background:var(--success-bg);border-radius:var(--radius-sm);padding:12px;">
-          <div style="font-size:0.65rem;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:0.03em;margin-bottom:2px;">Possible</div>
-          <div style="font-size:0.68rem;color:var(--text-3);margin-bottom:5px;">Sans imprévus ni achats</div>
-          <div style="font-size:1.15rem;font-weight:800;color:var(--success);">${eur(Math.max(0, kpi.ecoPossible.total))}</div>
-          <div style="font-size:0.68rem;color:var(--text-3);margin-top:2px;">${pct(kpi.txEcoPossible?.total ?? 0, 0)} du revenu</div>
-          ${users.length > 1 ? `<div style="font-size:0.7rem;color:var(--text-3);margin-top:4px;">${users.map(u => `${escHtml(u.name)}: ${eur(kpi.ecoPossible.byUser?.[u.id] ?? 0)}`).join(' · ')}</div>` : ''}
+    <div id="detail-section" style="display:none;">
+      <div class="card" style="margin-bottom:12px;">
+        <div class="card-header">
+          <span class="card-title">💰 Économies disponibles</span>
         </div>
-        <div style="background:${realSavings >= 0 ? 'var(--primary-bg)' : 'var(--danger-bg)'};border-radius:var(--radius-sm);padding:12px;">
-          <div style="font-size:0.65rem;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:0.03em;margin-bottom:2px;">Réelle mise de côté</div>
-          <div style="font-size:0.68rem;color:var(--text-3);margin-bottom:5px;">Opérations épargne ce mois</div>
-          <div style="font-size:1.15rem;font-weight:800;color:${realSavings >= 0 ? 'var(--primary)' : 'var(--danger)'}">${eur(realSavings)}</div>
-          <div style="font-size:0.68rem;color:var(--text-3);margin-top:2px;">${monthlySavOps.length} opération(s)</div>
-          ${users.length > 1 && savingsByUser.some(([,v]) => v > 0) ? `<div style="font-size:0.7rem;color:var(--text-3);margin-top:4px;">${savingsByUser.filter(([,v]) => v > 0).map(([name, v]) => `${escHtml(name)}: ${eur(v)}`).join(' · ')}</div>` : ''}
+        <div style="font-size:1.3rem;font-weight:800;color:${savInfo.balance >= 0 ? 'var(--success)' : 'var(--danger)'};">${eur(savInfo.balance)}</div>
+        <div style="font-size:0.73rem;color:var(--text-3);margin-top:4px;">
+          ${savInfo.latest
+            ? `Confirmé le ${new Date(savInfo.latest.confirmedAt).toLocaleDateString('fr-FR')}${savInfo.delta !== 0 ? ` · ${savInfo.delta >= 0 ? '+' : ''}${eur(savInfo.delta)} depuis` : ''}`
+            : 'Aucune confirmation enregistrée'}
         </div>
       </div>
-    </div>
 
-    ${md?.notes ? `
-    <div class="card" style="margin-bottom:12px;">
-      <div class="card-title" style="margin-bottom:6px;">📝 Notes</div>
-      <p style="font-size:0.875rem;color:var(--text-2);white-space:pre-wrap;">${escHtml(md.notes)}</p>
-    </div>` : ''}
+      ${goal > 0 ? `
+      <div class="card" style="margin-bottom:12px;">
+        <div class="card-header">
+          <span class="card-title">🎯 ${escHtml(s.savingsGoalLabel || 'Objectif')} ${goalYear}</span>
+          <span class="chip ${pBarColor === 'success' ? 'success' : pBarColor === 'danger' ? 'danger' : 'primary'}">${goalPct}%</span>
+        </div>
+        <div class="progress-wrap">
+          <div class="progress-labels">
+            <span>${eur(epargneYTD)} épargnés</span>
+            <span style="color:var(--text-3)">/ ${eur(goal)}</span>
+          </div>
+          <div class="progress-track"><div class="progress-bar ${pBarColor}" style="width:${Math.min(100, goalPct)}%"></div></div>
+        </div>
+        <div id="projection-objectif" style="margin-top:8px;font-size:0.75rem;color:var(--text-3);">Calcul…</div>
+      </div>` : ''}
 
-    <!-- Vue annuelle rapide -->
-    <div class="card" style="margin-bottom:12px;">
-      <div class="card-header"><span class="card-title">🗓️ Année ${year} en un coup d'œil</span></div>
-      <div id="annual-quick-view"><div class="loading" style="padding:10px;"><div class="spinner" style="width:20px;height:20px;"></div></div></div>
-    </div>
+      <div class="card" style="margin-bottom:12px;">
+        <div class="card-header"><span class="card-title">📋 Détail du mois</span></div>
+        <div style="overflow-x:auto;">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Catégorie</th>
+                ${users.map(u => `<th style="text-align:right"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${escHtml(u.color||'#7C5CFC')};margin-right:3px;"></span>${escHtml(u.name)}</th>`).join('')}
+                <th style="text-align:right">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${buildRow('Revenus & Aides', kpi.revenus, users)}
+              ${kpi.aides?.total > 0 ? buildRow('Aides',       kpi.aides,    users) : ''}
+              ${buildRow('Primes',      kpi.primes,   users)}
+              ${buildRow('Charges',     kpi.charges,  users)}
+              ${buildRow('Courses',     kpi.courses,  users)}
+              ${buildRow('Loisirs',     kpi.extras,   users)}
+              ${buildRow('Achats exc.', kpi.achats,   users)}
+              ${buildRow('Imprévus',    kpi.imprevus, users)}
+            </tbody>
+            <tfoot>
+              <tr class="row-total">
+                <td>À payer</td>
+                ${users.map(u => `<td style="text-align:right">${eur(kpi.aPayer.byUser?.[u.id] ?? 0)}</td>`).join('')}
+                <td style="text-align:right">${eur(kpi.aPayer.total)}</td>
+              </tr>
+              <tr class="row-total">
+                <td>Solde net</td>
+                ${users.map(u => { const v = kpi.solde.byUser?.[u.id] ?? 0; return `<td style="text-align:right;color:${v >= 0 ? 'var(--success)' : 'var(--danger)'};">${eur(v)}</td>`; }).join('')}
+                <td style="text-align:right;color:${kpi.solde.total >= 0 ? 'var(--success)' : 'var(--danger)'};">${eur(kpi.solde.total)}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:12px;">
+        <div class="card-header"><span class="card-title">💚 Bilan épargne</span></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+          <div style="background:var(--success-bg);border-radius:var(--radius-sm);padding:12px;">
+            <div style="font-size:0.62rem;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Possible</div>
+            <div style="font-size:1.1rem;font-weight:800;color:var(--success);">${eur(Math.max(0, kpi.ecoPossible.total))}</div>
+            <div style="font-size:0.68rem;color:var(--text-3);margin-top:2px;">${pct(kpi.txEcoPossible?.total ?? 0, 0)} du revenu</div>
+          </div>
+          <div style="background:${realSavings >= 0 ? 'var(--primary-bg)' : 'var(--danger-bg)'};border-radius:var(--radius-sm);padding:12px;">
+            <div style="font-size:0.62rem;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Mise de côté</div>
+            <div style="font-size:1.1rem;font-weight:800;color:${realSavings >= 0 ? 'var(--primary)' : 'var(--danger)'};">${eur(realSavings)}</div>
+            <div style="font-size:0.68rem;color:var(--text-3);margin-top:2px;">${monthlySavOps.length} opération(s)</div>
+          </div>
+        </div>
+      </div>
+
+      ${md?.notes ? `<div class="card" style="margin-bottom:12px;"><div class="card-title" style="margin-bottom:6px;">📝 Notes</div><p style="font-size:0.875rem;color:var(--text-2);white-space:pre-wrap;">${escHtml(md.notes)}</p></div>` : ''}
+
+      <div class="card" style="margin-bottom:12px;">
+        <div class="card-header"><span class="card-title">🗓️ ${year} en un coup d'œil</span></div>
+        <div id="annual-quick-view"><div class="loading" style="padding:10px;"><div class="spinner" style="width:20px;height:20px;"></div></div></div>
+      </div>
+    </div><!-- /detail-section -->
 
     <div style="height:16px;"></div>
   `;
+
+  // ── Animate score ring ──
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    const arc = el.querySelector('#mini-score-arc');
+    if (arc) arc.style.strokeDashoffset = sOffset.toFixed(2);
+  }));
+
+  // ── Toggle détail ──
+  let _detailOpen = false;
+  el.querySelector('#btn-toggle-detail')?.addEventListener('click', () => {
+    const det = el.querySelector('#detail-section');
+    const chv = el.querySelector('#chevron-detail');
+    const lbl = el.querySelector('#detail-toggle-label');
+    _detailOpen = !_detailOpen;
+    det.style.display = _detailOpen ? '' : 'none';
+    chv.style.transform = _detailOpen ? 'rotate(180deg)' : '';
+    lbl.textContent = _detailOpen ? 'Masquer le détail' : 'Voir le détail du mois';
+    if (_detailOpen) {
+      _renderAnnualQuickView(el.querySelector('#annual-quick-view'), year, users);
+      const projEl = el.querySelector('#projection-objectif');
+      if (projEl && goal > 0) _renderProjection(projEl, year, month, goal, savInfo.balance, users);
+    }
+  });
 
   el.querySelector('#btn-go-saisie')?.addEventListener('click', () => {
     _activeTab = 'saisie';
@@ -295,16 +315,8 @@ async function _renderResume(container, s, users) {
     container.querySelector('[data-tab="saisie"]')?.classList.add('active');
     _renderContent(container, s, users);
   });
-  el.querySelector('#btn-go-savings')?.addEventListener('click', () => navigateTo('savings'));
-
-  // ── Vue annuelle rapide (chargée en arrière-plan) ──
-  _renderAnnualQuickView(el.querySelector('#annual-quick-view'), year, users);
-
-  // ── Projection objectif épargne ──
-  const projEl = el.querySelector('#projection-objectif');
-  if (projEl && goal > 0) _renderProjection(projEl, year, month, goal, savInfo.balance, users);
+  el.querySelector('#btn-go-savings')?.addEventListener('click', () => navigateTo('argent', { tab: 'epargne' }));
 }
-
 // ══════════════════════════════════════════════════
 // ONGLET PRÉVISIONNEL
 // ══════════════════════════════════════════════════

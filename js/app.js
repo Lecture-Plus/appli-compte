@@ -18,20 +18,22 @@ export const State = {
 };
 
 // ── Mapping pages → modules ──
-const _V = '?v=13';
+const _V = '?v=14';
 const PAGES = {
   dashboard: () => import('./ui/dashboard.js' + _V),
-  charges:   () => import('./ui/charges.js'   + _V),
-  savings:   () => import('./ui/savings.js'   + _V),
+  argent:    () => import('./ui/argent.js'    + _V),
+  charges:   () => import('./ui/charges.js'   + _V),  // toujours accessible (utilisé par argent.js)
+  savings:   () => import('./ui/savings.js'   + _V),  // toujours accessible (utilisé par argent.js)
   stats:     () => import('./ui/stats.js'     + _V),
   settings:  () => import('./ui/settings.js'  + _V),
 };
 
 const PAGE_TITLES = {
   dashboard: 'Accueil',
+  argent:    'Argent',
   charges:   'Charges & Budgets',
   savings:   'Épargne',
-  stats:     'Statistiques',
+  stats:     'Analyse',
   settings:  'Réglages',
 };
 
@@ -258,6 +260,9 @@ async function init() {
 
   // Nav scroll hide/show
   _initNavScroll();
+
+  // Settings via icône header
+  document.getElementById('btn-settings')?.addEventListener('click', () => navigateTo('settings'));
 
   // Modal : fermeture
   document.getElementById('modal-close')?.addEventListener('click', closeModal);
