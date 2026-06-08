@@ -10,6 +10,7 @@ import { getMonthsByYear, getAllCharges,
          getAllSavingsOperations, getAllRepartitions,
          getAllAchats }                                     from '../db.js';
 import { calcMonth, calcYear, calcSavingsBalance }         from '../calculs.js';
+import { resolveLineAmount, resolveChargeAmount }           from '../db.js';
 import { eur, pct, nomMoisCourt, escHtml, showToast,
          downloadBlob, buildCSV, MOIS_COURT, MOIS,
          getCategoryInfo, CATEGORIES }                      from '../utils.js';
@@ -203,9 +204,13 @@ async function loadAndRender(container, year, month, users, s) {
       const ok = c.months === 'all' || (Array.isArray(c.months) && c.months.includes(m));
       if (!ok) continue;
       if (c.lines?.length) {
-        for (const l of c.lines) out.push({ ...c, amount: Number(l.amount)||0, qui: l.qui ?? 'shared', dayOfMonth: l.dayOfMonth ?? null });
+        for (const l of c.lines) {
+          const amt = resolveLineAmount(l, c, year, m);
+          out.push({ ...c, amount: amt, qui: l.qui ?? 'shared', dayOfMonth: l.dayOfMonth ?? null });
+        }
       } else {
-        out.push(c);
+        const amt = resolveChargeAmount(c, year, m);
+        out.push({ ...c, amount: amt });
       }
     }
     return out;
@@ -271,7 +276,7 @@ function renderKPIAnnuel(container, kpi, monthLabel = null) {
     <div class="kpi-card danger">
       <div class="kpi-label">Dépenses annuelles</div>
       <div class="kpi-value neutral">${eur(kpi.depenses.total)}</div>
-      <div class="kpi-sub">Imprévus: ${eur(kpi.imprevus.total)}</div>
+      <div class="kpi-sub">dont charges : ${eur(kpi.charges.total)} · imprévus : ${eur(kpi.imprevus.total)}</div>
     </div>
     <div class="kpi-card danger">
       <div class="kpi-label">Moy. mensuelle dépensés</div>
@@ -601,11 +606,12 @@ function renderTableMensuel(container, results) {
   if (!el) return;
 
   const rows = results.map((r, i) => {
-    if (!r) return `<tr><td>${MOIS_COURT[i]}</td><td colspan="4" style="text-align:center;color:var(--text-3);">—</td></tr>`;
+    if (!r) return `<tr><td>${MOIS_COURT[i]}</td><td colspan="5" style="text-align:center;color:var(--text-3);">—</td></tr>`;
     const s = r.solde.total;
     return `<tr>
       <td><strong>${MOIS_COURT[i]}</strong></td>
       <td style="text-align:right">${eur(r.revenus.total + r.primes.total)}</td>
+      <td style="text-align:right;color:var(--text-2);">${eur(r.charges.total)}</td>
       <td style="text-align:right">${eur(r.depenses.total)}</td>
       <td style="text-align:right;color:${s >= 0 ? 'var(--success)' : 'var(--danger)'};font-weight:700;">${eur(s)}</td>
       <td style="text-align:right">${pct(r.txEpargne.total, 0)}</td>
@@ -618,6 +624,7 @@ function renderTableMensuel(container, results) {
         <tr>
           <th>Mois</th>
           <th style="text-align:right">Revenus</th>
+          <th style="text-align:right">Charges</th>
           <th style="text-align:right">Dépenses</th>
           <th style="text-align:right">Solde</th>
           <th style="text-align:right">Tx ép.</th>

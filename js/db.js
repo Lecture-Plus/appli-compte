@@ -280,9 +280,45 @@ export function getUserMonthData(monthData, userId) {
 
 /* ══════════════════════════════════════════════════
    CHARGES RÉCURRENTES
-   Format : { id, label, category, amount, qui, months, active, perso, dayOfMonth, notes }
+   Format : { id, label, category, amount, qui, months, active, perso, dayOfMonth, notes,
+              lines: [{ amount, qui, dayOfMonth, priceHistory?: [{ amount, validFrom:'YYYY-MM' }] }] }
    qui : userId string | 'shared'
+   priceHistory (par ligne) : entrées triées par validFrom croissant.
+     Le montant applicable = dernière entrée avec validFrom <= 'YYYY-MM'.
+     Si aucune entrée, `line.amount` est utilisé (montant initial / de base).
 ══════════════════════════════════════════════════ */
+
+/**
+ * Retourne le montant applicable d'une charge pour un couple (year, month) donné,
+ * en tenant compte de l'historique des prix (priceHistory).
+ * Si aucun historique, retourne charge.amount.
+ */
+export function resolveChargeAmount(charge, year, month) {
+  const history = charge.priceHistory;
+  if (!history?.length) return Number(charge.amount) || 0;
+  const key = `${year}-${String(month).padStart(2, '0')}`;
+  // Trouver la dernière entrée dont validFrom <= key
+  let best = null;
+  for (const entry of history) {
+    if (entry.validFrom <= key) best = entry;
+  }
+  return best ? (Number(best.amount) || 0) : (Number(charge.amount) || 0);
+}
+
+/**
+ * Même logique pour une ligne de charge (lines[i]).
+ * priceHistory peut aussi exister au niveau de la ligne.
+ */
+export function resolveLineAmount(line, charge, year, month) {
+  const history = line.priceHistory || charge.priceHistory;
+  if (!history?.length) return Number(line.amount) || 0;
+  const key = `${year}-${String(month).padStart(2, '0')}`;
+  let best = null;
+  for (const entry of history) {
+    if (entry.validFrom <= key) best = entry;
+  }
+  return best ? (Number(best.amount) || 0) : (Number(line.amount) || 0);
+}
 
 export async function getAllCharges() {
   return _getAll('charges');
@@ -300,7 +336,7 @@ export async function deleteCharge(id) {
   await _delete('charges', id);
 }
 
-export async function getChargesForMonth(month) {
+export async function getChargesForMonth(month, year = null) {
   const all = await _getAll('charges');
   const result = [];
   for (const c of all) {
@@ -310,10 +346,12 @@ export async function getChargesForMonth(month) {
     // Expand lines (multi-prélèvement par charge)
     if (c.lines?.length) {
       for (const line of c.lines) {
-        result.push({ ...c, amount: Number(line.amount) || 0, qui: line.qui ?? 'shared', dayOfMonth: line.dayOfMonth ?? null });
+        const amt = year ? resolveLineAmount(line, c, year, month) : (Number(line.amount) || 0);
+        result.push({ ...c, amount: amt, qui: line.qui ?? 'shared', dayOfMonth: line.dayOfMonth ?? null });
       }
     } else {
-      result.push(c);
+      const amt = year ? resolveChargeAmount(c, year, month) : (Number(c.amount) || 0);
+      result.push({ ...c, amount: amt });
     }
   }
   return result;

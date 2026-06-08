@@ -34,7 +34,7 @@ export async function render(container) {
   [_md, _repCfg, _chargesCache, _achatsCache, _budgetOpsCache] = await Promise.all([
     getMonthlyData(year, month),
     getRepartition(year, month),
-    getChargesForMonth(month),
+    getChargesForMonth(month, year),
     getAchatsForMonth(year, month),
     getBudgetOpsForMonth(year, month),
   ]);

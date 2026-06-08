@@ -88,7 +88,7 @@ async function _renderResume(container, s, users) {
 
   const [md, charges, achats, repCfg, savInfo, allSavOps, allBudgetOps, allAchats] = await Promise.all([
     getMonthlyData(year, month),
-    getChargesForMonth(month),
+    getChargesForMonth(month, year),
     getAchatsForMonth(year, month),
     getRepartition(year, month),
     computeCurrentSavingsBalance(),
@@ -125,7 +125,7 @@ async function _renderResume(container, s, users) {
     const allMonths = await getMonthsByYear(year);
     const ytdValues = await Promise.all(allMonths.map(m =>
       Promise.all([
-        getChargesForMonth(m.month),
+        getChargesForMonth(m.month, year),
         getAchatsForMonth(year, m.month),
         getRepartition(year, m.month),
       ]).then(([c, a, rc]) => calcMonth(m, c, a, rc, users).solde.total)
@@ -397,7 +397,7 @@ async function _renderPrevisionnel(container, s, users) {
 
   const [md, charges, achats, budgetOps] = await Promise.all([
     getMonthlyData(year, month),
-    getChargesForMonth(month),
+    getChargesForMonth(month, year),
     getAchatsForMonth(year, month),
     getBudgetOpsForMonth(year, month),
   ]);

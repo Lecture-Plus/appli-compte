@@ -183,16 +183,89 @@ function buildChargeItem(c) {
   `;
 }
 
+// ── Formate un validFrom 'YYYY-MM' en libellé lisible ──
+function _fmtValidFrom(ym) {
+  const [y, m] = ym.split('-');
+  return `${MOIS[Number(m) - 1]} ${y}`;
+}
+
+// ── Rendu de la section historique d'une ligne ──
+function _renderHistorySection(el, history, onUpdate) {
+  el.innerHTML = '';
+  el.style.cssText = 'background:var(--surface-2,#F8FAFC);border-radius:8px;padding:8px 10px;margin-bottom:8px;border:1px solid var(--border,#E2E8F0);';
+
+  const title = document.createElement('div');
+  title.style.cssText = 'font-size:0.72rem;font-weight:700;color:var(--text-2,#64748B);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;';
+  title.textContent = '📅 Historique des tarifs';
+  el.appendChild(title);
+
+  if (history.length === 0) {
+    const empty = document.createElement('p');
+    empty.style.cssText = 'font-size:0.78rem;color:var(--text-3,#94A3B8);margin-bottom:6px;';
+    empty.textContent = 'Aucun historique. Montant de base appliqué à tous les mois.';
+    el.appendChild(empty);
+  } else {
+    const list = document.createElement('div');
+    list.style.marginBottom = '6px';
+    history.forEach((h, i) => {
+      const row = document.createElement('div');
+      row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:3px 0;border-bottom:1px solid var(--border,#E2E8F0);font-size:0.8rem;';
+      row.innerHTML = `
+        <span style="color:var(--text-2,#64748B);flex:1;">À partir de <strong>${_fmtValidFrom(h.validFrom)}</strong></span>
+        <span style="font-weight:700;">${eur(h.amount)}</span>
+        <button type="button" class="btn-text" style="color:var(--danger,#EF4444);font-size:0.75rem;padding:0 4px;" data-hidx="${i}">✕</button>
+      `;
+      row.querySelector('[data-hidx]').addEventListener('click', () => {
+        history.splice(i, 1);
+        onUpdate();
+      });
+      list.appendChild(row);
+    });
+    el.appendChild(list);
+  }
+
+  // Formulaire d'ajout
+  const addForm = document.createElement('div');
+  addForm.style.cssText = 'display:flex;gap:5px;align-items:center;margin-top:4px;flex-wrap:wrap;';
+  addForm.innerHTML = `
+    <input type="month" class="form-input hist-vf" style="flex:1;min-width:120px;font-size:0.8rem;padding:5px 8px;">
+    <div class="input-wrap" style="flex:1;min-width:80px;">
+      <input type="number" class="form-input input-euro hist-amt" min="0" step="0.01" placeholder="Montant" style="padding-right:22px;font-size:0.8rem;">
+      <span class="input-suffix">€</span>
+    </div>
+    <button type="button" class="btn btn-outline btn-sm hist-add-btn">+</button>
+  `;
+  addForm.querySelector('.hist-add-btn').addEventListener('click', () => {
+    const vf  = addForm.querySelector('.hist-vf').value;
+    const amt = Number(addForm.querySelector('.hist-amt').value) || 0;
+    if (!vf)  { showToast('Sélectionnez un mois de départ', 'error'); return; }
+    if (!amt) { showToast('Entrez un montant > 0', 'error'); return; }
+    history.push({ amount: amt, validFrom: vf });
+    history.sort((a, b) => a.validFrom < b.validFrom ? -1 : 1);
+    onUpdate();
+  });
+  el.appendChild(addForm);
+}
+
 // ── Rendu d'une ligne de prélèvement dans le modal ──
 function _renderLineRow(line, idx, container) {
+  const lineHistory = line.priceHistory ? [...line.priceHistory] : [];
+
   const quiOpts = `
     <option value="shared" ${!line.qui || line.qui === 'shared' ? 'selected' : ''}>🤝 Partagé</option>
     ${_users.map(u => `<option value="${u.id}" ${String(line.qui) === String(u.id) ? 'selected' : ''}>${escHtml(u.name)}</option>`).join('')}
   `;
+
+  // Wrapper (contient la ligne + la section historique)
+  const wrapper = document.createElement('div');
+  wrapper.className = 'charge-line-wrapper';
+  wrapper.style.marginBottom = '4px';
+
+  // Ligne
   const row = document.createElement('div');
   row.className = 'charge-line-row';
   row.dataset.idx = idx;
-  row.style.cssText = 'display:flex;align-items:center;gap:6px;margin-bottom:6px;';
+  row.style.cssText = 'display:flex;align-items:center;gap:6px;margin-bottom:4px;';
   row.innerHTML = `
     <div class="input-wrap" style="flex:1;min-width:70px;">
       <input type="number" class="form-input input-euro cl-amount" min="0" step="0.01" placeholder="0" value="${line.amount || ''}" style="padding-right:22px;">
@@ -203,14 +276,41 @@ function _renderLineRow(line, idx, container) {
       <input type="number" class="form-input cl-day" min="1" max="31" placeholder="Jour" value="${line.dayOfMonth || ''}" style="padding-right:22px;">
       <span class="input-suffix">j.</span>
     </div>
+    <button type="button" class="btn btn-outline btn-sm cl-hist" title="Historique des tarifs" style="flex-shrink:0;padding:4px 8px;">📅</button>
     <button type="button" class="btn btn-danger btn-sm cl-remove" style="flex-shrink:0;padding:4px 8px;" aria-label="Supprimer la ligne">✕</button>
   `;
-  container.appendChild(row);
-  row.querySelector('.cl-remove').addEventListener('click', () => {
-    const lines = container.querySelectorAll('.charge-line-row');
-    if (lines.length <= 1) { showToast('Au moins une ligne est requise', 'error'); return; }
-    row.remove();
+
+  // Section historique (masquée par défaut)
+  const histSection = document.createElement('div');
+  histSection.className = 'charge-line-history';
+  histSection.style.display = lineHistory.length > 0 ? '' : 'none';
+  _renderHistorySection(histSection, lineHistory, () => {
+    _renderHistorySection(histSection, lineHistory, () => {});
   });
+
+  // Réactiver le onUpdate correctement (closure circulaire évitée)
+  const refresh = () => _renderHistorySection(histSection, lineHistory, refresh);
+  _renderHistorySection(histSection, lineHistory, refresh);
+
+  // Toggle historique
+  row.querySelector('.cl-hist').addEventListener('click', () => {
+    const shown = histSection.style.display !== 'none';
+    histSection.style.display = shown ? 'none' : '';
+  });
+
+  // Supprimer ligne + section
+  row.querySelector('.cl-remove').addEventListener('click', () => {
+    const wrappers = container.querySelectorAll('.charge-line-wrapper');
+    if (wrappers.length <= 1) { showToast('Au moins une ligne est requise', 'error'); return; }
+    wrapper.remove();
+  });
+
+  // Stocker la référence à lineHistory sur le wrapper pour la récupérer au save
+  wrapper._lineHistory = lineHistory;
+
+  wrapper.appendChild(row);
+  wrapper.appendChild(histSection);
+  container.appendChild(wrapper);
 }
 
 function showChargeModal(charge, onSave) {
@@ -298,7 +398,7 @@ function showChargeModal(charge, onSave) {
   initLines.forEach((line, i) => _renderLineRow(line, i, linesContainer));
 
   document.getElementById('c-add-line')?.addEventListener('click', () => {
-    const idx = linesContainer.querySelectorAll('.charge-line-row').length;
+    const idx = linesContainer.querySelectorAll('.charge-line-wrapper').length;
     _renderLineRow({ amount: 0, qui: 'shared', dayOfMonth: null }, idx, linesContainer);
   });
 
@@ -323,14 +423,23 @@ function showChargeModal(charge, onSave) {
     if (!label) { showToast('Le libellé est requis', 'error'); return; }
 
     // Collecte des lignes
-    const lineRows = linesContainer.querySelectorAll('.charge-line-row');
+    const wrappers = [...linesContainer.querySelectorAll('.charge-line-wrapper')];
     const lines = [];
-    for (const row of lineRows) {
+    for (const wrapper of wrappers) {
+      const row = wrapper.querySelector('.charge-line-row');
       const amt = Number(row.querySelector('.cl-amount')?.value) || 0;
       const quiRaw = row.querySelector('.cl-qui')?.value;
       const qui = quiRaw === 'shared' ? 'shared' : Number(quiRaw);
       const day = Number(row.querySelector('.cl-day')?.value) || null;
-      lines.push({ amount: amt, qui, dayOfMonth: day });
+      const history = wrapper._lineHistory || [];
+      // Le montant courant = dernier dans l'historique (si existant) sinon le champ saisi
+      const effectiveAmt = history.length > 0 ? history[history.length - 1].amount : amt;
+      lines.push({
+        amount: effectiveAmt,
+        qui,
+        dayOfMonth: day,
+        ...(history.length ? { priceHistory: history } : {}),
+      });
     }
     if (!lines.length) { showToast('Ajoutez au moins une ligne', 'error'); return; }
 
