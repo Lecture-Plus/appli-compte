@@ -4,7 +4,8 @@
 
 import { getAllSavingsOperations, saveSavingsOperation,
          deleteSavingsOperation, getLatestSavingsConfirmed,
-         saveSavingsConfirmed, getAllSettings, setSetting }  from '../db.js';
+         saveSavingsConfirmed, getAllSettings, setSetting,
+         getActiveUsers }                                    from '../db.js';
 import { calcSavingsBalance }                                from '../calculs.js';
 import { eur, escHtml, showToast, openModal, closeModal,
          today, nomMois }                                    from '../utils.js';
@@ -14,12 +15,23 @@ export async function render(container) {
 }
 
 async function _renderPage(container) {
-  const allOps = await getAllSavingsOperations();
-  const latest = await getLatestSavingsConfirmed();
+  const [allOps, latest, users] = await Promise.all([
+    getAllSavingsOperations(),
+    getLatestSavingsConfirmed(),
+    getActiveUsers(),
+  ]);
   const { balance, base, delta } = calcSavingsBalance(latest, allOps);
 
   const { year, month } = today();
   const currentMonthConfirmed = latest && latest.year === year && latest.month === month;
+
+  // ── Solde par user : somme des opérations avec userId ──
+  const userBalances = users.map(u => {
+    const uOps = allOps.filter(op => String(op.userId) === String(u.id));
+    const bal  = uOps.reduce((s, op) => s + (Number(op.amount) || 0), 0);
+    return { user: u, balance: bal };
+  });
+  const hasUserData = userBalances.some(ub => ub.balance !== 0);
 
   // Tri : plus récent d'abord
   const sortedOps = [...allOps].sort((a, b) => {
@@ -28,7 +40,7 @@ async function _renderPage(container) {
     return (b.day || 0) - (a.day || 0);
   });
 
-  // Calcul solde courant avec running total pour affichage
+  // Running total for display
   let running = balance;
   const opsWithRunning = [...sortedOps].reverse().reduce((acc, op) => {
     const nb = { ...op, _running: running };
@@ -40,9 +52,9 @@ async function _renderPage(container) {
   const balanceClass = balance >= 0 ? 'positive' : 'negative';
 
   container.innerHTML = `
-    <!-- Solde actuel -->
+    <!-- Solde total -->
     <div class="kpi-card success" style="--kpi-color:var(--success); margin-bottom:12px; padding:20px 20px 16px;">
-      <div class="kpi-label">💰 Solde des économies estimé</div>
+      <div class="kpi-label">💰 Solde total des économies</div>
       <div class="kpi-value ${balanceClass}" style="font-size:2rem; margin:8px 0;">${eur(balance)}</div>
       ${latest
         ? `<div class="kpi-sub">
@@ -53,6 +65,18 @@ async function _renderPage(container) {
         : `<div class="kpi-sub" style="color:var(--warning);">⚠️ Aucune confirmation – solde basé sur les opérations uniquement</div>`
       }
     </div>
+
+    <!-- Soldes par user -->
+    ${users.length > 1 ? `
+    <div style="display:grid;grid-template-columns:${users.map(() => '1fr').join(' ')};gap:8px;margin-bottom:12px;">
+      ${userBalances.map(ub => `
+        <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:12px;text-align:center;">
+          <div style="width:10px;height:10px;border-radius:50%;background:${escHtml(ub.user.color||'#6C63FF')};display:inline-block;margin-bottom:4px;"></div>
+          <div style="font-size:0.72rem;font-weight:600;color:var(--text-3);">${escHtml(ub.user.name)}</div>
+          <div style="font-size:1.05rem;font-weight:800;color:${ub.balance >= 0 ? 'var(--success)' : 'var(--danger)'};">${eur(ub.balance)}</div>
+        </div>
+      `).join('')}
+    </div>` : ''}
 
     <!-- Rappel mensuel -->
     ${!currentMonthConfirmed ? `
@@ -94,7 +118,7 @@ async function _renderPage(container) {
            <div class="empty-state-title">Aucune opération</div>
            <div class="empty-state-text">Commencez par confirmer votre solde actuel.</div>
          </div>`
-      : `<div class="item-list">${opsWithRunning.map(op => buildOpItem(op)).join('')}</div>`
+      : `<div class="item-list">${opsWithRunning.map(op => buildOpItem(op, users)).join('')}</div>`
     }
 
     <div style="height:24px;"></div>
@@ -103,10 +127,9 @@ async function _renderPage(container) {
   // ── Événements ──
   container.querySelector('#btn-confirm')?.addEventListener('click', () => showConfirmModal(() => _renderPage(container)));
   container.querySelector('#btn-quick-confirm')?.addEventListener('click', () => showConfirmModal(() => _renderPage(container)));
-  container.querySelector('#btn-add-op')?.addEventListener('click', () => showOpModal('add', () => _renderPage(container)));
-  container.querySelector('#btn-withdraw-op')?.addEventListener('click', () => showOpModal('withdraw', () => _renderPage(container)));
+  container.querySelector('#btn-add-op')?.addEventListener('click', () => showOpModal('add', users, () => _renderPage(container)));
+  container.querySelector('#btn-withdraw-op')?.addEventListener('click', () => showOpModal('withdraw', users, () => _renderPage(container)));
 
-  // Supprimer une opération au clic
   container.querySelectorAll('.op-delete').forEach(btn => {
     btn.addEventListener('click', async (e) => {
       e.stopPropagation();
@@ -120,7 +143,7 @@ async function _renderPage(container) {
 }
 
 // ── Item d'opération ──
-function buildOpItem(op) {
+function buildOpItem(op, users = []) {
   const amount    = Number(op.amount) || 0;
   const isPos     = amount >= 0;
   const typeLabel = {
@@ -131,9 +154,10 @@ function buildOpItem(op) {
     confirm:         '✅ Confirmation',
   }[op.type] || '📌 Opération';
 
-  const dateStr = op.day
-    ? `${String(op.day).padStart(2,'0')}/${String(op.month).padStart(2,'0')}/${op.year}`
-    : `${nomMois(op.month)} ${op.year}`;
+  const dateStr = `${nomMois(op.month)} ${op.year}`;
+  const userLabel = op.userId
+    ? (users.find(u => String(u.id) === String(op.userId))?.name ?? `User ${op.userId}`)
+    : null;
 
   return `
     <div class="list-item" style="position:relative;">
@@ -142,7 +166,7 @@ function buildOpItem(op) {
       </div>
       <div class="list-item-body">
         <div class="list-item-title">${escHtml(op.label || typeLabel)}</div>
-        <div class="list-item-sub">${typeLabel} · ${dateStr}</div>
+        <div class="list-item-sub">${typeLabel} · ${dateStr}${userLabel ? ` · <span style="font-weight:600;">${escHtml(userLabel)}</span>` : ''}</div>
       </div>
       <div class="list-item-right">
         <div class="list-item-amount" style="color:${isPos ? 'var(--success)' : 'var(--danger)'};">
@@ -217,15 +241,41 @@ function showConfirmModal(onSave) {
 }
 
 // ── Modal : ajouter ou retirer une opération ──
-function showOpModal(type, onSave) {
+function showOpModal(type, users, onSave) {
   const isAdd    = type === 'add';
   const title    = isAdd ? '💰 Nouveau versement' : '🏧 Nouveau retrait';
   const { year, month } = today();
   const now      = new Date();
+  const N        = users.length;
+
+  // Pour craquage partagé (passé en paramètre) : total à distribuer
+  const sharedTotal = null; // pas de total pré-rempli en usage direct
+
+  const userSection = N > 1 ? `
+    <div class="form-group" style="margin-bottom:10px;">
+      <label class="form-label">Répartition par personne</label>
+      <p style="font-size:0.72rem;color:var(--text-3);margin-bottom:8px;">Laissez vide pour ne pas affecter un user précis</p>
+      <div style="display:flex;flex-direction:column;gap:6px;" id="op-user-rows">
+        ${users.map(u => `
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span style="width:10px;height:10px;border-radius:50%;background:${escHtml(u.color||'#6C63FF')};display:inline-block;flex-shrink:0;"></span>
+            <span style="font-size:0.82rem;font-weight:600;flex:1;">${escHtml(u.name)}</span>
+            <div class="input-wrap" style="width:110px;">
+              <input type="number" class="form-input input-euro op-user-amount" data-uid="${u.id}"
+                min="0" step="0.01" placeholder="0.00" style="padding-right:22px;">
+              <span class="input-suffix">€</span>
+            </div>
+            <button type="button" class="btn btn-outline btn-sm op-fill-rest" data-uid="${u.id}" style="white-space:nowrap;padding:6px 10px;font-size:0.75rem;">← Reste</button>
+          </div>
+        `).join('')}
+      </div>
+      <div id="op-user-total" style="text-align:right;font-size:0.78rem;color:var(--text-3);margin-top:6px;"></div>
+    </div>
+  ` : '';
 
   openModal(title, `
     <div class="form-group" style="margin-bottom:10px;">
-      <label class="form-label">Montant (€)</label>
+      <label class="form-label">Montant total (€)</label>
       <div class="input-wrap">
         <input type="number" class="form-input input-euro" id="op-amount"
           min="0" step="0.01" placeholder="0.00">
@@ -237,7 +287,7 @@ function showOpModal(type, onSave) {
       <input type="text" class="form-input" id="op-label"
         placeholder="${isAdd ? 'Ex: Virement Livret A, Salaire épargné…' : 'Ex: Achat voiture, Vacances…'}">
     </div>
-    <div class="form-grid-2">
+    <div class="form-grid-2" style="margin-bottom:10px;">
       <div class="form-group">
         <label class="form-label">Mois</label>
         <input type="number" class="form-input" id="op-month" min="1" max="12" value="${month}">
@@ -247,12 +297,43 @@ function showOpModal(type, onSave) {
         <input type="number" class="form-input" id="op-year" min="2020" max="2099" value="${year}">
       </div>
     </div>
+    ${userSection}
   `, `
     <button class="btn btn-outline" id="op-cancel">Annuler</button>
     <button class="btn ${isAdd ? 'btn-success' : 'btn-danger'}" id="op-save">
       ${isAdd ? '+ Ajouter' : '- Retirer'}
     </button>
   `);
+
+  // ── Logique fill-rest ──
+  if (N > 1) {
+    function updateUserTotal() {
+      const total = [...document.querySelectorAll('.op-user-amount')]
+        .reduce((s, inp) => s + (Number(inp.value) || 0), 0);
+      const mainAmt = Number(document.getElementById('op-amount')?.value) || 0;
+      const el = document.getElementById('op-user-total');
+      if (el) el.textContent = total > 0 ? `Alloué : ${eur(total)}${mainAmt > 0 ? ` / ${eur(mainAmt)}` : ''}` : '';
+    }
+
+    document.querySelectorAll('.op-user-amount').forEach(inp => {
+      inp.addEventListener('input', updateUserTotal);
+    });
+
+    document.getElementById('op-amount')?.addEventListener('input', updateUserTotal);
+
+    document.querySelectorAll('.op-fill-rest').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const uid  = btn.dataset.uid;
+        const mainAmt = Number(document.getElementById('op-amount')?.value) || 0;
+        const allocated = [...document.querySelectorAll('.op-user-amount')]
+          .filter(inp => inp.dataset.uid !== uid)
+          .reduce((s, inp) => s + (Number(inp.value) || 0), 0);
+        const rest = Math.max(0, Math.round((mainAmt - allocated) * 100) / 100);
+        const target = document.querySelector(`.op-user-amount[data-uid="${uid}"]`);
+        if (target) { target.value = rest; updateUserTotal(); }
+      });
+    });
+  }
 
   document.getElementById('op-cancel')?.addEventListener('click', closeModal);
 
@@ -263,15 +344,38 @@ function showOpModal(type, onSave) {
     const m     = Number(document.getElementById('op-month')?.value) || month;
     const y     = Number(document.getElementById('op-year')?.value) || year;
 
-    await saveSavingsOperation({
-      amount:  isAdd ? amount : -amount,
-      label,
-      type:    isAdd ? 'add' : 'withdraw',
-      year:    y,
-      month:   m,
-      day:     now.getDate(),
-      createdAt: now.toISOString(),
-    });
+    const userAmounts = N > 1
+      ? [...document.querySelectorAll('.op-user-amount')]
+          .map(inp => ({ uid: inp.dataset.uid, amt: Number(inp.value) || 0 }))
+          .filter(u => u.amt > 0)
+      : [];
+
+    if (userAmounts.length > 0) {
+      // Enregistrer une op par user
+      for (const { uid, amt } of userAmounts) {
+        await saveSavingsOperation({
+          amount:  isAdd ? amt : -amt,
+          label,
+          type:    isAdd ? 'add' : 'withdraw',
+          userId:  uid,
+          year:    y,
+          month:   m,
+          day:     now.getDate(),
+          createdAt: now.toISOString(),
+        });
+      }
+    } else {
+      // Op globale sans user
+      await saveSavingsOperation({
+        amount:  isAdd ? amount : -amount,
+        label,
+        type:    isAdd ? 'add' : 'withdraw',
+        year:    y,
+        month:   m,
+        day:     now.getDate(),
+        createdAt: now.toISOString(),
+      });
+    }
 
     closeModal();
     showToast(isAdd ? `+${eur(amount)} ajouté ✅` : `-${eur(amount)} retiré`, 'success');

@@ -114,6 +114,17 @@ async function _renderResume(container, s, users) {
   const goalPct   = goal > 0 ? Math.min(200, Math.round((epargneYTD / goal) * 100)) : 0;
   const pBarColor = progressColor(goalPct);
 
+  // ── Épargne réelle du mois (somme des opérations validées ce mois) ──
+  const monthlySavingsOps = allSavOps.filter(op =>
+    op.year === year && op.month === month &&
+    ['add', 'monthly_savings'].includes(op.type)
+  );
+  const realSavings = monthlySavingsOps.reduce((s, op) => s + (Number(op.amount) || 0), 0);
+  const monthlySavingsByUser = users.map(u => {
+    const uOps = monthlySavingsOps.filter(op => String(op.userId) === String(u.id));
+    return [u.name, uOps.reduce((s, op) => s + (Number(op.amount) || 0), 0)];
+  });
+
   const badgeClass = { done: 'done', partial: 'partial', empty: 'empty' }[status];
   const badgeIcon  = status === 'done'
     ? `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" width="12" height="12"><path d="M20 6L9 17l-5-5"/></svg>`
@@ -237,33 +248,26 @@ async function _renderResume(container, s, users) {
     <div class="card" style="margin-bottom:12px;">
       <div class="card-header" style="margin-bottom:8px;">
         <span class="card-title">💚 Bilan épargne du mois</span>
-        ${monthlySavOp
-          ? `<span class="chip success" style="font-size:0.68rem;padding:3px 8px;">✅ ${eur(monthlySavOp.amount)} mis de côté</span>`
-          : ''}
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
         <div style="background:var(--success-bg);border-radius:var(--radius-sm);padding:12px;">
-          <div style="font-size:0.65rem;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:0.03em;margin-bottom:3px;">Possible</div>
-          <div style="font-size:0.7rem;color:var(--text-3);margin-bottom:5px;">Sans imprévus ni achats</div>
-          <div style="font-size:1.25rem;font-weight:800;color:var(--success);">${eur(Math.max(0, kpi.ecoPossible.total))}</div>
+          <div style="font-size:0.65rem;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:0.03em;margin-bottom:2px;">Possible</div>
+          <div style="font-size:0.68rem;color:var(--text-3);margin-bottom:5px;">Sans imprévus ni achats</div>
+          <div style="font-size:1.15rem;font-weight:800;color:var(--success);">${eur(Math.max(0, kpi.ecoPossible.total))}</div>
+          <div style="font-size:0.68rem;color:var(--text-3);margin-top:2px;">${pct(kpi.txEcoPossible?.total ?? 0, 0)} du revenu</div>
           ${users.length > 1 ? `<div style="font-size:0.7rem;color:var(--text-3);margin-top:4px;">${users.map(u => `${escHtml(u.name)}: ${eur(kpi.ecoPossible.byUser?.[u.id] ?? 0)}`).join(' · ')}</div>` : ''}
         </div>
-        <div style="background:${kpi.solde.total >= 0 ? 'var(--success-bg)' : 'var(--danger-bg)'};border-radius:var(--radius-sm);padding:12px;">
-          <div style="font-size:0.65rem;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:0.03em;margin-bottom:3px;">Réelle estimée</div>
-          <div style="font-size:0.7rem;color:var(--text-3);margin-bottom:5px;">Tout inclus</div>
-          <div style="font-size:1.25rem;font-weight:800;color:${kpi.solde.total >= 0 ? 'var(--success)' : 'var(--danger)'};">${eur(kpi.solde.total)}</div>
-          ${users.length > 1 ? `<div style="font-size:0.7rem;color:var(--text-3);margin-top:4px;">${users.map(u => `${escHtml(u.name)}: ${eur(kpi.solde.byUser?.[u.id] ?? 0)}`).join(' · ')}</div>` : ''}
+        <div style="background:${realSavings >= 0 ? 'var(--primary-bg)' : 'var(--danger-bg)'};border-radius:var(--radius-sm);padding:12px;">
+          <div style="font-size:0.65rem;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:0.03em;margin-bottom:2px;">Réelle mise de côté</div>
+          <div style="font-size:0.68rem;color:var(--text-3);margin-bottom:5px;">Opérations validées</div>
+          <div style="font-size:1.15rem;font-weight:800;color:${realSavings >= 0 ? 'var(--primary)' : 'var(--danger)'};">${eur(realSavings)}</div>
+          <div style="font-size:0.68rem;color:var(--text-3);margin-top:2px;">${monthlySavingsOps.length} opération(s)</div>
+          ${users.length > 1 && monthlySavingsByUser.some(([,v]) => v > 0) ? `<div style="font-size:0.7rem;color:var(--text-3);margin-top:4px;">${monthlySavingsByUser.filter(([,v]) => v > 0).map(([name, v]) => `${escHtml(name)}: ${eur(v)}`).join(' · ')}</div>` : ''}
         </div>
       </div>
-      ${!monthlySavOp
-        ? `<button class="btn btn-success" style="width:100%;font-weight:700;" id="btn-transfer-savings">
-             💰 Virer vers l'épargne ce mois
-           </button>`
-        : `<div style="display:flex;align-items:center;justify-content:space-between;font-size:0.78rem;color:var(--text-3);">
-             <span>Effectué le ${new Date(monthlySavOp.createdAt).toLocaleDateString('fr-FR')}</span>
-             <button class="btn btn-outline btn-sm" id="btn-transfer-savings">Modifier</button>
-           </div>`
-      }
+      <button class="btn btn-success" style="width:100%;font-weight:700;" id="btn-transfer-savings">
+        ${monthlySavOp ? '✏️ Modifier le virement épargne' : '💰 Virer vers l\'épargne ce mois'}
+      </button>
     </div>
 
     ${md?.notes ? `
@@ -277,22 +281,25 @@ async function _renderResume(container, s, users) {
   el.querySelector('#btn-go-saisie')?.addEventListener('click', () => navigateTo('saisie'));
   el.querySelector('#btn-go-savings')?.addEventListener('click', () => navigateTo('savings'));
   el.querySelector('#btn-transfer-savings')?.addEventListener('click', () => {
-    showTransferSavingsModal(year, month, kpi.ecoPossible.total, kpi.solde.total, monthlySavOp, () => render(container));
+    showTransferSavingsModal(year, month, kpi.ecoPossible.total, monthlySavOp, () => render(container));
   });
 }
 
 // ══════════════════════════════════════════════════
 // ONGLET PRÉVISIONNEL
 // ══════════════════════════════════════════════════
+let _prevSimDay = null; // null = aujourd'hui, numéro = jour simulé
+
 async function _renderPrevisionnel(container, s, users) {
   const { year, month } = State;
 
-  const [md, charges] = await Promise.all([
+  const [md, charges, achats] = await Promise.all([
     getMonthlyData(year, month),
     getChargesForMonth(month),
+    getAchatsForMonth(year, month),
   ]);
 
-  // Somme des revenus de tous les utilisateurs
+  // ── Revenus totaux ──
   let totalIncome = 0;
   if (md?.users) {
     for (const u of users) {
@@ -301,23 +308,59 @@ async function _renderPrevisionnel(container, s, users) {
     }
   }
 
-  const { days, todayDay } = calcPrevisionnel({ totalIncome, charges, year, month });
+  // ── Budgets courses & extras ──
+  const totalCourses = users.reduce((s, u) => s + (Number(md?.users?.[String(u.id)]?.courses) || 0), 0);
+  const totalExtras  = users.reduce((s, u) => s + (Number(md?.users?.[String(u.id)]?.extras) || 0), 0);
+  const spentCourses = achats.filter(a => a.craquage_source === 'courses').reduce((s, a) => s + (Number(a.amount) || 0), 0);
+  const spentExtras  = achats.filter(a => a.craquage_source === 'extras').reduce((s, a) => s + (Number(a.amount) || 0), 0);
+
+  // ── Calcul prévisionnel ──
+  const now        = new Date();
+  const isCurrentM = now.getFullYear() === year && now.getMonth() + 1 === month;
+  const daysInMonth = new Date(year, month, 0).getDate();
+  // Jour simulé : soit le sélecteur, soit aujourd'hui si mois courant
+  const simDay = _prevSimDay !== null ? _prevSimDay : (isCurrentM ? now.getDate() : 0);
+
+  const { days, todayDay } = calcPrevisionnel({ totalIncome, charges, year, month, simDay });
 
   const timedCount = charges.filter(c => c.active && Number(c.dayOfMonth) > 0).length;
   const noTimedMsg = timedCount === 0
     ? `<div style="background:var(--warning-bg);border-radius:var(--radius-sm);padding:10px 14px;margin-bottom:12px;font-size:0.78rem;color:var(--warning);">
-         ⚠️ Aucune charge n'a de <strong>date de prélèvement</strong> définie. Allez dans <strong>Charges</strong> pour ajouter le jour du mois de chaque charge.
+         ⚠️ Aucune charge n'a de <strong>date de prélèvement</strong> définie. Allez dans <strong>Charges</strong> pour les configurer.
        </div>`
     : '';
 
-  const displayDays = todayDay > 0 ? days.filter(d => !d.isPast || d.isToday) : days;
+  const displayDays = simDay > 0 ? days.filter(d => d.day <= simDay) : days;
 
   const el = container.querySelector('#dash-content');
   el.innerHTML = `
     ${noTimedMsg}
 
+    <!-- Sélecteur de date (simulation passée) -->
+    <div class="card" style="margin-bottom:12px;padding:12px 16px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+        <span style="font-size:0.78rem;font-weight:600;color:var(--text-2);">📅 Voir au jour</span>
+        <span id="prev-day-label" style="font-size:0.85rem;font-weight:700;color:var(--primary);">
+          ${simDay > 0 ? `Jour ${simDay}` : 'Aujourd\'hui'}
+        </span>
+      </div>
+      <input type="range" id="prev-day-slider" min="1" max="${daysInMonth}"
+        value="${simDay > 0 ? simDay : now.getDate()}"
+        style="width:100%;accent-color:var(--primary);">
+      <div style="display:flex;justify-content:space-between;font-size:0.68rem;color:var(--text-3);margin-top:2px;">
+        <span>1</span><span>${daysInMonth}</span>
+      </div>
+    </div>
+
+    <!-- Suivi des budgets courses & extras -->
+    ${(totalCourses > 0 || totalExtras > 0) ? `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
+      ${totalCourses > 0 ? _buildBudgetCard('🛒 Courses', totalCourses, spentCourses) : ''}
+      ${totalExtras  > 0 ? _buildBudgetCard('🎉 Extras',  totalExtras,  spentExtras)  : ''}
+    </div>` : ''}
+
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
-      <span class="section-label">📅 Projection jour par jour</span>
+      <span class="section-label">Projection jour par jour</span>
       <span class="chip ${totalIncome > 0 ? 'primary' : 'danger'}">Base : ${eur(totalIncome)}</span>
     </div>
 
@@ -335,6 +378,35 @@ async function _renderPrevisionnel(container, s, users) {
          </div>`
     }
     <div style="height:16px;"></div>
+  `;
+
+  // ── Slider date ──
+  const slider = el.querySelector('#prev-day-slider');
+  const label  = el.querySelector('#prev-day-label');
+  slider?.addEventListener('input', () => {
+    const v = Number(slider.value);
+    _prevSimDay = v;
+    if (label) label.textContent = `Jour ${v}`;
+    _renderPrevisionnel(container, s, users);
+  });
+}
+
+function _buildBudgetCard(title, budget, spent) {
+  const remaining = budget - spent;
+  const pctUsed   = budget > 0 ? Math.min(100, Math.round((spent / budget) * 100)) : 0;
+  const color     = pctUsed >= 90 ? 'danger' : pctUsed >= 70 ? 'warning' : 'success';
+  return `
+    <div class="card" style="padding:12px;">
+      <div style="font-size:0.72rem;font-weight:600;color:var(--text-3);margin-bottom:6px;">${title}</div>
+      <div class="progress-track" style="height:6px;margin-bottom:6px;">
+        <div class="progress-bar ${color}" style="width:${pctUsed}%;"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:0.75rem;">
+        <span style="color:var(--${color});">${eur(spent)} dépensé</span>
+        <span style="color:var(--text-3);">/ ${eur(budget)}</span>
+      </div>
+      ${remaining < 0 ? `<div style="font-size:0.7rem;color:var(--danger);margin-top:3px;">⚠️ Dépassement ${eur(Math.abs(remaining))}</div>` : ''}
+    </div>
   `;
 }
 
@@ -375,7 +447,7 @@ function mergeByUser(a, b, users) {
 // ══════════════════════════════════════════════════
 // MODAL : VIRER VERS L'ÉPARGNE
 // ══════════════════════════════════════════════════
-function showTransferSavingsModal(year, month, ecoPossible, soldeTotal, existingOp, onSave) {
+function showTransferSavingsModal(year, month, ecoPossible, existingOp, onSave) {
   const isEdit = !!existingOp;
   const suggested = isEdit ? Math.abs(existingOp.amount) : Math.max(0, Math.round(ecoPossible));
 
@@ -386,14 +458,10 @@ function showTransferSavingsModal(year, month, ecoPossible, soldeTotal, existing
       Indiquez le montant que vous souhaitez mettre de côté pour <strong>${nomMois(month)} ${year}</strong>.<br>
       Une opération sera créée dans votre suivi d'épargne.
     </p>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px;">
-      <button type="button" class="btn btn-outline trf-preset" data-val="${Math.max(0, Math.round(ecoPossible))}">
-        <div style="font-size:0.68rem;color:var(--text-3);margin-bottom:2px;">Possible</div>
+    <div style="margin-bottom:14px;">
+      <button type="button" class="btn btn-outline trf-preset" data-val="${Math.max(0, Math.round(ecoPossible))}" style="width:100%;">
+        <div style="font-size:0.68rem;color:var(--text-3);margin-bottom:2px;">Utiliser le montant possible</div>
         <div style="font-weight:700;font-size:0.95rem;color:var(--success);">${eur(Math.max(0, ecoPossible))}</div>
-      </button>
-      <button type="button" class="btn btn-outline trf-preset" data-val="${Math.max(0, Math.round(soldeTotal))}">
-        <div style="font-size:0.68rem;color:var(--text-3);margin-bottom:2px;">Réelle</div>
-        <div style="font-weight:700;font-size:0.95rem;color:${soldeTotal >= 0 ? 'var(--success)' : 'var(--danger)'};">${eur(soldeTotal)}</div>
       </button>
     </div>
     <div class="form-group" style="margin-bottom:10px;">
@@ -405,7 +473,7 @@ function showTransferSavingsModal(year, month, ecoPossible, soldeTotal, existing
     </div>
     <div class="form-group">
       <label class="form-label">Libellé</label>
-      <input type="text" class="form-input" id="trf-label" value="Épargne ${nomMois(month)} ${year}" placeholder="Ex: Virement Livret A">
+      <input type="text" class="form-input" id="trf-label" value="${isEdit ? existingOp.label || '' : `Épargne ${nomMois(month)} ${year}`}" placeholder="Ex: Virement Livret A">
     </div>
     `,
     `

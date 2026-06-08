@@ -151,13 +151,24 @@ async function loadAndRender(container, year, users, s) {
 
   const yearKPI = calcYear(results.filter(Boolean));
 
+  // Masquer les mois futurs dans les graphiques/tableaux
+  const now          = new Date();
+  const curYear      = now.getFullYear();
+  const curMonth     = now.getMonth() + 1;
+  // Pour l'année affichée : set les mois au-delà du mois actuel à null
+  const displayResults = results.map((r, i) => {
+    if (year < curYear) return r;                     // année passée : tout affiché
+    if (year > curYear) return null;                  // année future : rien
+    return (i + 1) > curMonth ? null : r;             // mois courant : jusqu'à maintenant
+  });
+
   renderKPIAnnuel(container, yearKPI);
   destroyCharts();
-  renderChartRevDep(results);
-  renderChartEpargne(results);
-  await renderChartSavingsBalance(year);
+  renderChartRevDep(displayResults);
+  renderChartEpargne(displayResults);
+  await renderChartSavingsBalance(year, curYear, curMonth);
   renderChartRepartition(yearKPI);
-  renderTableMensuel(container, results);
+  renderTableMensuel(container, displayResults);
   if (users.length >= 2) renderTablePerso(container, yearKPI, users);
 }
 
@@ -228,22 +239,24 @@ function renderChartEpargne(results) {
   _charts.push(chart);
 }
 
-async function renderChartSavingsBalance(year) {
+async function renderChartSavingsBalance(year, curYear, curMonth) {
   const canvas = document.getElementById('chart-savings-balance');
   if (!canvas) return;
 
-  // Récupère toutes les opérations d'épargne jusqu'à cette année
   const ops = await getAllSavingsOperations();
   const pointsByMonth = [];
   let runningBalance = 0;
-  let lastConfirmed  = null;
 
   for (let m = 1; m <= 12; m++) {
+    // Ne pas afficher les mois futurs
+    if (year > curYear || (year === curYear && m > curMonth)) {
+      pointsByMonth.push(null);
+      continue;
+    }
     const monthOps = ops.filter(o => o.year === year && o.month === m);
     const confirmed = monthOps.find(o => o.type === 'confirmed_balance');
     if (confirmed) {
       runningBalance = confirmed.amount;
-      lastConfirmed  = confirmed.amount;
     } else {
       const delta = monthOps.filter(o => o.type !== 'confirmed_balance').reduce((s, o) => s + (o.amount || 0), 0);
       runningBalance += delta;

@@ -144,12 +144,22 @@ export function calcMonth(monthData, charges, achats, repartCfg, users) {
     ecoU[uid]   = revU[uid] + priU[uid] - (aPayerU[uid] - impU[uid] - achP - shAch);
   }
 
-  // ── Taux d'épargne ──
+  // ── Taux d'épargne (par user = solde/revenus ; total = agrégat réel) ──
   const txU = _mk(uids);
   for (const uid of uids) {
     const rp = revU[uid] + priU[uid];
     txU[uid] = rp > 0 ? soldeU[uid] / rp : 0;
   }
+  const _totalRev = _sum(revU) + _sum(priU);
+  const txTotal   = _totalRev > 0 ? _sum(soldeU) / _totalRev : 0;
+
+  // ── Taux d'épargne possible (sans imprévus ni achats exc.) ──
+  const txEcoU = _mk(uids);
+  for (const uid of uids) {
+    const rp = revU[uid] + priU[uid];
+    txEcoU[uid] = rp > 0 ? ecoU[uid] / rp : 0;
+  }
+  const txEcoTotal = _totalRev > 0 ? _sum(ecoU) / _totalRev : 0;
 
   const mkKPI = map => ({ total: _sum(map), byUser: { ...map } });
 
@@ -167,7 +177,8 @@ export function calcMonth(monthData, charges, achats, repartCfg, users) {
     aPayer:       mkKPI(aPayerU),
     solde:        mkKPI(soldeU),
     ecoPossible:  mkKPI(ecoU),
-    txEpargne:    mkKPI(txU),
+    txEpargne:    { total: txTotal,    byUser: { ...txU } },
+    txEcoPossible:{ total: txEcoTotal, byUser: { ...txEcoU } },
     _meta: { mode, N, totalSharedChg, totalSharedAch, totalCrs },
   };
 }
@@ -229,11 +240,13 @@ export function calcYear(monthsResults) {
 /**
  * Calcul prévisionnel jour par jour pour un mois.
  */
-export function calcPrevisionnel({ totalIncome, charges, year, month }) {
+export function calcPrevisionnel({ totalIncome, charges, year, month, simDay }) {
   const daysInMonth = new Date(year, month, 0).getDate();
   const today       = new Date();
-  const todayDay    = today.getFullYear() === year && today.getMonth() + 1 === month
-    ? today.getDate() : 0;
+  // simDay permet de visualiser le prévisionnel à une date passée précise
+  const todayDay    = simDay != null
+    ? Number(simDay)
+    : (today.getFullYear() === year && today.getMonth() + 1 === month ? today.getDate() : 0);
 
   // Indexe les charges par jour de prélèvement (déjà expandées par getChargesForMonth)
   const chargesByDay = {};

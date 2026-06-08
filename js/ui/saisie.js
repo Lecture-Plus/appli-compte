@@ -150,7 +150,7 @@ export async function render(container) {
     <!-- Barre d'actions -->
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
       <button class="btn btn-danger" id="btn-craquage" style="font-size:0.9rem;gap:6px;">
-        💥 Craquage
+        💥 Craquage et dépassement
       </button>
       <button class="btn btn-outline" id="btn-whatif" style="font-size:0.9rem;gap:6px;">
         🧮 What-if
@@ -507,10 +507,18 @@ function showImprévuModal(container, month, year) {
   });
 }
 
-// ── Modal Craquage ──
+// ── Modal Craquage et dépassement ──
 function showCraquageModal(container, month, year) {
   const now  = new Date();
   let rows   = [{ source: 'balance', amount: '' }];
+
+  const sourceOptions = `
+    <option value="balance">📊 Budget mensuel</option>
+    <option value="courses">🛒 Budget courses</option>
+    <option value="extras">🎉 Budget extras</option>
+    <option value="savings">💰 Économies</option>
+    <option value="perso">🪙 Compte perso</option>
+  `;
 
   function buildRows() {
     return rows.map((r, i) => `
@@ -519,9 +527,8 @@ function showCraquageModal(container, month, year) {
           <input type="number" class="form-input input-euro crq-amount" min="0" step="0.01" placeholder="0.00" value="${r.amount}" style="font-size:0.9rem;">
           <span class="input-suffix">€</span>
         </div>
-        <select class="form-input crq-source" style="flex:1.5;font-size:0.85rem;padding:8px 10px;">
-          <option value="balance" ${r.source === 'balance' ? 'selected' : ''}>📊 Budget mensuel</option>
-          <option value="savings" ${r.source === 'savings' ? 'selected' : ''}>💰 Économies</option>
+        <select class="form-input crq-source" style="flex:1.5;font-size:0.82rem;padding:8px 8px;">
+          ${sourceOptions.replace(`value="${r.source}"`, `value="${r.source}" selected`)}
         </select>
         ${rows.length > 1
           ? `<button class="btn-icon crq-del" data-i="${i}" style="flex-shrink:0;color:var(--danger);">
@@ -535,24 +542,28 @@ function showCraquageModal(container, month, year) {
     `<option value="${u.id}">${escHtml(u.name)}</option>`
   ).join('');
 
-  openModal('💥 Craquage', `
+  openModal('💥 Craquage et dépassement', `
+    <p style="font-size:0.82rem;color:var(--text-2);margin-bottom:12px;">
+      Dépense imprévue ou dépassement de budget.
+    </p>
     <div class="form-group" style="margin-bottom:10px;">
       <label class="form-label">Description</label>
-      <input type="text" class="form-input" id="crq-label" placeholder="Ex: Restaurant, Vêtement impulsif…">
+      <input type="text" class="form-input" id="crq-label" placeholder="Ex: Restaurant, Vêtement impulsif…" autofocus>
     </div>
     <div class="form-group" style="margin-bottom:10px;">
-      <label class="form-label">Qui a craqué ?</label>
+      <label class="form-label">Qui a dépensé ?</label>
       <select class="form-select" id="crq-qui">
         ${_users.length > 1 ? `<option value="shared">À tous</option>` : ''}
         ${userOptions}
       </select>
     </div>
     <div class="form-group" style="margin-bottom:6px;">
-      <label class="form-label">Répartition par source</label>
+      <label class="form-label">Source de financement</label>
+      <p style="font-size:0.72rem;color:var(--text-3);margin-bottom:6px;">D'où vient l'argent pour couvrir cette dépense ?</p>
       <div id="crq-rows">${buildRows()}</div>
       <button class="btn btn-outline btn-sm btn-full" id="crq-add-row" style="margin-top:4px;">+ Ajouter une source</button>
     </div>
-    <div id="crq-total-line" style="text-align:right;font-size:0.78rem;color:var(--text-3);margin-top:6px;"></div>
+    <div id="crq-total-line" style="text-align:right;font-size:0.82rem;font-weight:600;color:var(--text-2);margin-top:6px;"></div>
   `, `
     <button class="btn btn-outline" id="crq-cancel">Annuler</button>
     <button class="btn btn-danger"  id="crq-save">Enregistrer</button>
@@ -566,7 +577,7 @@ function showCraquageModal(container, month, year) {
   function updateTotal() {
     const total = rows.reduce((s, r) => s + (Number(r.amount) || 0), 0);
     const el = document.getElementById('crq-total-line');
-    if (el) el.textContent = `Total : ${eur(total)}`;
+    if (el) el.textContent = total > 0 ? `Total : ${eur(total)}` : '';
   }
   function syncRows() {
     document.querySelectorAll('.craquage-row').forEach((row, i) => {
@@ -610,7 +621,6 @@ function showCraquageModal(container, month, year) {
     closeModal();
     const total = validRows.reduce((s, r) => s + Number(r.amount), 0);
     showToast(`Craquage enregistré : ${eur(total)} 💥`, 'success');
-    // Rafraîchit le cache achats puis l'aperçu
     _achatsCache = await getAchatsForMonth(year, month);
     updatePreview(container);
   });
