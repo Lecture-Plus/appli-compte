@@ -56,10 +56,16 @@ export async function navigateTo(page, params = {}) {
 
   const content = document.getElementById('app-content');
   content.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+  content.scrollTop = 0;
 
   try {
     const mod = await PAGES[page]();
     _currentCleanup = await mod.render(content, params) ?? null;
+    content.classList.remove('page-enter');
+    // Force reflow then add class for animation
+    void content.offsetWidth;
+    content.classList.add('page-enter');
+    _initCounters(content);
   } catch (err) {
     console.error('[App] Erreur lors du rendu de la page :', err);
     content.innerHTML = `
@@ -179,6 +185,52 @@ async function _checkAndFireNotification(year, month, md) {
   } catch (e) { /* silencieux */ }
 }
 
+// ── Nav hide/show on scroll ──
+function _initNavScroll() {
+  const content = document.getElementById('app-content');
+  const nav     = document.getElementById('bottom-nav');
+  if (!content || !nav) return;
+  let lastY = 0;
+  let ticking = false;
+  content.addEventListener('scroll', () => {
+    if (ticking) return;
+    ticking = true;
+    requestAnimationFrame(() => {
+      const y = content.scrollTop;
+      if (y > lastY + 8 && y > 60) {
+        nav.classList.add('nav-hidden');
+      } else if (y < lastY - 8) {
+        nav.classList.remove('nav-hidden');
+      }
+      lastY = y;
+      ticking = false;
+    });
+  }, { passive: true });
+}
+
+// ── Counter animation pour éléments .data-counter[data-value] ──
+function _initCounters(root) {
+  const elements = root.querySelectorAll('.data-counter[data-value]');
+  elements.forEach(el => {
+    const target = parseFloat(el.dataset.value);
+    if (isNaN(target)) return;
+    const isEuro = el.dataset.euro !== undefined;
+    const duration = 700;
+    const start = performance.now();
+    function tick(now) {
+      const progress = Math.min((now - start) / duration, 1);
+      // ease-out cubic
+      const ease = 1 - Math.pow(1 - progress, 3);
+      const current = target * ease;
+      el.textContent = isEuro
+        ? current.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €'
+        : current.toLocaleString('fr-FR', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+      if (progress < 1) requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+  });
+}
+
 // ── Initialisation ──
 async function init() {
   try {
@@ -203,6 +255,9 @@ async function init() {
   document.querySelectorAll('.nav-item').forEach(btn => {
     btn.addEventListener('click', () => navigateTo(btn.dataset.page));
   });
+
+  // Nav scroll hide/show
+  _initNavScroll();
 
   // Modal : fermeture
   document.getElementById('modal-close')?.addEventListener('click', closeModal);

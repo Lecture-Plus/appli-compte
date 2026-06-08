@@ -138,12 +138,12 @@ async function _renderResume(container, s, users) {
   const el = container.querySelector('#dash-content');
   el.innerHTML = `
     <!-- ── HERO : Solde du mois ── -->
-    <div style="background:var(--bg-card);border:2px solid ${soldeColor};border-radius:var(--radius);padding:18px 16px 14px;margin-bottom:12px;">
+    <div class="hero-card" style="margin-bottom:12px;">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
         <div>
-          <div style="font-size:0.68rem;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-3);font-weight:600;margin-bottom:4px;">Solde de ${nomMois(month)} ${year}</div>
-          <div style="font-size:2.4rem;font-weight:900;color:${soldeColor};line-height:1.05;">${eur(kpi.solde.total)}</div>
-          <div style="font-size:0.78rem;color:${txColor};margin-top:6px;font-weight:700;">Taux d'épargne : ${pct(kpi.txEpargne.total, 0)}</div>
+          <div class="hero-label">Solde de ${nomMois(month)} ${year}</div>
+          <div class="hero-amount" style="color:${soldeColor};">${eur(kpi.solde.total)}</div>
+          <div class="hero-meta" style="color:${txColor};">Taux d'épargne : ${pct(kpi.txEpargne.total, 0)}</div>
           ${users.length > 1 ? `<div style="font-size:0.7rem;color:var(--text-3);margin-top:3px;">${users.map(u => `${escHtml(u.name)}: ${eur(kpi.solde.byUser?.[u.id] ?? 0)}`).join(' · ')}</div>` : ''}
         </div>
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;flex-shrink:0;">
@@ -151,22 +151,22 @@ async function _renderResume(container, s, users) {
           <button class="btn btn-sm btn-primary" id="btn-go-saisie">✏️ Saisir</button>
         </div>
       </div>
-      <!-- 3 micro-stats -->
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:4px;margin-top:12px;padding-top:12px;border-top:1px solid var(--border);">
-        <div>
-          <div style="font-size:0.6rem;color:var(--text-3);font-weight:600;text-transform:uppercase;letter-spacing:0.04em;">Revenus</div>
-          <div style="font-size:0.95rem;font-weight:800;">${eur(kpi.revenus.total + (kpi.aides?.total ?? 0))}</div>
-          ${kpi.primes.total > 0 ? `<div style="font-size:0.65rem;color:var(--warning);">+${eur(kpi.primes.total)} primes</div>` : ''}
+      <div class="hero-divider"></div>
+      <div class="hero-mini-grid">
+        <div class="hero-mini-item">
+          <div class="hero-mini-label">Revenus</div>
+          <div class="hero-mini-value">${eur(kpi.revenus.total + (kpi.aides?.total ?? 0))}</div>
+          ${kpi.primes.total > 0 ? `<div class="hero-mini-note">+${eur(kpi.primes.total)} primes</div>` : ''}
         </div>
-        <div style="text-align:center;">
-          <div style="font-size:0.6rem;color:var(--text-3);font-weight:600;text-transform:uppercase;letter-spacing:0.04em;">Dépenses</div>
-          <div style="font-size:0.95rem;font-weight:800;color:var(--danger);">${eur(kpi.depenses.total)}</div>
-          ${byUserSub(kpi.depenses) ? `<div style="font-size:0.65rem;color:var(--text-3);">${users.map(u=>`${escHtml(u.name[0])}: ${eur(kpi.depenses.byUser?.[u.id]??0)}`).join(' · ')}</div>` : ''}
+        <div class="hero-mini-item">
+          <div class="hero-mini-label">Dépenses</div>
+          <div class="hero-mini-value" style="color:var(--danger);">${eur(kpi.depenses.total)}</div>
+          ${users.length > 1 ? `<div class="hero-mini-note">${users.map(u=>`${escHtml(u.name[0])}: ${eur(kpi.depenses.byUser?.[u.id]??0)}`).join(' ')}</div>` : ''}
         </div>
-        <div style="text-align:right;">
-          <div style="font-size:0.6rem;color:var(--text-3);font-weight:600;text-transform:uppercase;letter-spacing:0.04em;">Charges</div>
-          <div style="font-size:0.95rem;font-weight:800;">${eur(kpi.charges.total)}</div>
-          ${kpi.imprevus.total > 0 ? `<div style="font-size:0.65rem;color:var(--danger);">+${eur(kpi.imprevus.total)} imprévus</div>` : ''}
+        <div class="hero-mini-item">
+          <div class="hero-mini-label">Charges</div>
+          <div class="hero-mini-value">${eur(kpi.charges.total)}</div>
+          ${kpi.imprevus.total > 0 ? `<div class="hero-mini-note" style="color:var(--danger);">+${eur(kpi.imprevus.total)}</div>` : ''}
         </div>
       </div>
     </div>

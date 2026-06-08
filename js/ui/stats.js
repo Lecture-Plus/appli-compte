@@ -891,56 +891,82 @@ function renderScoreBudgetaire(container, result, s) {
   const cibles    = s.budgetCibles || {};
   const threshold = Number(s.epargneThreshold) || 100;
 
-  // Critères et poids
   const criteria = [];
 
-  // 1. Taux d'épargne (40 pts) : 15%+ = 40, 5-15% = 20, 0-5% = 10, négatif = 0
+  // 1. Taux d'épargne (40 pts)
   const tx = (result.txEpargne?.total ?? 0);
   const txPts = tx >= 0.15 ? 40 : tx >= 0.05 ? 25 : tx > 0 ? 10 : 0;
-  criteria.push({ label: "Taux d'épargne", pts: txPts, max: 40, detail: `${(tx * 100).toFixed(1)}%` });
+  criteria.push({ label: "Taux épargne", pts: txPts, max: 40, detail: `${(tx * 100).toFixed(1)}%` });
 
   // 2. Solde positif (20 pts)
   const soldePts = (result.solde?.total ?? 0) >= threshold ? 20 : (result.solde?.total ?? 0) >= 0 ? 10 : 0;
-  criteria.push({ label: 'Solde du mois', pts: soldePts, max: 20, detail: eur(result.solde?.total ?? 0) });
+  criteria.push({ label: 'Solde mois', pts: soldePts, max: 20, detail: eur(result.solde?.total ?? 0) });
 
-  // 3. Budget courses respecté (20 pts)
+  // 3. Budget courses (20 pts)
   const budgC = cibles.courses || 0;
   const spentC = result.courses?.total ?? 0;
   const cPts = budgC > 0 ? (spentC <= budgC ? 20 : Math.max(0, 20 - Math.round((spentC - budgC) / budgC * 20))) : 10;
-  criteria.push({ label: 'Budget courses', pts: cPts, max: 20, detail: budgC > 0 ? `${eur(spentC)}/${eur(budgC)}` : 'Pas de cible' });
+  criteria.push({ label: 'Courses', pts: cPts, max: 20, detail: budgC > 0 ? `${eur(spentC)}/${eur(budgC)}` : '—' });
 
-  // 4. Pas de dépassement extras (20 pts)
+  // 4. Budget loisirs (20 pts)
   const budgE = cibles.extras || 0;
   const spentE = result.extras?.total ?? 0;
   const ePts = budgE > 0 ? (spentE <= budgE ? 20 : Math.max(0, 20 - Math.round((spentE - budgE) / budgE * 20))) : 10;
-  criteria.push({ label: 'Budget loisirs', pts: ePts, max: 20, detail: budgE > 0 ? `${eur(spentE)}/${eur(budgE)}` : 'Pas de cible' });
+  criteria.push({ label: 'Loisirs', pts: ePts, max: 20, detail: budgE > 0 ? `${eur(spentE)}/${eur(budgE)}` : '—' });
 
   const total = criteria.reduce((s, c) => s + c.pts, 0);
-  const color = total >= 75 ? 'var(--success)' : total >= 50 ? 'var(--warning)' : 'var(--danger)';
-  const emoji = total >= 75 ? '🟢' : total >= 50 ? '🟡' : '🔴';
-  const label = total >= 75 ? 'Excellent' : total >= 50 ? 'Correct' : 'À améliorer';
+  const scoreColor = total >= 75 ? 'var(--success)' : total >= 50 ? 'var(--warning)' : 'var(--danger)';
+  const scoreLabel = total >= 75 ? 'Excellent' : total >= 50 ? 'Correct' : 'À améliorer';
+
+  // SVG ring: r=46 → circumference ≈ 289
+  const R = 46;
+  const C = 2 * Math.PI * R;
+  const offset = C - (total / 100) * C;
+  const dashColor = total >= 75 ? '#00D4A0' : total >= 50 ? '#FFB020' : '#FF5E57';
 
   el.innerHTML = `
-    <div style="display:flex;align-items:center;gap:16px;padding:8px 0 12px;">
-      <div style="text-align:center;min-width:70px;">
-        <div style="font-size:2rem;font-weight:900;color:${color};">${total}</div>
-        <div style="font-size:0.72rem;color:var(--text-3);">/100</div>
-        <div style="font-size:0.8rem;font-weight:700;color:${color};">${emoji} ${label}</div>
+    <div style="display:flex;align-items:center;gap:18px;padding:6px 0 10px;">
+      <div class="score-ring-wrap">
+        <svg width="110" height="110" viewBox="0 0 110 110">
+          <circle class="score-ring-bg" cx="55" cy="55" r="${R}" stroke-width="9"/>
+          <circle class="score-ring-arc"
+            cx="55" cy="55" r="${R}" stroke-width="9"
+            stroke="${dashColor}"
+            stroke-dasharray="${C.toFixed(2)}"
+            stroke-dashoffset="${C.toFixed(2)}"
+            transform="rotate(-90 55 55)"
+            id="score-arc-anim"
+          />
+          <text x="55" y="51" text-anchor="middle" fill="${dashColor}"
+            style="font-family:Inter,sans-serif;font-size:22px;font-weight:900;">${total}</text>
+          <text x="55" y="67" text-anchor="middle" fill="var(--text-3)"
+            style="font-family:Inter,sans-serif;font-size:10px;font-weight:600;">/100</text>
+        </svg>
+        <div style="font-size:0.72rem;font-weight:800;color:${dashColor};margin-top:-4px;">${scoreLabel}</div>
       </div>
-      <div style="flex:1;">
-        ${criteria.map(c => `
-          <div style="margin-bottom:8px;">
-            <div style="display:flex;justify-content:space-between;font-size:0.75rem;margin-bottom:3px;">
-              <span>${c.label}</span>
-              <span style="color:var(--text-3);">${c.detail} · <strong>${c.pts}/${c.max}</strong></span>
+      <div style="flex:1;display:flex;flex-direction:column;gap:9px;">
+        ${criteria.map(c => {
+          const pct = Math.round(c.pts / c.max * 100);
+          const barCls = c.pts === c.max ? 'success' : c.pts >= c.max / 2 ? 'warning' : 'danger';
+          return `<div>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+              <span style="font-size:0.74rem;font-weight:600;color:var(--text-2);">${c.label}</span>
+              <span style="font-size:0.68rem;color:var(--text-3);">${c.detail} <strong style="color:var(--text);">${c.pts}/${c.max}</strong></span>
             </div>
-            <div class="progress-track" style="height:6px;">
-              <div class="progress-bar ${c.pts === c.max ? 'success' : c.pts >= c.max/2 ? 'warning' : 'danger'}"
-                style="width:${Math.round(c.pts/c.max*100)}%;"></div>
-            </div>
-          </div>`).join('')}
+            <div class="progress-track"><div class="progress-bar ${barCls}" style="width:${pct}%;"></div></div>
+          </div>`;
+        }).join('')}
       </div>
     </div>`;
+
+  // Animate arc after render
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      const arc = el.querySelector('#score-arc-anim');
+      if (arc) arc.style.strokeDashoffset = offset.toFixed(2);
+    });
+  });
+}
 }
 
 function destroyCharts() {
