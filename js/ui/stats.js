@@ -799,7 +799,13 @@ async function exportPDF(year, month, users, s) {
   html{width:210mm;}
   body{font-family:'Inter',system-ui,sans-serif;background:#fff;color:#1E293B;font-size:12px;line-height:1.55;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
   @page{size:A4 portrait;margin:0;}
-  @media print{.pb{page-break-before:always;}}
+  @media print{
+    .pb{page-break-before:always;}
+    .kpi-grid,.ss-row,.ug,.bar-box,.ch-wrap,.obj-box,.tx-box,.score-box,.spark-box,.mt-wrap,.ac-wrap{break-inside:avoid;page-break-inside:avoid;}
+    .kc,.uc{break-inside:avoid;page-break-inside:avoid;}
+    .mt tbody tr,.cht tbody tr,.ac tbody tr{break-inside:avoid;page-break-inside:avoid;}
+    .st{break-after:avoid;page-break-after:avoid;}
+  }
   .cover{background:linear-gradient(135deg,#1E1B4B 0%,#312E81 50%,#4C1D95 100%);color:#fff;padding:36px 40px 30px;position:relative;overflow:hidden;}
   .cover::before{content:'';position:absolute;top:-80px;right:-80px;width:280px;height:280px;border-radius:50%;background:rgba(167,139,250,.15);}
   .cover::after{content:'';position:absolute;bottom:-50px;left:60px;width:160px;height:160px;border-radius:50%;background:rgba(99,102,241,.12);}
