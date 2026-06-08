@@ -139,7 +139,7 @@ async function _renderResume(container, s, users) {
 
     <div class="kpi-grid" style="margin-bottom:12px;">
       <div class="kpi-card primary">
-        <div class="kpi-label">Revenus</div>
+        <div class="kpi-label">Revenus &amp; Aides</div>
         <div class="kpi-value neutral">${eur(kpi.revenus.total + (kpi.aides?.total ?? 0))}</div>
         <div class="kpi-sub">${kpi.aides?.total > 0 ? `dont aides: ${eur(kpi.aides.total)}<br>` : ''}${byUserSub(kpi.revenus)}</div>
       </div>
@@ -215,7 +215,7 @@ async function _renderResume(container, s, users) {
             </tr>
           </thead>
           <tbody>
-            ${buildRow('Revenus',     kpi.revenus,  users)}
+            ${buildRow('Revenus & Aides', kpi.revenus, users)}
             ${kpi.aides?.total > 0 ? buildRow('Aides',       kpi.aides,    users) : ''}
             ${buildRow('Primes',      kpi.primes,   users)}
             ${buildRow('Charges',     kpi.charges,  users)}
