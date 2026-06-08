@@ -223,7 +223,7 @@ async function loadAndRender(container, year, month, users, s) {
     const chg = chargesForMonth(m);
     const ach = achatMap[m]  ?? [];
     const rp  = repartMap[m] ?? { year, month: m, mode: defaultRepartMode, pcts: {} };
-    results.push(md ? calcMonth(md, chg, ach, rp, users) : null);
+    results.push(md ? calcMonth(md, chg, ach, rp, users, bopsMap[m] ?? []) : null);
   }
 
   const now      = new Date();
@@ -692,9 +692,10 @@ async function exportPDF(year, month, users, s) {
     const achatMap = {}, repartMap = {};
     for (const a of allAchats)  { if (a.year === year) { (achatMap[a.month] ??= []).push(a); } }
     for (const r of allRep)     { if (r.year === year) repartMap[r.month] = r; }
-    // Collect budget_ops for budgets section
-    let allBudgetOps = [];
-    try { const { getBudgetOpsForYear } = await import('./db.js'); allBudgetOps = await getBudgetOpsForYear?.(year) ?? []; } catch(_) {}
+    // Charger les budget_ops de l'année pour les calculs PDF
+    const allBudgetOpsPDF = await getAllBudgetOps();
+    const bopsMapPDF = {};
+    for (const op of allBudgetOpsPDF) { if (op.year === year) { (bopsMapPDF[op.month] ??= []).push(op); } }
 
     function chgForMonth(m) {
       const out = [];
@@ -714,7 +715,7 @@ async function exportPDF(year, month, users, s) {
       const chg = chgForMonth(m);
       const ach = achatMap[m] ?? [];
       const rp  = repartMap[m] ?? { year, month: m, mode: defaultMode, pcts: {} };
-      allResults.push(md ? calcMonth(md, chg, ach, rp, users) : null);
+      allResults.push(md ? calcMonth(md, chg, ach, rp, users, bopsMapPDF[m] ?? []) : null);
     }
 
     const singleMonth = month > 0;

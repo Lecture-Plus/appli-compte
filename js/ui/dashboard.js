@@ -20,6 +20,7 @@ import { showCraquageModal }                              from './saisie.js';
 import { showEditBudgetModal }                            from './charges.js';
 
 let _activeTab = 'resume';
+let _detailMode = 'reel'; // 'reel' | 'previsionnel'
 
 export async function render(container) {
   const [s, users] = await Promise.all([getAllSettings(), getActiveUsers()]);
@@ -100,6 +101,16 @@ async function _renderResume(container, s, users) {
   const pendingCraquages = allAchats.filter(a => a.category === 'craquage' && a.craquage_source === 'pending');
 
   const kpi    = calcMonth(md, charges, achats, repCfg, users, allBudgetOps);
+  const kpiPrev = calcMonth(md, charges, achats, repCfg, users); // sans budgetOps = plafonds budgets
+  // Courses / extras confirmés (depuis les budget_ops réels, pas les plafonds)
+  const realCourses = { total: 0, byUser: {} };
+  const realExtras  = { total: 0, byUser: {} };
+  for (const op of allBudgetOps) {
+    const uid = String(op.userId || '');
+    const amt = Number(op.amount) || 0;
+    if (op.category === 'courses') { realCourses.total += amt; realCourses.byUser[uid] = (realCourses.byUser[uid] || 0) + amt; }
+    else if (op.category === 'extras')  { realExtras.total  += amt; realExtras.byUser[uid]  = (realExtras.byUser[uid]  || 0) + amt; }
+  }
   const status = completenessStatus(md);
 
   // Pinned budget cards data
@@ -128,7 +139,8 @@ async function _renderResume(container, s, users) {
         getChargesForMonth(m.month, year),
         getAchatsForMonth(year, m.month),
         getRepartition(year, m.month),
-      ]).then(([c, a, rc]) => calcMonth(m, c, a, rc, users).solde.total)
+        getBudgetOpsForMonth(year, m.month),
+      ]).then(([c, a, rc, bopsYTD]) => calcMonth(m, c, a, rc, users, bopsYTD).solde.total)
     ));
     epargneYTD = ytdValues.reduce((s, v) => s + v, 0);
   }
@@ -269,41 +281,16 @@ async function _renderResume(container, s, users) {
         <div id="projection-objectif" style="margin-top:8px;font-size:0.75rem;color:var(--text-3);">Calcul…</div>
       </div>` : ''}
 
-      <div class="card" style="margin-bottom:12px;">
-        <div class="card-header"><span class="card-title">📋 Détail du mois</span></div>
-        <div style="overflow-x:auto;">
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th>Catégorie</th>
-                ${users.map(u => `<th style="text-align:right"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${escHtml(u.color||'#7C5CFC')};margin-right:3px;"></span>${escHtml(u.name)}</th>`).join('')}
-                <th style="text-align:right">Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${buildRow('Revenus & Aides', kpi.revenus, users)}
-              ${kpi.aides?.total > 0 ? buildRow('Aides',       kpi.aides,    users) : ''}
-              ${buildRow('Primes',      kpi.primes,   users)}
-              ${buildRow('Charges',     kpi.charges,  users)}
-              ${buildRow('Courses',     kpi.courses,  users)}
-              ${buildRow('Loisirs',     kpi.extras,   users)}
-              ${buildRow('Achats exc.', kpi.achats,   users)}
-              ${buildRow('Imprévus',    kpi.imprevus, users)}
-            </tbody>
-            <tfoot>
-              <tr class="row-total">
-                <td>À payer</td>
-                ${users.map(u => `<td style="text-align:right">${eur(kpi.aPayer.byUser?.[u.id] ?? 0)}</td>`).join('')}
-                <td style="text-align:right">${eur(kpi.aPayer.total)}</td>
-              </tr>
-              <tr class="row-total">
-                <td>Solde net</td>
-                ${users.map(u => { const v = kpi.solde.byUser?.[u.id] ?? 0; return `<td style="text-align:right;color:${v >= 0 ? 'var(--success)' : 'var(--danger)'};">${eur(v)}</td>`; }).join('')}
-                <td style="text-align:right;color:${kpi.solde.total >= 0 ? 'var(--success)' : 'var(--danger)'};">${eur(kpi.solde.total)}</td>
-              </tr>
-            </tfoot>
-          </table>
+            <div class="card" style="margin-bottom:12px;" id="detail-table-card">
+        <div class="card-header" style="flex-wrap:wrap;gap:6px;">
+          <span class="card-title">📋 Détail du mois</span>
+          <div style="margin-left:auto;display:flex;gap:4px;">
+            <button class="btn btn-sm btn-dmode btn-primary" data-dmode="reel" style="font-size:0.68rem;padding:2px 8px;">✅ Réel</button>
+            <button class="btn btn-sm btn-dmode btn-outline" data-dmode="previsionnel" style="font-size:0.68rem;padding:2px 8px;">📅 Prévisionnel</button>
+          </div>
         </div>
+        <p id="detail-mode-hint" style="font-size:0.72rem;color:var(--text-3);margin-bottom:8px;"></p>
+        <div style="overflow-x:auto;" id="detail-table-wrap"></div>
       </div>
 
       <div class="card" style="margin-bottom:12px;">
@@ -350,10 +337,23 @@ async function _renderResume(container, s, users) {
     chv.style.transform = _detailOpen ? 'rotate(180deg)' : '';
     lbl.textContent = _detailOpen ? 'Masquer le détail' : 'Voir le détail du mois';
     if (_detailOpen) {
+      _fillDetailTable(el, { kpi, kpiPrev, realCourses, realExtras }, users);
       _renderAnnualQuickView(el.querySelector('#annual-quick-view'), year, users);
       const projEl = el.querySelector('#projection-objectif');
       if (projEl && goal > 0) _renderProjection(projEl, year, month, goal, savInfo.balance, users);
     }
+  });
+
+  // Toggle Réel / Prévisionnel dans le détail du mois
+  el.querySelector('#detail-section')?.addEventListener('click', e => {
+    const btn = e.target.closest('.btn-dmode');
+    if (!btn) return;
+    _detailMode = btn.dataset.dmode;
+    el.querySelectorAll('.btn-dmode').forEach(b => {
+      b.classList.toggle('btn-primary', b.dataset.dmode === _detailMode);
+      b.classList.toggle('btn-outline',  b.dataset.dmode !== _detailMode);
+    });
+    _fillDetailTable(el, { kpi, kpiPrev, realCourses, realExtras }, users);
   });
 
   el.querySelector('#btn-go-saisie')?.addEventListener('click', () => navigateTo('argent', { tab: 'saisir' }));
@@ -543,14 +543,15 @@ async function _renderProjection(el, year, month, goal, currentBalance, users) {
       months.push({ year: y, month: m });
     }
     const soldes = await Promise.all(months.map(async ({ year: yr, month: mo }) => {
-      const [md, charges, achats, repCfg] = await Promise.all([
+      const [md, charges, achats, repCfg, bopsProj] = await Promise.all([
         getMonthlyData(yr, mo),
-        getChargesForMonth(mo),
+        getChargesForMonth(mo, yr),
         getAchatsForMonth(yr, mo),
         getRepartition(yr, mo),
+        getBudgetOpsForMonth(yr, mo),
       ]);
       if (!md) return null;
-      return calcMonth(md, charges, achats, repCfg, users).solde.total;
+      return calcMonth(md, charges, achats, repCfg, users, bopsProj).solde.total;
     }));
     const validSoldes = soldes.filter(s => s !== null && s > 0);
     if (!validSoldes.length) {
@@ -591,12 +592,13 @@ async function _renderAnnualQuickView(el, year, users) {
         return `<div class="${cls}" title="${MONTH_LABELS[i]}"><span class="ym-label">${MONTH_LABELS[i]}</span><span class="ym-val">&mdash;</span></div>`;
       }
 
-      const [charges, achats, repCfg] = await Promise.all([
-        getChargesForMonth(m),
+      const [charges, achats, repCfg, bopsAnn] = await Promise.all([
+        getChargesForMonth(m, year),
         getAchatsForMonth(year, m),
         getRepartition(year, m),
+        getBudgetOpsForMonth(year, m),
       ]);
-      const kpi   = calcMonth(md, charges, achats, repCfg, users);
+      const kpi   = calcMonth(md, charges, achats, repCfg, users, bopsAnn);
       const solde = kpi.solde.total;
       const cls   = 'ym-box ' + (solde > 0 ? 'ym-ok' : solde < 0 ? 'ym-bad' : 'ym-neutral');
       return `<div class="${cls}" title="${MONTH_LABELS[i]}: ${eur(solde)}"><span class="ym-label">${MONTH_LABELS[i]}</span><span class="ym-val">${solde >= 0 ? '+' : ''}${eur(solde)}</span></div>`;
@@ -606,6 +608,54 @@ async function _renderAnnualQuickView(el, year, users) {
   } catch (e) {
     el.innerHTML = `<p style="font-size:0.78rem;color:var(--text-3);padding:4px 0;">Impossible de charger la vue annuelle.</p>`;
   }
+}
+
+// ── Rendu du tableau Réel/Prévisionnel ──
+function _fillDetailTable(el, { kpi, kpiPrev, realCourses, realExtras }, users) {
+  const wrap = el.querySelector('#detail-table-wrap');
+  const hint = el.querySelector('#detail-mode-hint');
+  if (!wrap) return;
+  const isReel = _detailMode === 'reel';
+  const dk     = isReel ? kpi : kpiPrev;
+  const dc     = isReel ? realCourses : kpiPrev.courses;
+  const de     = isReel ? realExtras  : kpiPrev.extras;
+  if (hint) hint.textContent = isReel
+    ? '✅ Opérations confirmées uniquement — les budgets non confirmés affichent 0 €'
+    : '📅 Simulation avec les plafonds de budget et la répartition configurée';
+  wrap.innerHTML = `
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Catégorie</th>
+          ${users.map(u => `<th style="text-align:right"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${escHtml(u.color||'#7C5CFC')};margin-right:3px;"></span>${escHtml(u.name)}</th>`).join('')}
+          <th style="text-align:right">Total</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${buildRow('Revenus & Aides', dk.revenus, users)}
+        ${dk.aides?.total > 0 ? buildRow('Aides',       dk.aides,    users) : ''}
+        ${buildRow('Primes',      dk.primes,   users)}
+        ${buildRow('Charges',     dk.charges,  users)}
+        ${buildRow(isReel ? 'Courses (confirmé)' : 'Budget courses', dc, users)}
+        ${buildRow(isReel ? 'Loisirs (confirmé)' : 'Budget loisirs', de, users)}
+        ${buildRow('Achats exc.', dk.achats,   users)}
+        ${buildRow('Imprévus',    dk.imprevus, users)}
+      </tbody>
+      <tfoot>
+        <tr class="row-total">
+          <td>${isReel ? 'À payer' : 'À envoyer (prév.)'}</td>
+          ${users.map(u => `<td style="text-align:right">${eur(dk.aPayer.byUser?.[u.id] ?? 0)}</td>`).join('')}
+          <td style="text-align:right">${eur(dk.aPayer.total)}</td>
+        </tr>
+        <tr class="row-total">
+          <td>Solde ${isReel ? 'net' : 'prévisionnel'}</td>
+          ${users.map(u => { const v = dk.solde.byUser?.[u.id] ?? 0; return `<td style="text-align:right;color:${v >= 0 ? 'var(--success)' : 'var(--danger)'};">${eur(v)}</td>`; }).join('')}
+          <td style="text-align:right;color:${dk.solde.total >= 0 ? 'var(--success)' : 'var(--danger)'};">${eur(dk.solde.total)}</td>
+        </tr>
+      </tfoot>
+    </table>
+    ${!isReel ? `<p style="font-size:0.72rem;color:var(--text-3);margin-top:8px;padding:0 2px;">💡 Ce calcul utilise les plafonds de budget et la répartition configurée. Il représente le maximum à envoyer sur le compte joint.</p>` : ''}
+  `;
 }
 
 function _buildBudgetCard(title, budget, spent, budgetLabel = 'Budget') {

@@ -498,6 +498,9 @@ function updatePreview(container) {
   syncFormToState(container);
 
   const kpi = calcMonth(_md, _chargesCache, _achatsCache, _repCfg, _users, _budgetOpsCache);
+  // Montants réels confirmés (vs. plafonds budget)
+  const _realCoursesTotal = _budgetOpsCache.filter(o => o.category === 'courses').reduce((s, o) => s + (Number(o.amount) || 0), 0);
+  const _realExtrasTotal  = _budgetOpsCache.filter(o => o.category === 'extras').reduce((s, o) => s + (Number(o.amount) || 0), 0);
 
   let byUserRows = '';
   if (_users.length > 1) {
@@ -524,8 +527,8 @@ function updatePreview(container) {
     ${kpi.aides.total > 0 ? `<div class="calc-preview-row"><span>Aides</span><span>${eur(kpi.aides.total)}</span></div>` : ''}
     <div class="calc-preview-row"><span>Primes & Bonus</span><span>${eur(kpi.primes.total)}</span></div>
     <div class="calc-preview-row"><span>Charges récurrentes</span><span>${eur(kpi.charges.total)}</span></div>
-    <div class="calc-preview-row"><span>Courses</span><span>${eur(kpi.courses.total)}</span></div>
-    <div class="calc-preview-row"><span>Loisirs</span><span>${eur(kpi.extras.total)}</span></div>
+    <div class="calc-preview-row"><span>Courses ✅<small style="color:var(--text-3);margin-left:4px;">(plaf.${eur(kpi.courses.total)})</small></span><span>${eur(_realCoursesTotal)}</span></div>
+    <div class="calc-preview-row"><span>Loisirs ✅<small style="color:var(--text-3);margin-left:4px;">(plaf.${eur(kpi.extras.total)})</small></span><span>${eur(_realExtrasTotal)}</span></div>
     <div class="calc-preview-row"><span>Imprévus</span><span>${eur(kpi.imprevus.total)}</span></div>
     ${byUserRows}
     <div class="calc-preview-row total" style="font-size:1rem;">
