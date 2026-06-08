@@ -1114,3 +1114,78 @@ svg { display: block; }
 .color-danger  { color: var(--danger); }
 .color-warning { color: var(--warning); }
 .color-primary { color: var(--primary); }
+
+/* ─── Sync Overlay ───────────────────────────────────── */
+.sync-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: rgba(0, 0, 0, 0.72);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.sync-overlay.hidden { display: none !important; }
+.sync-overlay-box {
+  background: var(--bg-card);
+  border-radius: var(--radius-lg);
+  padding: 32px 28px;
+  text-align: center;
+  max-width: 300px;
+  width: 90%;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+}
+.sync-subtitle {
+  font-size: 0.78rem;
+  color: var(--text-3);
+  margin-top: 6px;
+}
+
+/* ─── Save Indicator ─────────────────────────────────── */
+.save-indicator {
+  font-size: 0.75rem;
+  color: var(--success);
+  padding: 4px 0;
+  opacity: 1;
+  transition: opacity 0.5s;
+}
+.save-indicator.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* ─── User Badges / Color Dots ───────────────────────── */
+.user-color-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+}
+.user-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg-input);
+  border-radius: 20px;
+  padding: 4px 10px;
+  font-size: 0.82rem;
+}
+.user-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+.user-row:last-child { border-bottom: none; }
+
+/* ─── Color Swatch (onboarding / settings) ───────────── */
+.ob-color-btn,
+.color-swatch {
+  transition: transform 0.1s;
+}
+.ob-color-btn:active,
+.color-swatch:active {
+  transform: scale(0.9);
+}

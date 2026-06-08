@@ -1,0 +1,114 @@
+// ============================================================
+// js/sync.js – Synchronisation Drive automatique
+// ============================================================
+
+import { exportAllData, importAllData, setSetting, getSetting } from './db.js';
+import { pushVersionedBackup, pullBackup, listBackups,
+         isValidDriveUrl, DRIVE_URL_KEY, DRIVE_SYNC_KEY }       from './drive.js';
+import { showToast }                                             from './utils.js';
+
+// ── Tracking d'activité ──
+let _lastActivity = Date.now();
+let _autoSaveTimer = null;
+
+const INACTIVITY_LIMIT_MS = 10 * 60 * 1000;  // 10 minutes
+const AUTO_SAVE_INTERVAL_MS = 2 * 60 * 1000; // 2 minutes
+
+/** Remet à jour le timestamp d'activité. Appelé sur chaque interaction utilisateur. */
+export function markActivity() {
+  _lastActivity = Date.now();
+}
+
+function isActive() {
+  return (Date.now() - _lastActivity) < INACTIVITY_LIMIT_MS;
+}
+
+/** Enregistre les event listeners d'activité sur le document. */
+export function initActivityTracking() {
+  ['click', 'keydown', 'touchstart', 'mousemove', 'scroll'].forEach(evt => {
+    document.addEventListener(evt, markActivity, { passive: true });
+  });
+}
+
+/**
+ * Pull du Drive au lancement, avec overlay de chargement.
+ * Retourne true si une synchro a été effectuée.
+ */
+export async function initDriveSync() {
+  const url = await getSetting(DRIVE_URL_KEY);
+  if (!isValidDriveUrl(url)) return false;
+
+  const overlay = document.getElementById('sync-overlay');
+  if (overlay) overlay.classList.remove('hidden');
+
+  try {
+    const backups = await listBackups(url);
+    if (!backups || !backups.length) {
+      if (overlay) overlay.classList.add('hidden');
+      return false;
+    }
+
+    const latest = backups[0]; // déjà triés du plus récent au plus ancien
+    const data   = await pullBackup(url, latest.filename);
+
+    if (data && data.appName) {
+      await importAllData(data);
+      await setSetting(DRIVE_SYNC_KEY, new Date().toISOString());
+      console.log('[Sync] Drive synchronisé :', latest.filename);
+    }
+  } catch (err) {
+    console.warn('[Sync] Impossible de synchroniser avec Drive :', err.message);
+    // Silencieux — l'app peut fonctionner hors-ligne
+  }
+
+  if (overlay) overlay.classList.add('hidden');
+  return true;
+}
+
+/**
+ * Démarre l'auto-save toutes les 2 minutes si l'utilisateur est actif.
+ * Vérifie si Drive a une version plus récente avant de pousser.
+ */
+export function startAutoSave() {
+  if (_autoSaveTimer) clearInterval(_autoSaveTimer);
+
+  _autoSaveTimer = setInterval(async () => {
+    if (!isActive()) return;
+
+    const url = await getSetting(DRIVE_URL_KEY);
+    if (!isValidDriveUrl(url)) return;
+
+    try {
+      // Vérifier si Drive est plus récent
+      const backups = await listBackups(url);
+      if (backups && backups.length) {
+        const driveLatest   = new Date(backups[0].savedAt).getTime();
+        const lastSyncStr   = await getSetting(DRIVE_SYNC_KEY);
+        const lastSync      = lastSyncStr ? new Date(lastSyncStr).getTime() : 0;
+
+        if (driveLatest > lastSync + 5000) {
+          // Drive est plus récent → on avertit mais on ne pousse pas
+          showToast(
+            '⚠️ Une version plus récente existe sur Drive. Allez dans Réglages → Sync pour importer.',
+            'warning',
+            6000
+          );
+          return;
+        }
+      }
+
+      // Pousser
+      const data = await exportAllData();
+      await pushVersionedBackup(url, data);
+      await setSetting(DRIVE_SYNC_KEY, new Date().toISOString());
+      console.log('[Sync] Auto-save Drive OK');
+    } catch (err) {
+      console.warn('[Sync] Auto-save échoué :', err.message);
+    }
+  }, AUTO_SAVE_INTERVAL_MS);
+}
+
+export function stopAutoSave() {
+  if (_autoSaveTimer) clearInterval(_autoSaveTimer);
+  _autoSaveTimer = null;
+}

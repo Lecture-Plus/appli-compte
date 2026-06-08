@@ -177,9 +177,17 @@ export function buildCSV(rows, headers) {
   return lines.join('\n');
 }
 
-/** Vérifie si un mois a des données (au moins un champ > 0) */
+/** Vérifie si un mois a des données (au moins un champ > 0 pour n'importe quel user) */
 export function isMonthEmpty(monthData) {
   if (!monthData) return true;
+  // Nouveau format multi-users
+  if (monthData.users && typeof monthData.users === 'object') {
+    const fields = ['revenus', 'primes', 'courses', 'extras', 'imprevus'];
+    return Object.values(monthData.users).every(ud =>
+      fields.every(f => !(ud?.[f] > 0))
+    );
+  }
+  // Ancien format p1/p2 (compatibilité)
   const { p1, p2 } = monthData;
   const fields = ['revenus', 'primes', 'courses', 'extras', 'imprevus'];
   return fields.every(f => !(p1?.[f] > 0) && !(p2?.[f] > 0));

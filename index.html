@@ -117,6 +117,15 @@
 
   </div><!-- /.main-wrapper -->
 
+  <!-- ── Sync Overlay ── -->
+  <div id="sync-overlay" class="sync-overlay hidden" role="status" aria-live="polite">
+    <div class="sync-overlay-box">
+      <div class="spinner" style="margin:0 auto 16px;"></div>
+      <p style="font-weight:700;margin-bottom:4px;">Synchronisation en cours…</p>
+      <p class="sync-subtitle">Merci de ne pas quitter ou fermer l'application.</p>
+    </div>
+  </div>
+
 </div><!-- /#app -->
 
 <!-- ── Toast ── -->
@@ -140,27 +149,53 @@
 
 <!-- ── Écran de premier lancement ── -->
 <div id="onboarding" class="hidden" style="
-  position:fixed; inset:0; z-index:999;
+  position:fixed; inset:0; z-index:998;
   background:var(--bg); display:flex; flex-direction:column;
-  align-items:center; justify-content:center; padding:32px; text-align:center;">
+  align-items:center; justify-content:center; padding:32px; text-align:center;
+  overflow-y:auto;">
   <img src="icons/icon.svg" width="80" height="80" style="border-radius:20px;margin-bottom:24px;" alt="Budget Foyer">
   <h1 style="font-size:1.5rem;font-weight:800;letter-spacing:-0.03em;margin-bottom:8px;">Budget Foyer</h1>
-  <p style="color:var(--text-2);margin-bottom:32px;max-width:300px;">
-    Bienvenue ! Commençons par renseigner vos prénoms.
+  <p style="color:var(--text-2);margin-bottom:28px;max-width:300px;">
+    Bienvenue ! Commençons par créer votre profil.
   </p>
-  <div style="width:100%;max-width:320px;display:flex;flex-direction:column;gap:10px;margin-bottom:24px;">
-    <div class="form-group">
-      <label class="form-label">Prénom Personne 1</label>
-      <input type="text" class="form-input" id="ob-p1" placeholder="Ex: Julien" maxlength="30">
+
+  <div style="width:100%;max-width:340px;display:flex;flex-direction:column;gap:14px;">
+    <!-- Utilisateur 1 -->
+    <div class="card" style="text-align:left;padding:16px;">
+      <div style="font-size:0.78rem;font-weight:700;color:var(--primary);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px;">Vous</div>
+      <div class="form-group" style="margin-bottom:10px;">
+        <label class="form-label">Votre prénom</label>
+        <input type="text" class="form-input" id="ob-name-1" placeholder="Ex: Julien" maxlength="30">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Votre couleur</label>
+        <div id="ob-colors-1" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px;"></div>
+      </div>
     </div>
-    <div class="form-group">
-      <label class="form-label">Prénom Personne 2 (optionnel)</label>
-      <input type="text" class="form-input" id="ob-p2" placeholder="Ex: Océane" maxlength="30">
+
+    <!-- Bouton ajouter une 2e personne -->
+    <button class="btn btn-outline btn-full" id="ob-add-second" style="font-size:0.875rem;">
+      + Ajouter une autre personne (optionnel)
+    </button>
+
+    <!-- Utilisateur 2 (masqué par défaut) -->
+    <div id="ob-user-2" class="card" style="text-align:left;padding:16px;display:none;">
+      <div style="font-size:0.78rem;font-weight:700;color:var(--primary);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px;">2ème personne</div>
+      <div class="form-group" style="margin-bottom:10px;">
+        <label class="form-label">Prénom</label>
+        <input type="text" class="form-input" id="ob-name-2" placeholder="Ex: Océane" maxlength="30">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Couleur</label>
+        <div id="ob-colors-2" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px;"></div>
+      </div>
+      <button class="btn btn-sm btn-outline" id="ob-remove-second" style="margin-top:10px;font-size:0.78rem;">✕ Retirer</button>
     </div>
+
+    <button class="btn btn-primary btn-lg" id="ob-start" style="width:100%;margin-top:8px;">
+      Commencer 🚀
+    </button>
   </div>
-  <button class="btn btn-primary btn-lg" id="ob-start" style="width:100%;max-width:320px;">
-    Commencer 🚀
-  </button>
 </div>
 
 <!-- Chart.js via CDN -->
@@ -168,25 +203,69 @@
 
 <!-- Application principale (ES Module) -->
 <script type="module">
-  import { getSetting, setSetting } from './js/db.js';
-  import { navigateTo, applyTheme } from './js/app.js';
+  import { getActiveUsers, saveUser, USER_COLORS } from './js/db.js';
+  import { navigateTo, reloadUsers, State }        from './js/app.js';
 
-  // Vérification du premier lancement
-  (async () => {
-    const p1 = await getSetting('p1Name');
-    if (!p1 || p1 === 'Personne 1') {
-      // Premier lancement : afficher l'onboarding
-      document.getElementById('onboarding').classList.remove('hidden');
-
-      document.getElementById('ob-start')?.addEventListener('click', async () => {
-        const v1 = document.getElementById('ob-p1')?.value.trim() || 'Personne 1';
-        const v2 = document.getElementById('ob-p2')?.value.trim() || 'Personne 2';
-        await setSetting('p1Name', v1);
-        await setSetting('p2Name', v2);
-        document.getElementById('onboarding').classList.add('hidden');
-        navigateTo('dashboard');
+  function buildColorPicker(containerId, defaultColor) {
+    const cont = document.getElementById(containerId);
+    if (!cont) return;
+    let selected = defaultColor;
+    cont.innerHTML = USER_COLORS.map(c => `
+      <button type="button" class="ob-color-btn" data-color="${c}"
+        style="width:28px;height:28px;border-radius:50%;background:${c};border:3px solid ${c === defaultColor ? '#fff' : 'transparent'};box-shadow:${c === defaultColor ? '0 0 0 2px '+c : 'none'};cursor:pointer;flex-shrink:0;"></button>
+    `).join('');
+    cont.querySelectorAll('.ob-color-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        cont.querySelectorAll('.ob-color-btn').forEach(b => { b.style.border='3px solid transparent'; b.style.boxShadow='none'; });
+        btn.style.border = '3px solid #fff';
+        btn.style.boxShadow = `0 0 0 2px ${btn.dataset.color}`;
+        selected = btn.dataset.color;
       });
-    }
+    });
+    return () => selected;
+  }
+
+  let getColor1, getColor2;
+
+  (async () => {
+    const users = await getActiveUsers();
+    if (users.length > 0) return; // Déjà configuré
+
+    document.getElementById('onboarding').classList.remove('hidden');
+
+    getColor1 = buildColorPicker('ob-colors-1', USER_COLORS[0]);
+    getColor2 = buildColorPicker('ob-colors-2', USER_COLORS[1] || USER_COLORS[0]);
+
+    document.getElementById('ob-add-second')?.addEventListener('click', () => {
+      document.getElementById('ob-user-2').style.display = '';
+      document.getElementById('ob-add-second').style.display = 'none';
+    });
+
+    document.getElementById('ob-remove-second')?.addEventListener('click', () => {
+      document.getElementById('ob-user-2').style.display = 'none';
+      document.getElementById('ob-add-second').style.display = '';
+    });
+
+    document.getElementById('ob-start')?.addEventListener('click', async () => {
+      const name1 = document.getElementById('ob-name-1')?.value.trim();
+      if (!name1) { document.getElementById('ob-name-1').focus(); return; }
+
+      const now = new Date().toISOString();
+      const u1  = await saveUser({ name: name1, color: getColor1 ? getColor1() : USER_COLORS[0], active: true, createdAt: now });
+      localStorage.setItem('currentDeviceUserId', String(u1));
+      State.currentUserId = String(u1);
+
+      const name2 = document.getElementById('ob-user-2')?.style.display !== 'none'
+        ? document.getElementById('ob-name-2')?.value.trim()
+        : '';
+      if (name2) {
+        await saveUser({ name: name2, color: getColor2 ? getColor2() : USER_COLORS[1], active: true, createdAt: now });
+      }
+
+      await reloadUsers();
+      document.getElementById('onboarding').classList.add('hidden');
+      navigateTo('dashboard');
+    });
   })();
 </script>
 
