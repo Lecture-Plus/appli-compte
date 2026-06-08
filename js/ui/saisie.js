@@ -21,6 +21,7 @@ let _saveInd  = null; // référence à l'indicateur "Sauvegardé"
 // Cache chargé une fois par render pour éviter les DB reads répétés
 let _chargesCache = [];
 let _achatsCache  = [];
+let _budgetOpsCache = [];
 let _coursesFoyerMode = localStorage.getItem('coursesFoyerMode') === '1';
 let _extrasFoyerMode  = localStorage.getItem('extrasFoyerMode')  === '1';
 
@@ -30,11 +31,12 @@ export async function render(container) {
   const { year, month } = State;
   const N = _users.length;
 
-  [_md, _repCfg, _chargesCache, _achatsCache] = await Promise.all([
+  [_md, _repCfg, _chargesCache, _achatsCache, _budgetOpsCache] = await Promise.all([
     getMonthlyData(year, month),
     getRepartition(year, month),
     getChargesForMonth(month),
     getAchatsForMonth(year, month),
+    getBudgetOpsForMonth(year, month),
   ]);
 
   // Assurer que chaque user a ses données initialisées
@@ -495,7 +497,7 @@ function updatePreview(container) {
 
   syncFormToState(container);
 
-  const kpi = calcMonth(_md, _chargesCache, _achatsCache, _repCfg, _users);
+  const kpi = calcMonth(_md, _chargesCache, _achatsCache, _repCfg, _users, _budgetOpsCache);
 
   let byUserRows = '';
   if (_users.length > 1) {
@@ -583,7 +585,7 @@ function showWhatIfModal(container, month, year) {
     });
     const charges = _chargesCache;
     const achats  = _achatsCache;
-    const base    = calcMonth(_md, charges, achats, _repCfg, _users);
+    const base    = calcMonth(_md, charges, achats, _repCfg, _users, _budgetOpsCache);
     const sim     = whatIf(base, extraByUser, _users);
     const res     = document.getElementById('wi-result');
     if (!res || !sim) return;

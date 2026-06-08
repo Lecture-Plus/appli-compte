@@ -36,7 +36,7 @@ const _uid  = id   => String(id);
  *  TAUX  = solde / (revenus + primes)
  * ─────────────────────────────────────────────────────────────
  */
-export function calcMonth(monthData, charges, achats, repartCfg, users) {
+export function calcMonth(monthData, charges, achats, repartCfg, users, budgetOps = null) {
   const uids = (users || []).map(u => _uid(u.id));
   const N    = uids.length || 1;
   const mode = N <= 1 ? 'solo' : (repartCfg?.mode || 'separe');
@@ -91,17 +91,32 @@ export function calcMonth(monthData, charges, achats, repartCfg, users) {
     }
   }
 
+  // ── Budget ops (dépenses réelles par catégorie budgétisée) ──
+  // Si fournis, remplacent les plafonds courses/extras dans le calcul du solde.
+  const useBudgetOps = Array.isArray(budgetOps);
+  const bopsU = _mk(uids);
+  let   bopsShared = 0;
+  if (useBudgetOps) {
+    for (const op of (budgetOps || [])) {
+      const amt = Number(op.amount) || 0;
+      const qui = _uid(op.userId);
+      if (qui && uids.includes(qui)) { bopsU[qui] += amt; }
+      else                           { bopsShared += amt; }
+    }
+  }
+
   // ── Part des coûts partagés selon le mode ──
   const partSharedU = _mk(uids);
-  const totalCommon = totalSharedChg + totalCrs + totalSharedAch;
+  // Quand budgetOps fournis : courses = plafond seulement, pas dans aPayer
+  const totalCommon = totalSharedChg + (useBudgetOps ? 0 : totalCrs) + totalSharedAch;
 
   if (mode === 'solo') {
-    if (uids[0]) partSharedU[uids[0]] = totalCommon + _sum(extU);
+    if (uids[0]) partSharedU[uids[0]] = totalCommon + (useBudgetOps ? bopsShared + _sum(bopsU) : _sum(extU));
   } else if (mode === 'fixe') {
     const pcts    = repartCfg?.pcts ?? {};
     const sumPcts = uids.reduce((s, uid) => s + (Number(pcts[uid]) || 0), 0) || 100;
     for (const uid of uids) {
-      partSharedU[uid] = totalCommon * ((Number(pcts[uid]) || 0) / sumPcts);
+      partSharedU[uid] = (totalCommon + (useBudgetOps ? bopsShared : 0)) * ((Number(pcts[uid]) || 0) / sumPcts);
     }
   } else if (mode === 'equitable') {
     // Répartition selon revenus + aides (si coché par l'user)
@@ -110,23 +125,23 @@ export function calcMonth(monthData, charges, achats, repartCfg, users) {
     for (const uid of uids) revForDist[uid] = revU[uid] + (aidesRep[uid] ? aidesU[uid] : 0);
     const base = _sum(revForDist) || 1;
     for (const uid of uids) {
-      partSharedU[uid] = totalCommon * (revForDist[uid] / base);
+      partSharedU[uid] = (totalCommon + (useBudgetOps ? bopsShared : 0)) * (revForDist[uid] / base);
     }
   } else {
     // 'separe' : coûts partagés divisés équitablement
     for (const uid of uids) {
-      partSharedU[uid] = totalCommon / N;
+      partSharedU[uid] = (totalCommon + (useBudgetOps ? bopsShared : 0)) / N;
     }
   }
 
   // ── Part totale par user ──
   const partU = _mk(uids);
   for (const uid of uids) {
-    // en mode solo, partSharedU inclut déjà les extras
+    // en mode solo, partSharedU inclut déjà les extras/budgetOps
     partU[uid] = partSharedU[uid]
       + chgPersonalU[uid]
       + achPersonalU[uid]
-      + (mode === 'solo' ? 0 : extU[uid]);
+      + (mode === 'solo' ? 0 : (useBudgetOps ? bopsU[uid] : extU[uid]));
   }
 
   // ── À payer = part + imprévus (perso charges exclues) ──

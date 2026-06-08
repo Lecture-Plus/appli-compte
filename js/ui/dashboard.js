@@ -99,7 +99,7 @@ async function _renderResume(container, s, users) {
 
   const pendingCraquages = allAchats.filter(a => a.category === 'craquage' && a.craquage_source === 'pending');
 
-  const kpi    = calcMonth(md, charges, achats, repCfg, users);
+  const kpi    = calcMonth(md, charges, achats, repCfg, users, allBudgetOps);
   const status = completenessStatus(md);
 
   // Pinned budget cards data
