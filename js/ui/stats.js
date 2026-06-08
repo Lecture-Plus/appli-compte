@@ -331,6 +331,7 @@ function renderChartRevPrimes(displayResults, users = []) {
   canvas.setAttribute('role', 'img');
   canvas.setAttribute('aria-label', 'Graphique barres : revenus et primes mensuels');
   const chart = new Chart(canvas, {
+    type: 'bar',
     data: {
       labels: MOIS_COURT,
       datasets: [
