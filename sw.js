@@ -1,7 +1,7 @@
 // Service Worker – Budget Foyer
 // Stratégie : Cache First pour l'app shell, réseau ignoré (tout est local)
 
-const CACHE_NAME = 'budget-foyer-v7';
+const CACHE_NAME = 'budget-foyer-v8';
 
 const APP_SHELL = [
   './index.html',
@@ -24,11 +24,18 @@ const APP_SHELL = [
   'https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js'
 ];
 
-// Installation : mise en cache de tous les fichiers de l'app
+// Installation : téléchargement forcé sans cache HTTP
 self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE_NAME)
-      .then(cache => cache.addAll(APP_SHELL))
+      .then(cache => {
+        const requests = APP_SHELL.map(url =>
+          url.startsWith('http')
+            ? url
+            : new Request(url, { cache: 'no-store' })
+        );
+        return cache.addAll(requests);
+      })
       .then(() => self.skipWaiting())
       .catch(err => console.warn('[SW] Erreur cache install:', err))
   );

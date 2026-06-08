@@ -17,13 +17,14 @@ export const State = {
 };
 
 // ── Mapping pages → modules ──
+const _V = '?v=8';
 const PAGES = {
-  dashboard: () => import('./ui/dashboard.js'),
-  saisie:    () => import('./ui/saisie.js'),
-  charges:   () => import('./ui/charges.js'),
-  savings:   () => import('./ui/savings.js'),
-  stats:     () => import('./ui/stats.js'),
-  settings:  () => import('./ui/settings.js'),
+  dashboard: () => import('./ui/dashboard.js' + _V),
+  saisie:    () => import('./ui/saisie.js'    + _V),
+  charges:   () => import('./ui/charges.js'   + _V),
+  savings:   () => import('./ui/savings.js'   + _V),
+  stats:     () => import('./ui/stats.js'     + _V),
+  settings:  () => import('./ui/settings.js'  + _V),
 };
 
 const PAGE_TITLES = {
