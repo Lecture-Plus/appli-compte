@@ -782,11 +782,22 @@ async function exportPDF(year, month, users, s) {
     // Tableau mensuel
     const tableRows=months.map(m=>{ const r=allResults[m-1]; if(!r) return `<tr><td style="color:#CBD5E1;font-style:italic;">${MOIS_FULL[m-1]}</td>${users.map(()=>'<td style="color:#CBD5E1">—</td>').join('')}<td style="color:#CBD5E1">—</td><td style="color:#CBD5E1">—</td><td style="color:#CBD5E1">—</td><td style="color:#CBD5E1">—</td></tr>`; const txC=r.txEpargne.total>=0.1?'#10B981':r.txEpargne.total>=0?'#F59E0B':'#EF4444'; return `<tr><td>${MOIS_FULL[m-1]}</td>${users.map(u=>`<td>${fmt(r.revenus.byUser?.[u.id]??0)}</td>`).join('')}<td>${fmt(r.charges.total)}</td><td>${fmt(r.depenses.total)}</td><td style="color:${clr(r.solde.total)};font-weight:800;">${fmt(r.solde.total)}</td><td style="color:${txC};font-weight:700;">${fmtPct(r.txEpargne.total)}</td></tr>`; }).join('');
 
-    // Achats
-    const achatsForPDF=[];
-    for (const m of months) { const list=(achatMap[m]||[]).filter(a=>a.category==='craquage'&&a.craquage_source!=='pending'); for (const a of list) achatsForPDF.push({...a,_month:m}); }
-    achatsForPDF.sort((a,b)=>(b._month*100+(b.day||0))-(a._month*100+(a.day||0)));
-    const achatRows=achatsForPDF.slice(0,30).map((a,i)=>{ const info=getCategoryInfo(a.category); const d=a.day?`${a.day} ${MOIS_SHORT[a._month-1]}`:MOIS_SHORT[a._month-1]; return `<tr style="${i%2?'background:#FFFBEB;':''}"><td style="display:flex;align-items:center;gap:6px;"><span>${info.emoji}</span><span>${esc(a.label||'')}</span></td><td style="color:#94A3B8;text-align:right;">${d}</td><td style="color:#D97706;font-weight:700;text-align:right;">${fmt(a.amount)}</td></tr>`; }).join('');
+    // Imprévus (depuis monthlyData.imprévusList)
+    const imprévusForPDF = [];
+    for (const m of months) {
+      const md = monthMap[m];
+      if (!md) continue;
+      for (const item of (md.imprévusList || [])) {
+        imprévusForPDF.push({ ...item, _month: m });
+      }
+    }
+    imprévusForPDF.sort((a,b) => (b._month*100+(b.day||0)) - (a._month*100+(a.day||0)));
+    const getUserName = uid => { if (uid==='shared') return '🤝 Partagé'; const u=users.find(u=>String(u.id)===String(uid)); return u ? u.name : uid; };
+    const imprévusRows = imprévusForPDF.slice(0,40).map((a,i) => {
+      const d = a.day ? `${a.day} ${MOIS_SHORT[a._month-1]}` : MOIS_SHORT[a._month-1];
+      const qui = getUserName(a.qui ?? 'shared');
+      return `<tr style="${i%2?'background:#FFFBEB;':''}"><td><strong>${esc(a.label||'')}</strong><br><span style="font-size:9px;color:#94A3B8;">${qui}</span></td><td style="color:#94A3B8;text-align:right;">${d}</td><td style="color:#D97706;font-weight:700;text-align:right;">${fmt(a.amount)}</td></tr>`;
+    }).join('');
 
     const html = `<!DOCTYPE html>
 <html lang="fr">
@@ -942,8 +953,8 @@ ${Object.keys(chargesByCat).length > 0 ? `<div class="st">🏠 Charges fixes</di
   ${yearKPI ? `<tfoot><tr><td>TOTAL / CUMUL</td>${users.map(u=>`<td>${fmt(yearKPI.revenus.byUser?.[u.id]??0)}</td>`).join('')}<td>${fmt(yearKPI.charges.total)}</td><td>${fmt(yearKPI.depenses.total)}</td><td style="color:#A5F3C4;">${fmt(yearKPI.solde.total)}</td><td style="color:#A5F3C4;">${fmtPct(yearKPI.txEpargne.total)}</td></tr></tfoot>` : ''}
 </table></div>
 
-${achatsForPDF.length > 0 ? `<div class="st">⚠️ Imprévus${achatsForPDF.length>30?' (30 premiers)':''}</div>
-<div class="ac-wrap"><table class="ac"><thead><tr><th>Description</th><th>Date</th><th>Montant</th></tr></thead><tbody>${achatRows}</tbody></table></div>` : ''}
+${imprévusForPDF.length > 0 ? `<div class="st">⚡ Imprévus${imprévusForPDF.length>40?' (40 premiers)':''}</div>
+<div class="ac-wrap"><table class="ac"><thead><tr><th>Description</th><th>Date</th><th>Montant</th></tr></thead><tbody>${imprévusRows}</tbody></table></div>` : ''}
 
 <div class="pf"><span><strong>Compta+</strong> — Bilan Financier Personnel</span><span>${esc(periodLabel)} · Généré le ${genDate}</span></div>
 </div>
