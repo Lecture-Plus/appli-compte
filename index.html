@@ -22,33 +22,16 @@
 
 <div id="app">
 
-  <!-- ── Header ── -->
-  <header id="app-header">
-    <div class="header-left">
-      <h1 id="page-title">Budget Foyer</h1>
-    </div>
-    <div class="header-right">
-      <button id="btn-notif" class="btn-icon" aria-label="Notifications" title="Notifications">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
-          <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
-        </svg>
-        <span class="notif-badge hidden" id="notif-dot"></span>
-      </button>
-    </div>
-  </header>
-
-  <!-- ── Contenu principal ── -->
-  <main id="app-content" role="main">
-    <!-- Rendu dynamique par JS -->
-    <div class="loading">
-      <div class="spinner"></div>
-      Chargement…
-    </div>
-  </main>
-
-  <!-- ── Navigation bas ── -->
+  <!-- ── Navigation latérale (sidebar desktop / barre bas mobile) ── -->
   <nav id="bottom-nav" aria-label="Navigation principale">
+
+    <!-- Logo sidebar (desktop only) -->
+    <div class="sidebar-brand">
+      <img src="icons/icon.svg" width="32" height="32" alt="Budget Foyer" style="border-radius:8px;">
+      <span class="sidebar-brand-name">Budget Foyer</span>
+    </div>
+
+    <div class="nav-items">
 
     <button class="nav-item active" data-page="dashboard" aria-label="Accueil">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -92,8 +75,39 @@
       <span>Réglages</span>
     </button>
 
+    </div><!-- /.nav-items -->
   </nav>
-</div>
+
+  <!-- ── Wrapper header + contenu ── -->
+  <div class="main-wrapper">
+
+    <!-- ── Header ── -->
+    <header id="app-header">
+      <div class="header-left">
+        <h1 id="page-title">Budget Foyer</h1>
+      </div>
+      <div class="header-right">
+        <button id="btn-notif" class="btn-icon" aria-label="Notifications" title="Notifications">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+            <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+          </svg>
+          <span class="notif-badge hidden" id="notif-dot"></span>
+        </button>
+      </div>
+    </header>
+
+    <!-- ── Contenu principal ── -->
+    <main id="app-content" role="main">
+      <div class="loading">
+        <div class="spinner"></div>
+        Chargement…
+      </div>
+    </main>
+
+  </div><!-- /.main-wrapper -->
+
+</div><!-- /#app -->
 
 <!-- ── Toast ── -->
 <div id="toast" class="toast hidden" role="alert" aria-live="polite"></div>

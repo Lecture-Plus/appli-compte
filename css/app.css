@@ -885,37 +885,215 @@ svg { display: block; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 /* ─── 30. Responsive Desktop ─── */
-@media (min-width: 640px) {
-  #app {
-    max-width: 100%;
-    flex-direction: row;
-  }
 
-  #bottom-nav {
-    flex-direction: column;
-    width: 80px;
-    border-top: none;
-    border-right: 1px solid var(--border);
+/* ── Variables desktop ── */
+@media (min-width: 768px) {
+  :root {
+    --sidebar-w:    240px;
+    --header-h:     64px;
+    --content-max:  960px;
+  }
+}
+
+@media (min-width: 768px) {
+
+  /* ══ Layout racine ══ */
+  body { overflow: auto; }
+
+  #app {
+    display: flex;
+    flex-direction: row;
+    max-width: 100%;
     height: 100dvh;
-    padding: 16px 0;
     overflow: hidden;
   }
 
-  .nav-item {
-    padding: 14px 4px;
-    border-radius: var(--radius-sm);
+  /* ══ Sidebar ══ */
+  #bottom-nav {
+    flex-direction:   column;
+    width:            var(--sidebar-w);
+    min-width:        var(--sidebar-w);
+    height:           100dvh;
+    border-top:       none;
+    border-right:     1px solid var(--border);
+    border-radius:    0;
+    padding:          0;
+    overflow-y:       auto;
+    overflow-x:       hidden;
+    background:       var(--bg-card);
+    box-shadow:       2px 0 12px rgba(0,0,0,0.04);
+    display:          flex;
+    align-items:      stretch;
   }
 
-  .main-wrapper {
-    flex: 1;
-    display: flex;
+  /* Brand / logo en haut du sidebar */
+  .sidebar-brand {
+    display:        flex;
+    align-items:    center;
+    gap:            12px;
+    padding:        20px 20px 16px;
+    border-bottom:  1px solid var(--border);
+    margin-bottom:  8px;
+    flex-shrink:    0;
+  }
+  .sidebar-brand-name {
+    font-size:   1rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: var(--text);
+  }
+
+  /* Conteneur des boutons nav */
+  .nav-items {
+    display:        flex;
     flex-direction: column;
-    min-width: 0;
+    gap:            2px;
+    padding:        0 10px;
+    flex:           1;
   }
 
-  .fab { right: 24px; bottom: 24px; }
-  #toast { bottom: 24px; }
+  /* Boutons nav sidebar */
+  .nav-item {
+    flex-direction: row;
+    justify-content: flex-start;
+    align-items:    center;
+    gap:            12px;
+    padding:        12px 14px;
+    border-radius:  var(--radius);
+    width:          100%;
+    text-align:     left;
+    color:          var(--text-2);
+    font-size:      0.9rem;
+    font-weight:    500;
+  }
+
+  .nav-item svg {
+    width:  20px;
+    height: 20px;
+    flex-shrink: 0;
+  }
+
+  .nav-item span:not(.nav-badge) {
+    font-size:   0.88rem;
+    font-weight: 500;
+  }
+
+  .nav-item.active {
+    background: var(--primary-bg);
+    color:      var(--primary);
+  }
+
+  .nav-item.active svg    { transform: none; }
+  .nav-item.active span   { font-weight: 700; }
+  .nav-item:hover:not(.active) { background: var(--bg-input); }
+
+  .nav-badge {
+    margin-left: auto;
+    margin-right: 0;
+    position: static;
+  }
+
+  /* ══ Wrapper header + contenu ══ */
+  .main-wrapper {
+    flex:           1;
+    display:        flex;
+    flex-direction: column;
+    min-width:      0;
+    height:         100dvh;
+    overflow:       hidden;
+    background:     var(--bg);
+  }
+
+  /* ══ Header desktop ══ */
+  #app-header {
+    height:        var(--header-h);
+    padding:       0 32px;
+    border-bottom: 1px solid var(--border);
+    background:    var(--bg-card);
+    flex-shrink:   0;
+    box-shadow:    var(--shadow-sm);
+  }
+
+  #page-title {
+    font-size: 1.25rem;
+    font-weight: 800;
+  }
+
+  /* ══ Contenu principal ══ */
+  #app-content {
+    flex:       1;
+    overflow-y: auto;
+    padding:    32px;
+  }
+
+  /* Centrage et max-width du contenu */
+  #app-content > * {
+    max-width: var(--content-max);
+    margin-left:  auto;
+    margin-right: auto;
+  }
+
+  /* ══ Grille KPI 4 colonnes ══ */
+  .kpi-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+
+  /* ══ Formulaires 3 colonnes ══ */
+  .form-section {
+    padding: 20px 24px;
+  }
+
+  /* ══ Cards avec plus d'espace ══ */
+  .card {
+    padding: 20px 24px;
+  }
+
+  /* ══ Sélecteur mois : plus sobre ══ */
+  .month-nav {
+    max-width: 320px;
+  }
+
+  /* ══ FAB repositionné ══ */
+  .fab {
+    right:  32px;
+    bottom: 32px;
+  }
+
+  /* ══ Toast repositionné ══ */
+  #toast {
+    bottom: 32px;
+  }
+
+  /* ══ Modal centrée (pas slide up) ══ */
+  #modal-overlay {
+    align-items:     center;
+    justify-content: center;
+    padding:         24px;
+  }
+
+  #modal {
+    border-radius: var(--radius-xl);
+    max-width:     560px;
+    max-height:    85vh;
+    animation:     fadeInScale 0.25s cubic-bezier(0.32, 0.72, 0, 1);
+  }
+
+  @keyframes fadeInScale {
+    from { opacity: 0; transform: scale(0.95) translateY(8px); }
+    to   { opacity: 1; transform: scale(1)    translateY(0); }
+  }
+
+  /* ══ Masquer le brand sur mobile ══ */
+  .sidebar-brand { display: flex; }
 }
+
+/* Sur mobile : masquer le brand sidebar */
+@media (max-width: 767px) {
+  .sidebar-brand  { display: none; }
+  .nav-items      { display: contents; }
+  .main-wrapper   { display: contents; }
+}
+
 
 /* ─── 31. Utilitaires ─── */
 .hidden   { display: none !important; }
