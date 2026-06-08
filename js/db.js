@@ -271,12 +271,21 @@ export async function deleteCharge(id) {
 
 export async function getChargesForMonth(month) {
   const all = await _getAll('charges');
-  return all.filter(c => {
-    if (!c.active) return false;
-    if (c.months === 'all') return true;
-    if (Array.isArray(c.months)) return c.months.includes(month);
-    return true;
-  });
+  const result = [];
+  for (const c of all) {
+    if (!c.active) continue;
+    const applicable = c.months === 'all' || (Array.isArray(c.months) && c.months.includes(month));
+    if (!applicable) continue;
+    // Expand lines (multi-prélèvement par charge)
+    if (c.lines?.length) {
+      for (const line of c.lines) {
+        result.push({ ...c, amount: Number(line.amount) || 0, qui: line.qui ?? 'shared', dayOfMonth: line.dayOfMonth ?? null });
+      }
+    } else {
+      result.push(c);
+    }
+  }
+  return result;
 }
 
 /* ══════════════════════════════════════════════════

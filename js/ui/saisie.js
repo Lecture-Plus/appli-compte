@@ -17,6 +17,9 @@ let _md       = null;
 let _repCfg   = null;
 let _users    = [];
 let _saveInd  = null; // référence à l'indicateur "Sauvegardé"
+// Cache chargé une fois par render pour éviter les DB reads répétés
+let _chargesCache = [];
+let _achatsCache  = [];
 
 export async function render(container) {
   _users = await getActiveUsers();
@@ -24,9 +27,11 @@ export async function render(container) {
   const { year, month } = State;
   const N = _users.length;
 
-  [_md, _repCfg] = await Promise.all([
+  [_md, _repCfg, _chargesCache, _achatsCache] = await Promise.all([
     getMonthlyData(year, month),
     getRepartition(year, month),
+    getChargesForMonth(month),
+    getAchatsForMonth(year, month),
   ]);
 
   // Assurer que chaque user a ses données initialisées
@@ -168,7 +173,7 @@ export async function render(container) {
   _saveInd = container.querySelector('#save-indicator');
 
   // Mise à jour immédiate de l'aperçu
-  updatePreview(container, month, year);
+  updatePreview(container);
 
   // ── Navigation mois ──
   container.querySelector('#prev-month')?.addEventListener('click', () => {
@@ -195,7 +200,7 @@ export async function render(container) {
       if (optsEl) optsEl.style.display = _repCfg.mode === 'fixe' ? '' : 'none';
       const descEl = container.querySelector('#mode-desc');
       if (descEl) descEl.textContent = getModeDesc(_repCfg.mode);
-      updatePreview(container, month, year);
+      updatePreview(container);
       debouncedSave();
     });
   });
@@ -209,7 +214,7 @@ export async function render(container) {
   fieldSelectors.forEach(input => {
     input.addEventListener('input', () => {
       syncFormToState(container);
-      updatePreview(container, month, year);
+      updatePreview(container);
       debouncedSave();
     });
   });
@@ -266,15 +271,13 @@ function syncFormToState(container) {
 }
 
 // ── Aperçu ──
-async function updatePreview(container, month, year) {
+function updatePreview(container) {
   const el = container.querySelector('#calc-rows');
   if (!el) return;
 
   syncFormToState(container);
 
-  const charges = await getChargesForMonth(month);
-  const achats  = await getAchatsForMonth(year, month);
-  const kpi     = calcMonth(_md, charges, achats, _repCfg, _users);
+  const kpi = calcMonth(_md, _chargesCache, _achatsCache, _repCfg, _users);
 
   let byUserRows = '';
   if (_users.length > 1) {
@@ -358,8 +361,8 @@ function showWhatIfModal(container, month, year) {
     document.querySelectorAll('.wi-extra').forEach(inp => {
       extraByUser[inp.dataset.uid] = Number(inp.value) || 0;
     });
-    const charges = await getChargesForMonth(month);
-    const achats  = await getAchatsForMonth(year, month);
+    const charges = _chargesCache;
+    const achats  = _achatsCache;
     const base    = calcMonth(_md, charges, achats, _repCfg, _users);
     const sim     = whatIf(base, extraByUser, _users);
     const res     = document.getElementById('wi-result');
@@ -477,7 +480,9 @@ function showCraquageModal(container, month, year) {
     closeModal();
     const total = validRows.reduce((s, r) => s + Number(r.amount), 0);
     showToast(`Craquage enregistré : ${eur(total)} 💥`, 'success');
-    updatePreview(container, month, year);
+    // Rafraîchit le cache achats puis l'aperçu
+    _achatsCache = await getAchatsForMonth(year, month);
+    updatePreview(container);
   });
 }
 

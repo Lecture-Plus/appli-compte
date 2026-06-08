@@ -229,14 +229,13 @@ export function calcYear(monthsResults) {
 /**
  * Calcul prévisionnel jour par jour pour un mois.
  */
-export function calcPrevisionnel({ totalIncome, charges, weeklyCoursesEstimate, year, month }) {
-  const coursesPerDay = (Number(weeklyCoursesEstimate) || 85) / 7;
-  const daysInMonth   = new Date(year, month, 0).getDate();
-  const today         = new Date();
-  const todayDay      = today.getFullYear() === year && today.getMonth() + 1 === month
+export function calcPrevisionnel({ totalIncome, charges, year, month }) {
+  const daysInMonth = new Date(year, month, 0).getDate();
+  const today       = new Date();
+  const todayDay    = today.getFullYear() === year && today.getMonth() + 1 === month
     ? today.getDate() : 0;
 
-  // Indexe les charges par jour de prélèvement
+  // Indexe les charges par jour de prélèvement (déjà expandées par getChargesForMonth)
   const chargesByDay = {};
   for (const c of (charges ?? [])) {
     if (!c.active) continue;
@@ -256,12 +255,11 @@ export function calcPrevisionnel({ totalIncome, charges, weeklyCoursesEstimate, 
   for (let d = 1; d <= daysInMonth; d++) {
     const chargeItems = chargesByDay[d] ?? [];
     const chargesAmt  = chargeItems.reduce((s, c) => s + c.amount, 0);
-    balance -= chargesAmt + coursesPerDay;
+    balance -= chargesAmt;
 
     days.push({
       day:         d,
       chargeItems,
-      coursesAmt:  Math.round(coursesPerDay * 100) / 100,
       balance:     Math.round(balance * 100) / 100,
       isPast:      todayDay > 0 && d < todayDay,
       isToday:     d === todayDay,

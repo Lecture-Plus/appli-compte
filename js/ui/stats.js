@@ -3,11 +3,12 @@
 // ============================================================
 
 import { State }                                          from '../app.js';
-import { getMonthsByYear, getChargesForMonth,
+import { getMonthsByYear, getAllCharges,
          getAchatsForMonth, getRepartition,
          getAllSettings, getAvailableYears,
          getActiveUsers, getAllUsers,
-         getAllSavingsOperations }                          from '../db.js';
+         getAllSavingsOperations, getAllRepartitions,
+         getAllAchats }                                     from '../db.js';
 import { calcMonth, calcYear, calcSavingsBalance }         from '../calculs.js';
 import { eur, pct, nomMoisCourt, escHtml, showToast,
          downloadBlob, buildCSV, MOIS_COURT, MOIS }        from '../utils.js';
@@ -108,15 +109,43 @@ export async function render(container) {
 }
 
 async function loadAndRender(container, year, users, s) {
-  const monthsData = await getMonthsByYear(year);
-  const monthMap   = Object.fromEntries(monthsData.map(m => [m.month, m]));
+  // Charger toutes les données en parallèle (1 seul round-trip par table)
+  const [monthsData, allChargesRaw, allAchats, allRepartitions] = await Promise.all([
+    getMonthsByYear(year),
+    getAllCharges(),
+    getAllAchats(),
+    getAllRepartitions(),
+  ]);
+
+  const monthMap    = Object.fromEntries(monthsData.map(m => [m.month, m]));
+  const achatMap    = {};   // m → achats[]
+  const repartMap   = {};   // m → repartition
+  for (const a of allAchats)      { if (a.year === year) { (achatMap[a.month] ??= []).push(a); } }
+  for (const r of allRepartitions){ if (r.year === year) repartMap[r.month] = r; }
+
+  // Helper : expand lines pour un mois donné (miroir de getChargesForMonth dans db.js)
+  const defaultRepartMode = s.defaultRepartMode ?? 'separe';
+  function chargesForMonth(m) {
+    const out = [];
+    for (const c of allChargesRaw) {
+      if (!c.active) continue;
+      const ok = c.months === 'all' || (Array.isArray(c.months) && c.months.includes(m));
+      if (!ok) continue;
+      if (c.lines?.length) {
+        for (const l of c.lines) out.push({ ...c, amount: Number(l.amount)||0, qui: l.qui ?? 'shared', dayOfMonth: l.dayOfMonth ?? null });
+      } else {
+        out.push(c);
+      }
+    }
+    return out;
+  }
 
   const results = [];
   for (let m = 1; m <= 12; m++) {
     const md  = monthMap[m] ?? null;
-    const chg = await getChargesForMonth(m);
-    const ach = await getAchatsForMonth(year, m);
-    const rp  = await getRepartition(year, m);
+    const chg = chargesForMonth(m);
+    const ach = achatMap[m]  ?? [];
+    const rp  = repartMap[m] ?? { year, month: m, mode: defaultRepartMode, pcts: {} };
     results.push(md ? calcMonth(md, chg, ach, rp, users) : null);
   }
 

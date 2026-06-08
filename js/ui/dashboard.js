@@ -6,7 +6,7 @@ import { State, navigateTo }                              from '../app.js';
 import { getMonthlyData, getChargesForMonth,
          getAchatsForMonth, getRepartition,
          getAllSettings, getMonthsByYear,
-         computeCurrentSavingsBalance, setSetting,
+         computeCurrentSavingsBalance,
          getActiveUsers }                                  from '../db.js';
 import { calcMonth, calcPrevisionnel }                    from '../calculs.js';
 import { eur, pct, nomMois, addMonth, signClass,
@@ -93,12 +93,14 @@ async function _renderResume(container, s, users) {
 
   if (goal > 0 && goalYear === year) {
     const allMonths = await getMonthsByYear(year);
-    for (const m of allMonths) {
-      const c  = await getChargesForMonth(m.month);
-      const a  = await getAchatsForMonth(year, m.month);
-      const rc = await getRepartition(year, m.month);
-      epargneYTD += calcMonth(m, c, a, rc, users).solde.total;
-    }
+    const ytdValues = await Promise.all(allMonths.map(m =>
+      Promise.all([
+        getChargesForMonth(m.month),
+        getAchatsForMonth(year, m.month),
+        getRepartition(year, m.month),
+      ]).then(([c, a, rc]) => calcMonth(m, c, a, rc, users).solde.total)
+    ));
+    epargneYTD = ytdValues.reduce((s, v) => s + v, 0);
   }
   const goalPct   = goal > 0 ? Math.min(200, Math.round((epargneYTD / goal) * 100)) : 0;
   const pBarColor = progressColor(goalPct);
@@ -251,7 +253,6 @@ async function _renderResume(container, s, users) {
 // ══════════════════════════════════════════════════
 async function _renderPrevisionnel(container, s, users) {
   const { year, month } = State;
-  const weeklyEst = Number(s.weeklyCoursesEstimate) || 85;
 
   const [md, charges] = await Promise.all([
     getMonthlyData(year, month),
@@ -267,7 +268,7 @@ async function _renderPrevisionnel(container, s, users) {
     }
   }
 
-  const { days, todayDay } = calcPrevisionnel({ totalIncome, charges, weeklyCoursesEstimate: weeklyEst, year, month });
+  const { days, todayDay } = calcPrevisionnel({ totalIncome, charges, year, month });
 
   const timedCount = charges.filter(c => c.active && Number(c.dayOfMonth) > 0).length;
   const noTimedMsg = timedCount === 0
@@ -280,20 +281,6 @@ async function _renderPrevisionnel(container, s, users) {
 
   const el = container.querySelector('#dash-content');
   el.innerHTML = `
-    <div class="card" style="margin-bottom:12px;">
-      <div class="card-header"><span class="card-title">⚙️ Budget courses hebdomadaire</span></div>
-      <div class="form-group">
-        <div style="display:flex;gap:8px;">
-          <div class="input-wrap" style="flex:1;">
-            <input type="number" class="form-input input-euro" id="weekly-est" min="0" step="5" value="${weeklyEst}">
-            <span class="input-suffix">€/sem</span>
-          </div>
-          <button class="btn btn-secondary btn-sm" id="btn-save-weekly">OK</button>
-        </div>
-        <p class="form-hint">≈ ${eur(Math.round(weeklyEst/7*100)/100)}/jour déduites de chaque journée</p>
-      </div>
-    </div>
-
     ${noTimedMsg}
 
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
@@ -309,20 +296,13 @@ async function _renderPrevisionnel(container, s, users) {
          </div>`
       : `<div class="card" style="padding:0;overflow:hidden;">
            <table class="data-table">
-             <thead><tr><th>Jour</th><th>Charges / Courses</th><th style="text-align:right">Solde estimé</th></tr></thead>
+             <thead><tr><th>Jour</th><th>Charges</th><th style="text-align:right">Solde estimé</th></tr></thead>
              <tbody>${displayDays.map(d => _buildPrevDay(d)).join('')}</tbody>
            </table>
          </div>`
     }
     <div style="height:16px;"></div>
   `;
-
-  el.querySelector('#btn-save-weekly')?.addEventListener('click', async () => {
-    const val = Number(el.querySelector('#weekly-est')?.value) || 85;
-    await setSetting('weeklyCoursesEstimate', val);
-    showToast('Budget courses enregistré ✅', 'success');
-    await _renderPrevisionnel(container, { ...s, weeklyCoursesEstimate: val }, users);
-  });
 }
 
 function _buildPrevDay(d) {
@@ -333,8 +313,7 @@ function _buildPrevDay(d) {
 
   const chargesHtml = d.chargeItems.length > 0
     ? d.chargeItems.map(c => `<span class="chip danger" style="font-size:0.65rem;padding:1px 5px;">${escHtml(c.label)} −${eur(c.amount)}</span>`).join(' ')
-      + ` <span style="color:var(--text-3);font-size:0.72rem;">+courses ${eur(d.coursesAmt)}</span>`
-    : `<span style="color:var(--text-3);font-size:0.72rem;">courses ${eur(d.coursesAmt)}</span>`;
+    : `<span style="color:var(--text-3);font-size:0.72rem;">—</span>`;
 
   return `<tr style="${todayStyle}${pastStyle}">
     <td style="white-space:nowrap;"><strong>${d.day}</strong>${todayBadge}</td>

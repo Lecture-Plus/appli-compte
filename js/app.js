@@ -17,7 +17,7 @@ export const State = {
 };
 
 // ── Mapping pages → modules ──
-const _V = '?v=8';
+const _V = '?v=9';
 const PAGES = {
   dashboard: () => import('./ui/dashboard.js' + _V),
   saisie:    () => import('./ui/saisie.js'    + _V),

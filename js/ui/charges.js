@@ -93,7 +93,10 @@ async function renderRecurrentes(container) {
     `;
   }
 
-  const totalAll = charges.reduce((acc, c) => acc + (Number(c.amount) || 0), 0);
+  const totalAll = charges.reduce((acc, c) => {
+    const lines = c.lines?.length ? c.lines : [{ amount: c.amount }];
+    return acc + lines.reduce((s, l) => s + (Number(l.amount) || 0), 0);
+  }, 0);
   html = `
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
       <span style="font-size:0.78rem;color:var(--text-3);">${charges.length} charge(s)</span>
@@ -115,38 +118,74 @@ async function renderRecurrentes(container) {
 }
 
 function buildChargeItem(c) {
-  const info     = getCategoryInfo(c.category);
-  const amount   = Number(c.amount) || 0;
-  const quiLabel = getQuiLabel(c.qui);
+  const info   = getCategoryInfo(c.category);
+  const lines  = c.lines?.length ? c.lines : [{ amount: c.amount, qui: c.qui, dayOfMonth: c.dayOfMonth }];
+  const total  = lines.reduce((s, l) => s + (Number(l.amount) || 0), 0);
   const persoTag = c.perso ? `<span class="chip" style="font-size:0.62rem;padding:1px 5px;background:var(--warning-bg);color:var(--warning);">Perso</span>` : '';
   const activeIcon = c.active
     ? `<svg viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2.5" width="14" height="14"><path d="M20 6L9 17l-5-5"/></svg>`
     : `<svg viewBox="0 0 24 24" fill="none" stroke="var(--danger)" stroke-width="2" width="14" height="14"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`;
-  const monthsText = c.months === 'all'
-    ? 'Tous les mois'
+  const monthsText = c.months === 'all' ? 'Tous les mois'
     : Array.isArray(c.months) ? c.months.map(m => nomMois(m).slice(0, 3)).join(', ') : '';
+
+  const linesSub = lines.length > 1
+    ? lines.map(l => `<span class="chip" style="font-size:0.62rem;padding:1px 6px;">${escHtml(getQuiLabel(l.qui))}&nbsp;${eur(Number(l.amount)||0)}${l.dayOfMonth ? ` j.${l.dayOfMonth}` : ''}</span>`).join(' ')
+    : `<span class="qui-badge">${escHtml(getQuiLabel(lines[0].qui))}</span>`;
 
   return `
     <div class="list-item" data-id="${c.id}" style="cursor:pointer;${!c.active ? 'opacity:0.5;' : ''}">
       <div class="list-item-icon" style="background:var(--primary-bg);">${info.emoji}</div>
       <div class="list-item-body">
         <div class="list-item-title">${escHtml(c.label)} ${persoTag}</div>
-        <div class="list-item-sub">${monthsText} · ${activeIcon}</div>
+        <div class="list-item-sub" style="display:flex;flex-wrap:wrap;gap:3px;align-items:center;">${monthsText} · ${activeIcon} ${linesSub}</div>
       </div>
       <div class="list-item-right">
-        <div class="list-item-amount">${eur(amount)}</div>
-        <span class="qui-badge">${escHtml(quiLabel)}</span>
+        <div class="list-item-amount">${eur(total)}</div>
       </div>
     </div>
   `;
 }
 
+// ── Rendu d'une ligne de prélèvement dans le modal ──
+function _renderLineRow(line, idx, container) {
+  const quiOpts = `
+    <option value="shared" ${!line.qui || line.qui === 'shared' ? 'selected' : ''}>🤝 Partagé</option>
+    ${_users.map(u => `<option value="${u.id}" ${String(line.qui) === String(u.id) ? 'selected' : ''}>${escHtml(u.name)}</option>`).join('')}
+  `;
+  const row = document.createElement('div');
+  row.className = 'charge-line-row';
+  row.dataset.idx = idx;
+  row.style.cssText = 'display:flex;align-items:center;gap:6px;margin-bottom:6px;';
+  row.innerHTML = `
+    <div class="input-wrap" style="flex:1;min-width:70px;">
+      <input type="number" class="form-input input-euro cl-amount" min="0" step="0.01" placeholder="0" value="${line.amount || ''}" style="padding-right:22px;">
+      <span class="input-suffix">€</span>
+    </div>
+    <select class="form-select cl-qui" style="flex:1.4;">${quiOpts}</select>
+    <div class="input-wrap" style="width:72px;">
+      <input type="number" class="form-input cl-day" min="1" max="31" placeholder="Jour" value="${line.dayOfMonth || ''}" style="padding-right:22px;">
+      <span class="input-suffix">j.</span>
+    </div>
+    <button type="button" class="btn btn-danger btn-sm cl-remove" style="flex-shrink:0;padding:4px 8px;" aria-label="Supprimer la ligne">✕</button>
+  `;
+  container.appendChild(row);
+  row.querySelector('.cl-remove').addEventListener('click', () => {
+    const lines = container.querySelectorAll('.charge-line-row');
+    if (lines.length <= 1) { showToast('Au moins une ligne est requise', 'error'); return; }
+    row.remove();
+  });
+}
+
 function showChargeModal(charge, onSave) {
   const isNew = !charge;
   const c = charge ?? {
-    label: '', category: 'logement', amount: 0,
-    qui: 'shared', months: 'all', active: true, perso: false, dayOfMonth: null, notes: '',
+    label: '', category: 'logement', months: 'all', active: true, perso: false, notes: '',
   };
+
+  // Initialise les lignes depuis `lines` ou les champs legacy
+  const initLines = c.lines?.length
+    ? c.lines
+    : [{ amount: c.amount || 0, qui: c.qui ?? 'shared', dayOfMonth: c.dayOfMonth ?? null }];
 
   const catOptions = CATEGORIES.map(cat =>
     `<option value="${cat.id}" ${c.category === cat.id ? 'selected' : ''}>${cat.emoji} ${cat.label}</option>`
@@ -164,26 +203,20 @@ function showChargeModal(charge, onSave) {
       <label class="form-label">Libellé</label>
       <input type="text" class="form-input" id="c-label" placeholder="Ex: Loyer, EDF, Netflix…" value="${escHtml(c.label)}">
     </div>
-    <div class="form-grid-2" style="margin-bottom:10px;">
-      <div class="form-group">
-        <label class="form-label">Catégorie</label>
-        <select class="form-select" id="c-cat">${catOptions}</select>
-      </div>
-      <div class="form-group">
-        <label class="form-label">Montant (€)</label>
-        <div class="input-wrap">
-          <input type="number" class="form-input input-euro" id="c-amount" min="0" step="0.01" value="${c.amount || ''}">
-          <span class="input-suffix">€</span>
-        </div>
-      </div>
-    </div>
     <div class="form-group" style="margin-bottom:10px;">
-      <label class="form-label">Qui paie ?</label>
-      <select class="form-select" id="c-qui">
-        <option value="shared" ${c.qui === 'shared' ? 'selected' : ''}>🤝 Partagé (tous)</option>
-        ${_users.map(u => `<option value="${u.id}" ${String(c.qui) === String(u.id) ? 'selected' : ''}>${escHtml(u.name)}</option>`).join('')}
-      </select>
+      <label class="form-label">Catégorie</label>
+      <select class="form-select" id="c-cat">${catOptions}</select>
     </div>
+
+    <div class="form-group" style="margin-bottom:10px;">
+      <label class="form-label">Lignes de prélèvement</label>
+      <p class="form-hint" style="margin-top:2px;">Montant · Qui · Jour dans le mois (facultatif)</p>
+      <div id="c-lines-container" style="margin-top:6px;"></div>
+      <button type="button" class="btn btn-outline btn-sm" id="c-add-line" style="margin-top:4px;width:100%;">
+        + Ajouter une ligne
+      </button>
+    </div>
+
     <div class="toggle-wrap" style="padding:8px 0;">
       <div class="toggle-info">
         <label for="c-perso">Charge personnelle</label>
@@ -213,14 +246,6 @@ function showChargeModal(charge, onSave) {
         <span class="toggle-slider"></span>
       </label>
     </div>
-    <div class="form-group">
-      <label class="form-label">Jour de prélèvement dans le mois</label>
-      <div class="input-wrap">
-        <input type="number" class="form-input" id="c-day" min="1" max="31" step="1" placeholder="Ex: 5" value="${c.dayOfMonth || ''}">
-        <span class="input-suffix">/ mois</span>
-      </div>
-      <p class="form-hint">Utilisé par le prévisionnel. Laissez vide si variable.</p>
-    </div>
   `;
 
   const footer = `
@@ -231,9 +256,18 @@ function showChargeModal(charge, onSave) {
 
   openModal(isNew ? 'Nouvelle charge' : 'Modifier la charge', body, footer);
 
+  // Rendu initial des lignes
+  const linesContainer = document.getElementById('c-lines-container');
+  initLines.forEach((line, i) => _renderLineRow(line, i, linesContainer));
+
+  document.getElementById('c-add-line')?.addEventListener('click', () => {
+    const idx = linesContainer.querySelectorAll('.charge-line-row').length;
+    _renderLineRow({ amount: 0, qui: 'shared', dayOfMonth: null }, idx, linesContainer);
+  });
+
   document.getElementById('c-allmonths')?.addEventListener('change', (e) => {
     const grid = document.getElementById('c-months-grid');
-    grid.style.opacity      = e.target.checked ? '0.4' : '1';
+    grid.style.opacity       = e.target.checked ? '0.4' : '1';
     grid.style.pointerEvents = e.target.checked ? 'none' : '';
   });
 
@@ -251,6 +285,18 @@ function showChargeModal(charge, onSave) {
     const label = document.getElementById('c-label')?.value.trim();
     if (!label) { showToast('Le libellé est requis', 'error'); return; }
 
+    // Collecte des lignes
+    const lineRows = linesContainer.querySelectorAll('.charge-line-row');
+    const lines = [];
+    for (const row of lineRows) {
+      const amt = Number(row.querySelector('.cl-amount')?.value) || 0;
+      const quiRaw = row.querySelector('.cl-qui')?.value;
+      const qui = quiRaw === 'shared' ? 'shared' : Number(quiRaw);
+      const day = Number(row.querySelector('.cl-day')?.value) || null;
+      lines.push({ amount: amt, qui, dayOfMonth: day });
+    }
+    if (!lines.length) { showToast('Ajoutez au moins une ligne', 'error'); return; }
+
     const allMonths = document.getElementById('c-allmonths')?.checked;
     let months = 'all';
     if (!allMonths) {
@@ -258,20 +304,18 @@ function showChargeModal(charge, onSave) {
       if (!months.length) { showToast('Sélectionnez au moins un mois', 'error'); return; }
     }
 
-    const quiRaw = document.getElementById('c-qui')?.value;
-    const qui = quiRaw === 'shared' ? 'shared' : Number(quiRaw);
+    const totalAmount = lines.reduce((s, l) => s + l.amount, 0);
 
     await saveCharge({
       ...(isNew ? {} : { id: charge.id }),
       label,
-      category:   document.getElementById('c-cat')?.value || 'autre',
-      amount:     Number(document.getElementById('c-amount')?.value) || 0,
-      qui,
+      category: document.getElementById('c-cat')?.value || 'autre',
+      lines,
+      amount:   totalAmount,   // total pour compatibilité
       months,
-      active:     document.getElementById('c-active')?.checked ?? true,
-      perso:      document.getElementById('c-perso')?.checked ?? false,
-      dayOfMonth: Number(document.getElementById('c-day')?.value) || null,
-      notes:      '',
+      active:   document.getElementById('c-active')?.checked ?? true,
+      perso:    document.getElementById('c-perso')?.checked ?? false,
+      notes:    '',
     });
     closeModal();
     showToast(isNew ? 'Charge ajoutée ✅' : 'Charge mise à jour ✅', 'success');
