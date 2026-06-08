@@ -557,14 +557,22 @@ async function renderBudgets(container) {
     <div class="card" style="margin-bottom:12px;">
       <div class="card-header">
         <span class="card-title">💥 Achats exceptionnels</span>
-        <span class="chip danger">${eur(totalAchats)}</span>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <span class="chip danger">${eur(totalAchats)}</span>
+          <button class="btn btn-sm btn-primary" id="bgt-add-achat">+ Ajouter</button>
+        </div>
       </div>
-      <p style="font-size:0.78rem;color:var(--text-3);margin-bottom:8px;">Gérés dans l'onglet <strong>Exceptionnels</strong>.</p>
-      ${achats.length===0 ? `<div style="font-size:0.82rem;color:var(--text-3);text-align:center;padding:8px 0;">Aucun achat exceptionnel ce mois-ci</div>`
-        : `<div class="item-list">${achats.map(a => {
-            const info = getCategoryInfo(a.category);
-            return `<div class="list-item"><div class="list-item-icon" style="background:var(--warning-bg);">${info.emoji}</div><div class="list-item-body"><div class="list-item-title">${escHtml(a.label)}</div></div><div class="list-item-right"><div class="list-item-amount" style="color:var(--danger);">−${eur(a.amount)}</div></div></div>`;
-          }).join('')}</div>`}
+      ${achats.length===0
+        ? `<div style="font-size:0.82rem;color:var(--text-3);text-align:center;padding:8px 0;">Aucun achat exceptionnel ce mois-ci</div>`
+        : `<button class="btn btn-outline btn-full btn-sm" id="bgt-ops-toggle-achats" style="font-size:0.78rem;">📋 Voir les achats (${achats.length})</button>
+           <div id="bgt-ops-achats" style="display:none;margin-top:8px;">
+             <div class="item-list">${achats.map(a => {
+               const info = getCategoryInfo(a.category);
+               const dateStr = a.day ? `${a.day} ${nomMois(a.month)} ${a.year}` : `${nomMois(a.month)} ${a.year}`;
+               return `<div class="list-item"><div class="list-item-icon" style="background:var(--warning-bg);">${info.emoji}</div><div class="list-item-body"><div class="list-item-title">${escHtml(a.label)}</div><div class="list-item-sub">${dateStr}</div></div><div class="list-item-right"><div class="list-item-amount" style="color:var(--danger);">−${eur(a.amount)}</div></div></div>`;
+             }).join('')}</div>
+           </div>`
+      }
     </div>
     <button class="btn btn-outline btn-full" id="bgt-add-custom" style="margin-bottom:80px;">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="15" height="15"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -630,6 +638,30 @@ async function renderBudgets(container) {
       if (b) _showEditBudgetModal(b, customBudgets, () => renderBudgets(container));
     });
   });
+
+  // Toggle ops list collapse per budget category
+  tc.querySelectorAll('[data-bgt-ops-toggle]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const catId = btn.dataset.bgtOpsToggle;
+      const sec = tc.querySelector(`#bgt-ops-${catId}`);
+      if (!sec) return;
+      const open = sec.style.display !== 'none';
+      sec.style.display = open ? 'none' : '';
+      btn.querySelector('span') && (btn.querySelector('span').textContent =
+        open ? `📋 Voir les opérations` : `📋 Masquer les opérations`);
+    });
+  });
+
+  // Achats exceptionnels: + button and ops collapse
+  tc.querySelector('#bgt-add-achat')?.addEventListener('click', () => {
+    showAchatModal(null, () => renderBudgets(container));
+  });
+  tc.querySelector('#bgt-ops-toggle-achats')?.addEventListener('click', () => {
+    const sec = tc.querySelector('#bgt-ops-achats');
+    if (!sec) return;
+    const open = sec.style.display !== 'none';
+    sec.style.display = open ? 'none' : '';
+  });
 }
 
 function _buildBudCatSection({ id, icon, title, budget, spent, ops, users, hint, isPinned = false, perUserBudgets = null }) {
@@ -684,20 +716,25 @@ function _buildBudCatSection({ id, icon, title, budget, spent, ops, users, hint,
       ${budget > 0 ? `<div style="font-size:0.72rem;color:${remaining>=0?'var(--success)':'var(--danger)'};text-align:right;margin-top:3px;">${remaining>=0?`✅ Reste ${eur(remaining)}`:`⚠️ Dépassement ${eur(Math.abs(remaining))}`}</div>` : ''}
     </div>
     ${perUserSection}
-    ${sorted.length===0 ? `<div style="font-size:0.82rem;color:var(--text-3);text-align:center;padding:8px 0;">Aucune opération — cliquez sur <strong>+ Ajouter</strong></div>`
-      : `<div class="item-list">${sorted.map(op => {
-          const u = op.userId ? users.find(u => String(u.id)===String(op.userId)) : null;
-          const dateStr = op.day ? `${op.day} ${nomMois(op.month)}` : nomMois(op.month);
-          return `<div class="list-item" style="position:relative;">
-            <div class="list-item-icon" style="background:var(--danger-bg);">🧾</div>
-            <div class="list-item-body">
-              <div class="list-item-title">${escHtml(op.label||'Opération')}</div>
-              <div class="list-item-sub">${dateStr}${u?` · ${escHtml(u.name)}`:''}</div>
-            </div>
-            <div class="list-item-right"><div class="list-item-amount" style="color:var(--danger);">−${eur(op.amount)}</div></div>
-            <button class="btn-icon" data-bgt-del-op="${op.id}" style="position:absolute;top:4px;right:4px;width:26px;height:26px;color:var(--text-3);">✕</button>
-          </div>`;
-        }).join('')}</div>`}
+    ${sorted.length === 0
+      ? `<div style="font-size:0.82rem;color:var(--text-3);text-align:center;padding:8px 0;">Aucune opération — cliquez sur <strong>+ Ajouter</strong></div>`
+      : `<button class="btn btn-outline btn-full btn-sm" data-bgt-ops-toggle="${id}" style="font-size:0.78rem;">📋 Voir les opérations (${sorted.length})</button>
+         <div id="bgt-ops-${id}" style="display:none;margin-top:8px;">
+           <div class="item-list">${sorted.map(op => {
+             const u = op.userId ? users.find(u => String(u.id)===String(op.userId)) : null;
+             const dateStr = op.day ? `${op.day} ${nomMois(op.month)}` : nomMois(op.month);
+             return `<div class="list-item" style="position:relative;">
+               <div class="list-item-icon" style="background:var(--danger-bg);">🧾</div>
+               <div class="list-item-body">
+                 <div class="list-item-title">${escHtml(op.label||'Opération')}</div>
+                 <div class="list-item-sub">${dateStr}${u?` · ${escHtml(u.name)}`:''}</div>
+               </div>
+               <div class="list-item-right"><div class="list-item-amount" style="color:var(--danger);">−${eur(op.amount)}</div></div>
+               <button class="btn-icon" data-bgt-del-op="${op.id}" style="position:absolute;top:4px;right:4px;width:26px;height:26px;color:var(--text-3);">✕</button>
+             </div>`;
+           }).join('')}</div>
+         </div>`
+    }
   </div>`;
 }
 
@@ -790,7 +827,7 @@ function _showManageBudgetsModal(customBudgets, onSave) {
 
 function showAchatModal(achat, onSave) {
   const now = new Date();
-  const a = achat ?? { year, month, day: now.getDate(), label: '', category: 'loisirs', amount: 0, qui: 'shared' };
+  const a = achat ?? { year: State.year, month: State.month, day: now.getDate(), label: '', category: 'loisirs', amount: 0, qui: 'shared' };
 
   const catOptions = CATEGORIES.map(cat =>
     `<option value="${cat.id}" ${a.category === cat.id ? 'selected' : ''}>${cat.emoji} ${cat.label}</option>`
