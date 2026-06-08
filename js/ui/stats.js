@@ -36,7 +36,7 @@ export async function render(container) {
         ${['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'].map((m,i) =>
           `<option value="${i+1}" ${_statsMonth === i+1 ? 'selected' : ''}>${m}</option>`).join('')}
       </select>
-      <button class="btn btn-outline btn-sm" id="btn-export-csv">📥 CSV</button>
+      <button class="btn btn-outline btn-sm" id="btn-export-pdf">📄 PDF</button>
     </div>
 
     <!-- Auto-insights -->
@@ -152,8 +152,8 @@ export async function render(container) {
     await loadAndRender(container, State.year, _statsMonth, users, s);
   });
 
-  container.querySelector('#btn-export-csv')?.addEventListener('click', () => {
-    exportCSV(State.year, _statsMonth, users);
+  container.querySelector('#btn-export-pdf')?.addEventListener('click', () => {
+    exportPDF(State.year, _statsMonth, users, s);
   });
 
   container.querySelector('#toggle-amounts')?.addEventListener('change', (e) => {
@@ -673,44 +673,279 @@ function renderTablePerso(container, yearKPI, users) {
   `;
 }
 
-async function exportCSV(year, month, users) {
+async function exportPDF(year, month, users, s) {
+  showToast('Génération du PDF…', 'success');
   try {
-    const monthsData = await getMonthsByYear(year);
-    const monthMap   = Object.fromEntries(monthsData.map(m => [m.month, m]));
-    const months     = month > 0 ? [month] : Array.from({length: 12}, (_, i) => i + 1);
+    const monthsData  = await getMonthsByYear(year);
+    const monthMap    = Object.fromEntries(monthsData.map(m => [m.month, m]));
+    const allAchats   = await getAllAchats();
+    const allChargesR = await getAllCharges();
+    const allRep      = await getAllRepartitions();
+    const defaultMode = s?.defaultRepartMode ?? 'sepére';
+    const achatMap    = {};
+    const repartMap   = {};
+    for (const a of allAchats)  { if (a.year === year) { (achatMap[a.month] ??= []).push(a); } }
+    for (const r of allRep)     { if (r.year === year) repartMap[r.month] = r; }
 
-    const userHeaders = users.flatMap(u => [`Revenus ${u.name}`, `Primes ${u.name}`]);
-    const headers = ['Mois', ...userHeaders, 'Dépenses', 'Solde', "Taux d'épargne"];
-
-    const rows = [];
-    for (const m of months) {
-      const md  = monthMap[m];
-      const chg = await getChargesForMonth(m);
-      const ach = await getAchatsForMonth(year, m);
-      const rp  = await getRepartition(year, m);
-      const k   = md ? calcMonth(md, chg, ach, rp, users) : null;
-
-      const userCols = users.flatMap(u => [
-        k ? (k.revenus.byUser?.[u.id] ?? 0) : '',
-        k ? (k.primes.byUser?.[u.id]  ?? 0) : '',
-      ]);
-
-      rows.push([
-        MOIS[m - 1],
-        ...userCols,
-        k ? k.depenses.total  : '',
-        k ? k.solde.total     : '',
-        k ? (k.txEpargne.total * 100).toFixed(1) + '%' : '',
-      ]);
+    function chgForMonth(m) {
+      const out = [];
+      for (const c of allChargesR) {
+        if (!c.active) continue;
+        const ok = c.months === 'all' || (Array.isArray(c.months) && c.months.includes(m));
+        if (!ok) continue;
+        if (c.lines?.length) {
+          for (const l of c.lines) out.push({ ...c, amount: Number(l.amount)||0, qui: l.qui??'shared' });
+        } else { out.push(c); }
+      }
+      return out;
     }
 
-    const csv  = buildCSV(rows, headers);
-    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
-    const fname = month > 0 ? `compta-plus-${year}-${String(month).padStart(2,'0')}.csv` : `compta-plus-${year}.csv`;
-    downloadBlob(blob, fname);
-    showToast('Fichier CSV téléchargé ✅', 'success');
+    const allResults = [];
+    for (let m = 1; m <= 12; m++) {
+      const md  = monthMap[m] ?? null;
+      const chg = chgForMonth(m);
+      const ach = achatMap[m] ?? [];
+      const rp  = repartMap[m] ?? { year, month: m, mode: defaultMode, pcts: {} };
+      allResults.push(md ? calcMonth(md, chg, ach, rp, users) : null);
+    }
+
+    const singleMonth = month > 0;
+    const months      = singleMonth ? [month] : Array.from({length:12},(_,i)=>i+1);
+    const kpiSource   = singleMonth ? [allResults[month-1]].filter(Boolean) : allResults.filter(Boolean);
+    const yearKPI     = calcYear(kpiSource);
+
+    const MOIS_FULL = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+    const periodLabel = singleMonth ? `${MOIS_FULL[month-1]} ${year}` : `Année ${year}`;
+    const fmtE = v => {
+      const n = Number(v) || 0;
+      return (n < 0 ? '−' : '') + Math.abs(n).toLocaleString('fr-FR', {minimumFractionDigits:2, maximumFractionDigits:2}) + ' €';
+    };
+    const fmtPct = v => (Number(v)*100).toFixed(1) + ' %';
+    const color  = v => Number(v) >= 0 ? '#00C896' : '#FF4757';
+
+    // Mini sparkline SVG (solde par mois)
+    const sparkData = allResults.map(r => r?.solde?.total ?? null);
+    const nonNull   = sparkData.filter(v => v !== null);
+    const sMin = Math.min(...nonNull, 0);
+    const sMax = Math.max(...nonNull, 1);
+    const W=260, H=48, pad=4;
+    const pts = sparkData.map((v, i) => {
+      if (v === null) return null;
+      const x = pad + i * ((W - 2*pad) / 11);
+      const y = H - pad - ((v - sMin) / (sMax - sMin || 1)) * (H - 2*pad);
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    }).filter(Boolean);
+    const sparkline = pts.length > 1
+      ? `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">
+          <polyline points="${pts.join(' ')}" fill="none" stroke="#6C63FF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+         </svg>` : '';
+
+    // Tableau mensuel
+    const tableRows = months.map(m => {
+      const r = allResults[m-1];
+      if (!r) return `<tr><td style="color:#999">${MOIS_FULL[m-1]}</td>${users.map(()=>'<td>—</td>').join('')}<td>—</td><td>—</td><td>—</td><td>—</td></tr>`;
+      return `<tr>
+        <td>${MOIS_FULL[m-1]}</td>
+        ${users.map(u=>`<td>${fmtE(r.revenus.byUser?.[u.id]??0)}</td>`).join('')}
+        <td>${fmtE(r.charges.total)}</td>
+        <td>${fmtE(r.depenses.total)}</td>
+        <td style="color:${color(r.solde.total)};font-weight:700">${fmtE(r.solde.total)}</td>
+        <td style="color:${r.txEpargne.total>=0.1?'#00C896':r.txEpargne.total>=0?'#FFB020':'#FF4757'}">${fmtPct(r.txEpargne.total)}</td>
+      </tr>`;
+    }).join('');
+
+    // Détail achats (mois sélectionné ou cumul)
+    const achatsForPDF = [];
+    for (const m of months) {
+      const list = (achatMap[m] || []).filter(a => !(a.category==='craquage' && a.craquage_source==='pending'));
+      for (const a of list) achatsForPDF.push({ ...a, _month: m });
+    }
+    const achatRows = achatsForPDF.slice(0, 30).map(a => {
+      const info = getCategoryInfo(a.category);
+      const d    = a.day ? `${a.day} ${MOIS_FULL[a._month-1].slice(0,3)}.` : MOIS_FULL[a._month-1].slice(0,3);
+      return `<tr><td>${info.emoji} ${escHtml(a.label||'')}</td><td style="color:#999;font-size:0.75rem">${d}</td><td style="color:#FF4757;font-weight:600">${fmtE(a.amount)}</td></tr>`;
+    }).join('');
+
+    const html = `<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Compta+ — ${escHtml(periodLabel)}</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap');
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{font-family:'Inter',system-ui,sans-serif;background:#f6f5fb;color:#1a1a2e;font-size:13px;}
+  @page{size:A4 portrait;margin:18mm 14mm;}
+  @media print{body{background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact;}}
+
+  /* Header */
+  .pdf-header{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:24px;
+    border-bottom:3px solid #6C63FF;padding-bottom:14px;}
+  .pdf-logo{font-size:22px;font-weight:900;color:#6C63FF;letter-spacing:-0.04em;}
+  .pdf-logo span{color:#FF4757;}
+  .pdf-period{font-size:18px;font-weight:800;color:#1a1a2e;}
+  .pdf-date{font-size:10px;color:#999;margin-top:2px;}
+
+  /* KPI banner */
+  .kpi-band{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px;}
+  .kpi-box{background:#fff;border-radius:12px;padding:14px 12px;
+    border-top:3px solid var(--c);box-shadow:0 2px 8px rgba(0,0,0,0.07);}
+  .kpi-box .lbl{font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:#999;margin-bottom:6px;font-weight:700;}
+  .kpi-box .val{font-size:17px;font-weight:900;color:var(--c);font-feature-settings:"tnum";}
+  .kpi-box .sub{font-size:9px;color:#aaa;margin-top:3px;}
+
+  /* Sections */
+  .section{margin-bottom:20px;}
+  .section-title{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;
+    color:#6C63FF;margin-bottom:10px;display:flex;align-items:center;gap:6px;}
+  .section-title::after{content:'';flex:1;height:1px;background:linear-gradient(90deg,#6C63FF33,transparent);}
+
+  /* Tables */
+  table{width:100%;border-collapse:collapse;font-size:11px;}
+  thead tr{background:linear-gradient(90deg,#6C63FF,#8B85FF);color:#fff;}
+  thead th{padding:7px 8px;text-align:right;font-weight:700;font-size:10px;letter-spacing:.03em;}
+  thead th:first-child{text-align:left;}
+  tbody tr:nth-child(even){background:#f8f7ff;}
+  tbody tr:hover{background:#f0eeff;}
+  tbody td{padding:6px 8px;text-align:right;border-bottom:1px solid #eee;}
+  tbody td:first-child{text-align:left;font-weight:600;}
+
+  /* Sparkline card */
+  .spark-card{background:#fff;border-radius:12px;padding:14px 16px;
+    box-shadow:0 2px 8px rgba(0,0,0,0.07);display:flex;align-items:center;gap:16px;}
+  .spark-info{flex:1;}
+  .spark-title{font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:#999;font-weight:700;margin-bottom:4px;}
+  .spark-val{font-size:20px;font-weight:900;font-feature-settings:"tnum";}
+
+  /* Two columns */
+  .cols2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:20px;}
+  .box{background:#fff;border-radius:12px;padding:14px;box-shadow:0 2px 8px rgba(0,0,0,0.07);}
+  .box-title{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:#999;margin-bottom:8px;}
+  .row-item{display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #f0eeff;font-size:11px;}
+  .row-item:last-child{border:none;}
+  .row-item .amt{font-weight:700;font-feature-settings:"tnum";}
+
+  /* Score ring */
+  .score-row{display:flex;align-items:center;gap:12px;}
+  .score-badge{width:52px;height:52px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+    font-size:16px;font-weight:900;color:#fff;flex-shrink:0;}
+
+  /* Footer */
+  .pdf-footer{margin-top:24px;padding-top:10px;border-top:1px solid #eee;
+    font-size:9px;color:#bbb;display:flex;justify-content:space-between;}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="pdf-header">
+  <div>
+    <div class="pdf-logo">Compta<span>+</span></div>
+    <div style="font-size:10px;color:#999;margin-top:2px;">Bilan financier</div>
+  </div>
+  <div style="text-align:right">
+    <div class="pdf-period">${escHtml(periodLabel)}</div>
+    <div class="pdf-date">Généré le ${new Date().toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric'})}</div>
+  </div>
+</div>
+
+<!-- KPI BAND -->
+${yearKPI ? `<div class="kpi-band">
+  <div class="kpi-box" style="--c:#6C63FF">
+    <div class="lbl">💰 Revenus totaux</div>
+    <div class="val">${fmtE(yearKPI.revenus.total + (yearKPI.aides?.total??0) + yearKPI.primes.total)}</div>
+    <div class="sub">primes : ${fmtE(yearKPI.primes.total)}</div>
+  </div>
+  <div class="kpi-box" style="--c:#FF4757">
+    <div class="lbl">💸 Dépenses totales</div>
+    <div class="val">${fmtE(yearKPI.depenses.total)}</div>
+    <div class="sub">charges : ${fmtE(yearKPI.charges.total)}</div>
+  </div>
+  <div class="kpi-box" style="--c:${color(yearKPI.solde.total)}">
+    <div class="lbl">⚖️ Solde</div>
+    <div class="val">${fmtE(yearKPI.solde.total)}</div>
+    <div class="sub">${fmtPct(yearKPI.txEpargne.total)} taux épargne</div>
+  </div>
+  <div class="kpi-box" style="--c:#00C896">
+    <div class="lbl">📊 Taux épargne</div>
+    <div class="val">${fmtPct(yearKPI.txEpargne.total)}</div>
+    <div class="sub">${yearKPI.txEpargne.total>=0.1?'Objectif atteint ✅':'En dessous de 10 %'}</div>
+  </div>
+</div>` : '<div style="color:#999;margin-bottom:20px;font-size:12px;">Aucune donnée pour cette période.</div>'}
+
+${!singleMonth && pts.length > 1 ? `
+<!-- SPARKLINE SOLDE -->
+<div class="section">
+<div class="section-title">Solde mensuel</div>
+<div class="spark-card">
+  <div class="spark-info">
+    <div class="spark-title">Evolution du solde sur l'année</div>
+    <div class="spark-val" style="color:${yearKPI?color(yearKPI.solde.total):'#6C63FF'}">${yearKPI?fmtE(yearKPI.solde.total):'—'}</div>
+    <div style="font-size:9px;color:#999;margin-top:3px;">cumul ${year}</div>
+  </div>
+  ${sparkline}
+</div>
+</div>` : ''}
+
+<!-- DETAIL PAR UTILISATEUR -->
+${users.length > 1 && yearKPI ? `
+<div class="section">
+<div class="section-title">Détail par personne</div>
+<div class="cols2">
+  ${users.map(u => `<div class="box">
+    <div class="box-title" style="color:#6C63FF">${escHtml(u.name)}</div>
+    <div class="row-item"><span>Revenus</span><span class="amt" style="color:#6C63FF">${fmtE(yearKPI.revenus.byUser?.[u.id]??0)}</span></div>
+    <div class="row-item"><span>Primes</span><span class="amt" style="color:#8B85FF">${fmtE(yearKPI.primes.byUser?.[u.id]??0)}</span></div>
+    <div class="row-item"><span>Dépenses</span><span class="amt" style="color:#FF4757">${fmtE(yearKPI.depenses.byUser?.[u.id]??0)}</span></div>
+    <div class="row-item"><span>Solde</span><span class="amt" style="color:${color(yearKPI.solde.byUser?.[u.id]??0)}">${fmtE(yearKPI.solde.byUser?.[u.id]??0)}</span></div>
+    <div class="row-item"><span>Taux épargne</span><span class="amt">${fmtPct(yearKPI.txEpargne.byUser?.[u.id]??0)}</span></div>
+  </div>`).join('')}
+</div>
+</div>` : ''}
+
+<!-- TABLEAU MENSUEL -->
+<div class="section">
+<div class="section-title">${singleMonth ? 'Bilan du mois' : 'Tableau mensuel'}</div>
+<table>
+  <thead><tr>
+    <th>Mois</th>
+    ${users.map(u=>`<th>Revenus ${escHtml(u.name)}</th>`).join('')}
+    <th>Charges</th><th>Dépenses</th><th>Solde</th><th>Taux ép.</th>
+  </tr></thead>
+  <tbody>${tableRows}</tbody>
+</table>
+</div>
+
+<!-- ACHATS EXCEPTIONNELS -->
+${achatsForPDF.length > 0 ? `
+<div class="section">
+<div class="section-title">Achats exceptionnels${achatsForPDF.length > 30 ? ' (30 premiers)' : ''}</div>
+<table>
+  <thead><tr><th>Description</th><th>Date</th><th>Montant</th></tr></thead>
+  <tbody>${achatRows}</tbody>
+</table>
+</div>` : ''}
+
+<!-- FOOTER -->
+<div class="pdf-footer">
+  <span>Compta+ — Suivi budgétaire personnel</span>
+  <span>${escHtml(periodLabel)} — généré le ${new Date().toLocaleDateString('fr-FR')}</span>
+</div>
+
+</body></html>`;
+
+    const iframe = document.createElement('iframe');
+    iframe.style.cssText = 'position:fixed;top:-10000px;left:-10000px;width:0;height:0;border:0;';
+    document.body.appendChild(iframe);
+    const iDoc = iframe.contentWindow.document;
+    iDoc.open(); iDoc.write(html); iDoc.close();
+    iframe.contentWindow.focus();
+    setTimeout(() => {
+      iframe.contentWindow.print();
+      setTimeout(() => iframe.remove(), 3000);
+    }, 600);
   } catch (e) {
-    showToast('Erreur lors de l\'export CSV', 'error');
+    showToast('Erreur lors de la génération PDF', 'error');
     console.error(e);
   }
 }
