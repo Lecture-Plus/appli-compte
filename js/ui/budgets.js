@@ -2,7 +2,7 @@
 // js/ui/budgets.js – Suivi des budgets (courses, extras, custom)
 // ============================================================
 
-import { getMonthlyData, getAchatsForMonth,
+import { getAchatsForMonth,
          getBudgetOpsForMonth, saveBudgetOp, deleteBudgetOp,
          getActiveUsers, getAllSettings, setSetting }         from '../db.js';
 import { eur, escHtml, showToast, openModal, closeModal,
@@ -20,8 +20,7 @@ export async function render(container) {
 
 async function _renderPage(container) {
   const { year, month } = State;
-  const [md, achats, budgetOps, users, settings] = await Promise.all([
-    getMonthlyData(year, month),
+  const [achats, budgetOps, users, settings] = await Promise.all([
     getAchatsForMonth(year, month),
     getBudgetOpsForMonth(year, month),
     getActiveUsers(),
@@ -30,10 +29,6 @@ async function _renderPage(container) {
 
   const customBudgets = settings.customBudgets || [];
   const pinnedBudgets = settings.pinnedBudgets || [];
-
-  // ── Budgets depuis la saisie mensuelle ──
-  const budgetCourses = users.reduce((s, u) => s + (Number(md?.users?.[String(u.id)]?.courses) || 0), 0);
-  const budgetExtras  = users.reduce((s, u) => s + (Number(md?.users?.[String(u.id)]?.extras)  || 0), 0);
 
   // ── Opérations par catégorie ──
   const opsByCategory = {};
@@ -57,30 +52,6 @@ async function _renderPage(container) {
         Gérer
       </button>
     </div>
-
-    <!-- ── Courses ── -->
-    ${(budgetCourses > 0 || spent('courses') > 0) ? _buildCategorySection({
-      id:     'courses',
-      icon:   '🛒',
-      title:  'Courses',
-      budget: budgetCourses,
-      spent:  spent('courses'),
-      ops:    opsByCategory['courses'] || [],
-      users,
-      pinned: pinnedBudgets.includes('courses'),
-    }) : ''}
-
-    <!-- ── Extras ── -->
-    ${(budgetExtras > 0 || spent('extras') > 0) ? _buildCategorySection({
-      id:     'extras',
-      icon:   '🎉',
-      title:  'Extras & loisirs',
-      budget: budgetExtras,
-      spent:  spent('extras'),
-      ops:    opsByCategory['extras'] || [],
-      users,
-      pinned: pinnedBudgets.includes('extras'),
-    }) : ''}
 
     <!-- ── Budgets personnalisés ── -->
     ${customBudgets.map(b => _buildCategorySection({
@@ -365,18 +336,14 @@ function _showEditBudgetModal(existing, customBudgets, onSave) {
     ? PRESET_BUDGETS.filter(p => !existingNames.includes(p.name.toLowerCase()))
     : [];
 
-  const presetsHtml = availablePresets.length > 0
+  const presetsPlaceholder = availablePresets.length > 0
     ? `<div style="margin-bottom:14px;">
         <div style="font-size:0.72rem;font-weight:700;color:var(--text-3);text-transform:uppercase;margin-bottom:6px;">Démarrer depuis un modèle</div>
-        <div style="display:flex;flex-wrap:wrap;gap:6px;">${
-          availablePresets.map(p =>
-            `<button type="button" class="btn btn-sm btn-outline preset-pick" data-pname="${escHtml(p.name)}" data-picon="${p.icon}" style="font-size:0.78rem;padding:4px 10px;">${p.icon} ${escHtml(p.name)}</button>`
-          ).join('')
-        }</div>
+        <div id="bgt-presets-container" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
       </div><hr style="margin-bottom:14px;border-color:var(--border);">`
     : '';
 
-  openModal(title, `${presetsHtml}
+  openModal(title, `${presetsPlaceholder}
     <div class="form-group" style="margin-bottom:12px;">
       <label class="form-label">Nom du budget *</label>
       <input type="text" class="form-input" id="bgt-name" placeholder="Ex: Restaurant, Sport, Vêtements…"
@@ -416,17 +383,27 @@ function _showEditBudgetModal(existing, customBudgets, onSave) {
 
   document.getElementById('bgt-name')?.focus();
 
-  // Modèles prédéfinis : remplir le formulaire
-  document.querySelectorAll('.preset-pick').forEach(btn => {
-    btn.addEventListener('click', () => {
-      document.getElementById('bgt-name').value = btn.dataset.pname;
-      const iconEl = document.getElementById('bgt-icon');
-      if (iconEl) iconEl.value = btn.dataset.picon;
-      document.querySelectorAll('.icon-pick').forEach(b => {
-        b.style.borderColor = b.dataset.icon === btn.dataset.picon ? 'var(--primary)' : 'transparent';
+  // Modèles prédéfinis : créés programmatiquement pour éviter les problèmes d'emoji dans innerHTML
+  const presetsContainer = document.getElementById('bgt-presets-container');
+  if (presetsContainer) {
+    availablePresets.forEach(p => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'btn btn-sm btn-outline';
+      btn.style.cssText = 'font-size:0.78rem;padding:4px 10px;';
+      btn.textContent = p.icon + ' ' + p.name;
+      btn.addEventListener('click', () => {
+        const nameEl = document.getElementById('bgt-name');
+        const iconEl = document.getElementById('bgt-icon');
+        if (nameEl) nameEl.value = p.name;
+        if (iconEl) iconEl.value = p.icon;
+        document.querySelectorAll('.icon-pick').forEach(b => {
+          b.style.borderColor = b.dataset.icon === p.icon ? 'var(--primary)' : 'transparent';
+        });
       });
+      presetsContainer.appendChild(btn);
     });
-  });
+  }
 
   // Sélecteur icône
   document.querySelectorAll('.icon-pick').forEach(btn => {
