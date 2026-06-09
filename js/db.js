@@ -374,8 +374,14 @@ export async function getChargesForMonth(month, year = null) {
   const result = [];
   for (const c of all) {
     if (!c.active) continue;
-    const applicable = c.months === 'all' || (Array.isArray(c.months) && c.months.includes(month));
-    if (!applicable) continue;
+    // Nouveau modèle : charge liée à un année+mois précis
+    if (c.year != null && c.month != null) {
+      if (!year || c.year !== year || c.month !== month) continue;
+    } else {
+      // Modèle legacy : filtrage par liste de mois
+      const applicable = c.months === 'all' || (Array.isArray(c.months) && c.months.includes(month));
+      if (!applicable) continue;
+    }
     // Expand lines (multi-prélèvement par charge)
     if (c.lines?.length) {
       for (const line of c.lines) {

@@ -610,15 +610,16 @@ function bindEvents(container, s, users, archived, N) {
 
   // ── Charges fixes accordion: liste + ajout ──
   const _reloadChargesList = async () => {
-    const charges = await getAllCharges();
+    const allCharges = await getAllCharges();
+    const currentCharges = allCharges.filter(c => c.year === State.year && c.month === State.month);
     const listEl = container.querySelector('#charges-list-settings');
     if (!listEl) return;
-    if (!charges.length) {
-      listEl.innerHTML = `<p style="font-size:0.78rem;color:var(--text-3);">Aucune charge r\u00e9currente. Cliquez sur + Ajouter.</p>`;
+    if (!currentCharges.length) {
+      listEl.innerHTML = `<p style="font-size:0.78rem;color:var(--text-3);">Aucune charge ce mois-ci. Cliquez sur + Ajouter.</p>`;
       return;
     }
     const byCat = {};
-    for (const c of charges) { (byCat[c.category || 'autre'] ??= []).push(c); }
+    for (const c of currentCharges) { (byCat[c.category || 'autre'] ??= []).push(c); }
     listEl.innerHTML = Object.entries(byCat).map(([catId, items]) => {
       const info = getCategoryInfo(catId);
       const total = items.reduce((s, c) => s + (c.lines?.reduce((ss, l) => ss + (Number(l.amount)||0), 0) || Number(c.amount)||0), 0);
@@ -627,7 +628,7 @@ function bindEvents(container, s, users, archived, N) {
         ${items.map(c => `<div class="list-item" style="padding:8px 0;">
           <div class="list-item-body">
             <div class="list-item-title" style="font-size:0.85rem;">${escHtml(c.label)}</div>
-            <div class="list-item-sub">${c.active !== false ? '\u2713 Active' : '\u2715 Inactive'} \u00b7 ${c.months === 'all' ? 'Tous les mois' : (c.months || []).length + ' mois'}</div>
+            <div class="list-item-sub">${c.active !== false ? '\u2713 Active' : '\u2715 Inactive'}</div>
           </div>
           <div style="display:flex;gap:6px;align-items:center;">
             <button class="btn btn-sm btn-outline btn-edit-charge-settings" data-cid="${c.id}" style="padding:3px 8px;">\u270e</button>
@@ -756,7 +757,7 @@ function bindEvents(container, s, users, archived, N) {
       const results = [];
       for (let m = 1; m <= 12; m++) {
         const md  = monthsData.find(d => d.month === m) ?? null;
-        const chg = await getChargesForMonth(m);
+        const chg = await getChargesForMonth(m, year);
         const ach = await getAchatsForMonth(year, m);
         const rp  = await getRepartition(year, m);
         results.push(md ? calcMonth(md, chg, ach, rp, currentUsers) : null);

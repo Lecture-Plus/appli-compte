@@ -93,15 +93,16 @@ export async function showBudgetOpModal(catId, catLabel, year, month, onSave) {
 // ══════════════════════════════════════════════════
 
 async function renderRecurrentes(container) {
-  const charges = await getAllCharges();
+  const allCharges = await getAllCharges();
+  const charges = allCharges.filter(c => c.year === State.year && c.month === State.month);
   const tc      = container.querySelector('#tab-content');
 
   if (!charges.length) {
     tc.innerHTML = `
       <div class="empty-state">
         <div class="empty-state-icon">📋</div>
-        <div class="empty-state-title">Aucune charge récurrente</div>
-        <div class="empty-state-text">Ajoutez vos charges fixes : loyer, EDF, abonnements…</div>
+        <div class="empty-state-title">Aucune charge ce mois-ci</div>
+        <div class="empty-state-text">Ajoutez les charges de ce mois : loyer, EDF, abonnements…</div>
       </div>
     `;
     return;
@@ -164,9 +165,6 @@ function buildChargeItem(c) {
   const activeIcon = c.active
     ? `<svg viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2.5" width="14" height="14"><path d="M20 6L9 17l-5-5"/></svg>`
     : `<svg viewBox="0 0 24 24" fill="none" stroke="var(--danger)" stroke-width="2" width="14" height="14"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`;
-  const monthsText = c.months === 'all' ? 'Tous les mois'
-    : Array.isArray(c.months) ? c.months.map(m => nomMois(m).slice(0, 3)).join(', ') : '';
-
   const linesSub = lines.length > 1
     ? lines.map(l => `<span class="chip" style="font-size:0.62rem;padding:1px 6px;">${escHtml(getQuiLabel(l.qui))}&nbsp;${eur(Number(l.amount)||0)}${l.dayOfMonth ? ` j.${l.dayOfMonth}` : ''}</span>`).join(' ')
     : `<span class="qui-badge">${escHtml(getQuiLabel(lines[0].qui))}</span>`;
@@ -176,7 +174,7 @@ function buildChargeItem(c) {
       <div class="list-item-icon" style="background:var(--primary-bg);">${info.emoji}</div>
       <div class="list-item-body">
         <div class="list-item-title">${escHtml(c.label)} ${persoTag}</div>
-        <div class="list-item-sub" style="display:flex;flex-wrap:wrap;gap:3px;align-items:center;">${monthsText} · ${activeIcon} ${linesSub}</div>
+        <div class="list-item-sub" style="display:flex;flex-wrap:wrap;gap:3px;align-items:center;">${activeIcon} ${linesSub}</div>
       </div>
       <div class="list-item-right">
         <div class="list-item-amount">${eur(total)}</div>
@@ -416,15 +414,6 @@ export function showChargeModal(charge, onSave) {
         <span class="toggle-slider"></span>
       </label>
     </div>
-    <div class="form-group" style="margin-bottom:10px;">
-      <label class="form-label">Mois actifs</label>
-      <label style="display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:0.85rem;cursor:pointer;">
-        <input type="checkbox" id="c-allmonths" ${c.months === 'all' ? 'checked' : ''}> Tous les mois
-      </label>
-      <div id="c-months-grid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;${c.months === 'all' ? 'opacity:0.4;pointer-events:none;' : ''}">
-        ${monthCheckboxes}
-      </div>
-    </div>
     <div class="toggle-wrap" style="padding:10px 0;">
       <div class="toggle-info">
         <label for="c-active">Charge active</label>
@@ -452,12 +441,6 @@ export function showChargeModal(charge, onSave) {
   document.getElementById('c-add-line')?.addEventListener('click', () => {
     const idx = linesContainer.querySelectorAll('.charge-line-wrapper').length;
     _renderLineRow({ amount: 0, qui: 'shared', dayOfMonth: null }, idx, linesContainer);
-  });
-
-  document.getElementById('c-allmonths')?.addEventListener('change', (e) => {
-    const grid = document.getElementById('c-months-grid');
-    grid.style.opacity       = e.target.checked ? '0.4' : '1';
-    grid.style.pointerEvents = e.target.checked ? 'none' : '';
   });
 
   document.getElementById('c-cancel')?.addEventListener('click', closeModal);
@@ -500,13 +483,6 @@ export function showChargeModal(charge, onSave) {
     }
     if (!lines.length) { showToast('Ajoutez au moins une ligne', 'error'); return; }
 
-    const allMonths = document.getElementById('c-allmonths')?.checked;
-    let months = 'all';
-    if (!allMonths) {
-      months = [...document.querySelectorAll('[data-mois]:checked')].map(el => Number(el.dataset.mois));
-      if (!months.length) { showToast('Sélectionnez au moins un mois', 'error'); return; }
-    }
-
     const totalAmount = lines.reduce((s, l) => s + l.amount, 0);
 
     await saveCharge({
@@ -514,8 +490,9 @@ export function showChargeModal(charge, onSave) {
       label,
       category: document.getElementById('c-cat')?.value || 'autre',
       lines,
-      amount:   totalAmount,   // total pour compatibilité
-      months,
+      amount:   totalAmount,
+      year:     State.year,
+      month:    State.month,
       active:   document.getElementById('c-active')?.checked ?? true,
       perso:    document.getElementById('c-perso')?.checked ?? false,
       notes:    '',
@@ -1249,7 +1226,7 @@ async function renderCalendrier(container) {
   const month = State.month;
   const year  = State.year;
   const charges = await getAllCharges();
-  const active  = charges.filter(c => !c.archived);
+  const active  = charges.filter(c => !c.archived && c.year === year && c.month === month);
 
   // Regrouper les charges par jour de prélèvement (1-31)
   const byDay = {};
