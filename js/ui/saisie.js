@@ -656,7 +656,7 @@ function _renderPrevTable(container, kpiPrev, kpiReel) {
         ${buildRow('Charges', dk.charges)}
         ${courses > 0 ? `<tr><td>${isReel?'Courses (confirmé)':'Budget courses'}</td>${uCols?_users.map(u=>`<td style="text-align:right">${eur(dk.courses?.byUser?.[u.id]??0)}</td>`).join(''):''}<td style="text-align:right">${eur(courses)}</td></tr>` : ''}
         ${extras > 0 ? `<tr><td>${isReel?'Loisirs (confirmé)':'Budget loisirs'}</td>${uCols?_users.map(u=>`<td style="text-align:right">${eur(dk.extras?.byUser?.[u.id]??0)}</td>`).join(''):''}<td style="text-align:right">${eur(extras)}</td></tr>` : ''}
-        ${buildRow('Achats exc.', dk.achats ?? {total:0,byUser:{}})}
+        ${buildRow('Dép. ponctuelles', dk.achats ?? {total:0,byUser:{}})}
         ${buildRow('Imprévus', dk.imprevus ?? {total:0,byUser:{}})}
         ${customBudgets.map(b => {
           const spent = _budgetOpsCache.filter(o=>o.category===b.id).reduce((s,o)=>s+(Number(o.amount)||0),0);
@@ -866,8 +866,6 @@ export async function showCraquageModal(container, month, year, usersOverride = 
   const settings      = await getAllSettings();
   const customBudgets = settings.customBudgets || [];
   const budgetOpts    = [
-    { id: 'courses', label: '🛒 Courses' },
-    { id: 'extras',  label: '🎮 Loisirs' },
     ...customBudgets.map(b => ({ id: b.id, label: `${b.icon || '📌'} ${escHtml(b.name)}` })),
   ];
 

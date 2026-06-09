@@ -729,6 +729,13 @@ async function renderBudgets(container) {
   const pinnedBudgets  = settings.pinnedBudgets   || [];
   const tc = container.querySelector('#tab-content');
 
+  // Effective budget total (handles allocation modes)
+  const effectiveBudget = b => {
+    if (b.allocation === 'equal')  return (Number(b.amount) || 0) * users.length;
+    if (b.allocation === 'custom') return Object.values(b.amountByUser || {}).reduce((s, v) => s + (Number(v) || 0), 0);
+    return Number(b.amount) || 0;
+  };
+
   const opsByCategory = {};
   for (const op of budgetOps) { (opsByCategory[op.category] ??= []).push(op); }
   const spent = cat => (opsByCategory[cat] || []).reduce((s, op) => s + (Number(op.amount) || 0), 0);
@@ -755,18 +762,29 @@ async function renderBudgets(container) {
       <p style="font-size:0.78rem;color:var(--text-3);margin-bottom:8px;">Ces dépassements de budget n'ont pas encore de source de financement.</p>
       <div class="item-list">${pendingCraquages.map(a => `<div class="list-item"><div class="list-item-icon" style="background:var(--warning-bg);">⏳</div><div class="list-item-body"><div class="list-item-title">${escHtml(a.label)}</div></div><div class="list-item-right"><div class="list-item-amount" style="color:var(--warning);">−${eur(a.amount)}</div><button class="btn btn-sm btn-primary" style="margin-top:4px;" data-attrib-crq="${a.id}">Attribuer</button></div></div>`).join('')}</div>
     </div>` : ''}
-    ${customBudgets.map(b => _buildBudCatSection({ id:b.id, icon:b.icon||'📌', title:b.name, budget:Number(b.amount)||0, spent:spent(b.id), ops:opsByCategory[b.id]||[], users, isPinned:pinnedBudgets.includes(b.id) })).join('')}
-    <div class="card" style="margin-bottom:12px;">
+    ${customBudgets.length === 0
+      ? `<div style="text-align:center;padding:28px 0 16px;color:var(--text-3);">
+          <div style="font-size:2rem;margin-bottom:8px;">📌</div>
+          <p style="font-size:0.84rem;margin-bottom:4px;">Aucun budget créé pour le moment.</p>
+          <p style="font-size:0.78rem;">Cliquez sur <strong>+ Nouveau budget personnalisé</strong> ci-dessous pour commencer.</p>
+        </div>`
+      : customBudgets.map(b => _buildBudCatSection({ id:b.id, icon:b.icon||'📌', title:b.name, budget:effectiveBudget(b), spent:spent(b.id), ops:opsByCategory[b.id]||[], users, isPinned:pinnedBudgets.includes(b.id) })).join('')
+    }
+    <button class="btn btn-outline btn-full" id="bgt-add-custom" style="margin-bottom:16px;">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="15" height="15"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      Nouveau budget personnalisé
+    </button>
+    <div class="card" style="margin-bottom:80px;">
       <div class="card-header">
-        <span class="card-title">💥 Achats exceptionnels</span>
+        <span>💳 Dépenses ponctuelles</span>
         <div style="display:flex;align-items:center;gap:6px;">
           <span class="chip danger">${eur(totalAchats)}</span>
           <button class="btn btn-sm btn-primary" id="bgt-add-achat">+ Ajouter</button>
         </div>
       </div>
       ${regularAchats.length===0
-        ? `<div style="font-size:0.82rem;color:var(--text-3);text-align:center;padding:8px 0;">Aucun achat exceptionnel ce mois-ci</div>`
-        : `<button class="btn btn-outline btn-full btn-sm" id="bgt-ops-toggle-achats" style="font-size:0.78rem;">📋 Voir les achats (${regularAchats.length})</button>
+        ? `<div style="font-size:0.82rem;color:var(--text-3);text-align:center;padding:8px 0;">Aucune dépense ponctuelle ce mois-ci</div>`
+        : `<button class="btn btn-outline btn-full btn-sm" id="bgt-ops-toggle-achats" style="font-size:0.78rem;">📋 Voir (${regularAchats.length})</button>
            <div id="bgt-ops-achats" style="display:none;margin-top:8px;">
              <div class="item-list">${regularAchats.map(a => {
                const info = getCategoryInfo(a.category);
@@ -776,16 +794,12 @@ async function renderBudgets(container) {
            </div>`
       }
     </div>
-    <button class="btn btn-outline btn-full" id="bgt-add-custom" style="margin-bottom:80px;">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="15" height="15"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-      Nouveau budget personnalisé
-    </button>
   `;
 
   tc.querySelector('#bgt-prev-month')?.addEventListener('click', () => { const d=addMonth(year,month,-1); State.year=d.year;State.month=d.month; renderBudgets(container); });
   tc.querySelector('#bgt-next-month')?.addEventListener('click', () => { const d=addMonth(year,month, 1); State.year=d.year;State.month=d.month; renderBudgets(container); });
-  tc.querySelector('#bgt-add-custom')?.addEventListener('click', () => showEditBudgetModal(null, customBudgets, () => renderBudgets(container)));
-  tc.querySelector('#bgt-manage')?.addEventListener('click', () => _showManageBudgetsModal(customBudgets, () => renderBudgets(container)));
+  tc.querySelector('#bgt-add-custom')?.addEventListener('click', () => showEditBudgetModal(null, customBudgets, () => renderBudgets(container), users));
+  tc.querySelector('#bgt-manage')?.addEventListener('click', () => _showManageBudgetsModal(customBudgets, () => renderBudgets(container), users));
 
   tc.querySelectorAll('[data-bgt-add-op]').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -836,7 +850,7 @@ async function renderBudgets(container) {
   tc.querySelectorAll('[data-bgt-edit]').forEach(btn => {
     btn.addEventListener('click', () => {
       const b = customBudgets.find(b => b.id === btn.dataset.bgtEdit);
-      if (b) showEditBudgetModal(b, customBudgets, () => renderBudgets(container));
+      if (b) showEditBudgetModal(b, customBudgets, () => renderBudgets(container), users);
     });
   });
 
@@ -1073,8 +1087,13 @@ async function _showAddBudgetOpModal({ catId, catLabel }, users, year, month, on
   });
 }
 
-export function showEditBudgetModal(existing, customBudgets, onSave) {
-  const isNew = !existing;
+export function showEditBudgetModal(existing, customBudgets, onSave, users = []) {
+  const isNew      = !existing;
+  const multiUser  = users.length > 1;
+  const selIcon    = existing?.icon || '📌';
+  const existingAlloc = existing?.allocation || 'shared';
+  const existingAmountByUser = existing?.amountByUser || {};
+
   const PRESET_BUDGETS = [
     { name: 'Restaurant', icon: '🍽️' },
     { name: 'Loisirs',    icon: '🎉' },
@@ -1092,13 +1111,47 @@ export function showEditBudgetModal(existing, customBudgets, onSave) {
       </div><hr style="margin-bottom:14px;border-color:var(--border);">`
     : '';
 
-  const selIcon = existing?.icon || '📌';
+  const allocSection = multiUser ? `
+    <div class="form-group" style="margin-bottom:12px;">
+      <label class="form-label">Répartition</label>
+      <div style="display:flex;flex-direction:column;gap:6px;">
+        <label style="display:flex;align-items:center;gap:8px;font-size:0.84rem;cursor:pointer;"><input type="radio" name="bgt-alloc" value="shared" ${existingAlloc==='shared'?'checked':''}> 🏠 Budget commun — plafond unique pour le foyer</label>
+        <label style="display:flex;align-items:center;gap:8px;font-size:0.84rem;cursor:pointer;"><input type="radio" name="bgt-alloc" value="equal"  ${existingAlloc==='equal' ?'checked':''}> ⚖️ Parts égales — même montant par personne</label>
+        <label style="display:flex;align-items:center;gap:8px;font-size:0.84rem;cursor:pointer;"><input type="radio" name="bgt-alloc" value="custom" ${existingAlloc==='custom'?'checked':''}> 🎯 Personnalisé — montant différent par personne</label>
+      </div>
+    </div>` : '';
+
+  const sharedAmountLabel = !multiUser ? 'Montant mensuel (€)' : existingAlloc === 'equal' ? 'Montant par personne (€)' : 'Montant total mensuel (€)';
+  const amountSection = `
+    <div id="bgt-amount-shared" style="${multiUser && existingAlloc==='custom' ? 'display:none;' : ''}margin-bottom:12px;">
+      <div class="form-group">
+        <label class="form-label" id="bgt-amount-label">${sharedAmountLabel}</label>
+        <div class="input-wrap">
+          <input type="number" class="form-input input-euro" id="bgt-amount" min="0" step="5" placeholder="0" value="${existing?.amount||''}">
+          <span class="input-suffix">€</span>
+        </div>
+        <p class="form-hint">0 = suivi libre sans plafond.</p>
+      </div>
+    </div>
+    ${multiUser ? `<div id="bgt-amount-custom" style="${existingAlloc==='custom' ? '' : 'display:none;'}margin-bottom:12px;">
+      ${users.map(u => `
+        <div class="form-group" style="margin-bottom:8px;">
+          <label class="form-label" style="display:flex;align-items:center;gap:6px;">
+            <span style="width:8px;height:8px;border-radius:50%;background:${escHtml(u.color||'#6C63FF')};display:inline-block;"></span>
+            ${escHtml(u.name)} (€)
+          </label>
+          <div class="input-wrap">
+            <input type="number" class="form-input input-euro bgt-amount-user" data-uid="${u.id}" min="0" step="5" placeholder="0" value="${existingAmountByUser[u.id]||''}">
+            <span class="input-suffix">€</span>
+          </div>
+        </div>`).join('')}
+    </div>` : ''}`;
+
   openModal(isNew ? '📌 Nouveau budget' : `✏️ Modifier "${existing.name}"`, `${presetsPlaceholder}
     <div class="form-group" style="margin-bottom:12px;"><label class="form-label">Nom *</label><input type="text" class="form-input" id="bgt-name" placeholder="Ex: Restaurant, Sport…" value="${escHtml(existing?.name||'')}" autocomplete="off"></div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
-      <div class="form-group"><label class="form-label">Montant mensuel (€)</label><div class="input-wrap"><input type="number" class="form-input input-euro" id="bgt-amount" min="0" step="5" placeholder="0" value="${existing?.amount||''}"><span class="input-suffix">€</span></div><p class="form-hint">0 = suivi libre</p></div>
-      <div class="form-group"><label class="form-label">Icône</label><input type="text" class="form-input" id="bgt-icon" maxlength="4" value="${escHtml(selIcon)}" style="font-size:1.4rem;text-align:center;" readonly></div>
-    </div>
+    ${allocSection}
+    ${amountSection}
+    <div class="form-group" style="margin-bottom:12px;"><label class="form-label">Icône</label><input type="text" class="form-input" id="bgt-icon" maxlength="4" value="${escHtml(selIcon)}" style="font-size:1.4rem;text-align:center;" readonly></div>
     <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px;">${PRESET_ICONS.map(ic=>`<button type="button" class="btn-icon icon-pick" data-icon="${ic}" style="width:36px;height:36px;font-size:1.2rem;border:2px solid ${ic===selIcon?'var(--primary)':'transparent'};border-radius:8px;background:var(--bg-card);">${ic}</button>`).join('')}</div>
     ${!isNew ? `<hr style="margin-bottom:12px;"><button class="btn btn-outline btn-full" id="bgt-delete" style="color:var(--danger);border-color:var(--danger);">🗑️ Supprimer ce budget</button>` : ''}
   `, `<button class="btn btn-primary btn-full" id="bgt-save">${isNew ? 'Créer' : 'Enregistrer'}</button>`);
@@ -1110,8 +1163,7 @@ export function showEditBudgetModal(existing, customBudgets, onSave) {
   if (presetsContainer) {
     availablePresets.forEach(p => {
       const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'btn btn-sm btn-outline';
+      btn.type = 'button'; btn.className = 'btn btn-sm btn-outline';
       btn.style.cssText = 'font-size:0.78rem;padding:4px 10px;';
       btn.textContent = p.icon + ' ' + p.name;
       btn.addEventListener('click', () => {
@@ -1119,11 +1171,29 @@ export function showEditBudgetModal(existing, customBudgets, onSave) {
         const iconEl = document.getElementById('bgt-icon');
         if (nameEl) nameEl.value = p.name;
         if (iconEl) iconEl.value = p.icon;
-        document.querySelectorAll('.icon-pick').forEach(b => {
-          b.style.borderColor = b.dataset.icon === p.icon ? 'var(--primary)' : 'transparent';
-        });
+        document.querySelectorAll('.icon-pick').forEach(b => { b.style.borderColor = b.dataset.icon === p.icon ? 'var(--primary)' : 'transparent'; });
       });
       presetsContainer.appendChild(btn);
+    });
+  }
+
+  // Allocation toggle (multi-user only)
+  if (multiUser) {
+    document.querySelectorAll('input[name="bgt-alloc"]').forEach(radio => {
+      radio.addEventListener('change', () => {
+        const val = radio.value;
+        const sharedDiv = document.getElementById('bgt-amount-shared');
+        const customDiv = document.getElementById('bgt-amount-custom');
+        const lbl = document.getElementById('bgt-amount-label');
+        if (val === 'custom') {
+          if (sharedDiv) sharedDiv.style.display = 'none';
+          if (customDiv) customDiv.style.display = '';
+        } else {
+          if (sharedDiv) sharedDiv.style.display = '';
+          if (customDiv) customDiv.style.display = 'none';
+          if (lbl) lbl.textContent = val === 'equal' ? 'Montant par personne (€)' : 'Montant total mensuel (€)';
+        }
+      });
     });
   }
 
@@ -1136,26 +1206,45 @@ export function showEditBudgetModal(existing, customBudgets, onSave) {
     closeModal(); showToast('Budget supprimé', 'success'); await onSave();
   });
   document.getElementById('bgt-save')?.addEventListener('click', async () => {
-    const name   = document.getElementById('bgt-name')?.value.trim();
-    const amount = parseFloat(document.getElementById('bgt-amount')?.value) || 0;
-    const icon   = document.getElementById('bgt-icon')?.value || '📌';
+    const name  = document.getElementById('bgt-name')?.value.trim();
+    const icon  = document.getElementById('bgt-icon')?.value || '📌';
+    const alloc = multiUser ? (document.querySelector('input[name="bgt-alloc"]:checked')?.value || 'shared') : 'shared';
     if (!name) { showToast('Saisissez un nom', 'error'); return; }
-    if (isNew && amount <= 0) { showToast('Saisissez un montant mensuel', 'error'); return; }
-    const updated = isNew ? [...customBudgets, {id:'custom_'+Date.now(), name, icon, amount}]
-      : customBudgets.map(b => b.id===existing.id ? {...b, name, icon, amount} : b);
+
+    let amount, amountByUser;
+    if (alloc === 'custom') {
+      amountByUser = {};
+      let total = 0;
+      document.querySelectorAll('.bgt-amount-user').forEach(inp => {
+        const v = parseFloat(inp.value) || 0;
+        amountByUser[inp.dataset.uid] = v;
+        total += v;
+      });
+      amount = total;
+      if (isNew && total <= 0) { showToast('Saisissez au moins un montant', 'error'); return; }
+    } else {
+      amount = parseFloat(document.getElementById('bgt-amount')?.value) || 0;
+      if (isNew && amount <= 0) { showToast('Saisissez un montant mensuel', 'error'); return; }
+      amountByUser = undefined;
+    }
+
+    const entry = isNew
+      ? { id: 'custom_'+Date.now(), name, icon, amount, allocation: alloc, amountByUser }
+      : { ...existing, name, icon, amount, allocation: alloc, amountByUser };
+    const updated = isNew ? [...customBudgets, entry] : customBudgets.map(b => b.id===existing.id ? entry : b);
     await setSetting('customBudgets', updated);
     closeModal(); showToast(isNew ? `Budget "${name}" créé ✅` : 'Mis à jour ✅', 'success'); await onSave();
   });
 }
 
-function _showManageBudgetsModal(customBudgets, onSave) {
+function _showManageBudgetsModal(customBudgets, onSave, users = []) {
   openModal('⚙️ Gérer mes budgets', customBudgets.length===0
     ? `<p style="color:var(--text-3);font-size:0.85rem;text-align:center;padding:12px 0;">Aucun budget personnalisé.<br>Utilisez <strong>+ Nouveau budget</strong>.</p>`
     : `<div class="item-list">${customBudgets.map(b=>`<div class="list-item" style="padding:10px 12px;"><div class="list-item-icon" style="font-size:1.2rem;background:var(--bg-2);">${b.icon||'📌'}</div><div class="list-item-body"><div class="list-item-title">${escHtml(b.name)}</div><div class="list-item-sub">${b.amount>0?eur(b.amount)+'/mois':'Suivi libre'}</div></div><div style="display:flex;gap:6px;"><button class="btn btn-sm btn-outline manage-edit" data-id="${b.id}">Modifier</button><button class="btn btn-sm btn-outline manage-del" data-id="${b.id}" style="color:var(--danger);border-color:var(--danger);">Supprimer</button></div></div>`).join('')}</div>`
   , `<button class="btn btn-primary btn-full" id="manage-add-new">+ Nouveau budget</button>`);
-  document.getElementById('manage-add-new')?.addEventListener('click', () => { closeModal(); showEditBudgetModal(null, customBudgets, onSave); });
+  document.getElementById('manage-add-new')?.addEventListener('click', () => { closeModal(); showEditBudgetModal(null, customBudgets, onSave, users); });
   document.querySelectorAll('.manage-edit').forEach(btn => {
-    btn.addEventListener('click', () => { const b=customBudgets.find(b=>b.id===btn.dataset.id); if(b){closeModal();showEditBudgetModal(b,customBudgets,onSave);} });
+    btn.addEventListener('click', () => { const b=customBudgets.find(b=>b.id===btn.dataset.id); if(b){closeModal();showEditBudgetModal(b,customBudgets,onSave,users);} });
   });
   document.querySelectorAll('.manage-del').forEach(btn => {
     btn.addEventListener('click', async () => {
@@ -1169,7 +1258,7 @@ function _showManageBudgetsModal(customBudgets, onSave) {
   });
 }
 
-function showAchatModal(achat, onSave) {
+export function showAchatModal(achat, onSave) {
   const now = new Date();
   const isNew = !achat;
   const a = achat ?? { year: State.year, month: State.month, day: now.getDate(), label: '', category: 'loisirs', amount: 0, qui: 'shared' };

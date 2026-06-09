@@ -18,7 +18,7 @@ import { eur, pct, nomMois, addMonth, signClass,
          progressColor, escHtml, showToast, showToastWithUndo,
          openModal, closeModal }                          from '../utils.js';
 import { showCraquageModal }                              from './saisie.js';
-import { showEditBudgetModal }                            from './charges.js';
+import { showEditBudgetModal, showAchatModal }             from './charges.js';
 
 let _activeTab = 'resume';
 let _detailMode = 'reel'; // 'reel' | 'previsionnel'
@@ -309,14 +309,21 @@ async function _renderResume(container, s, users) {
     <!-- ── CTAs adaptatifs ── -->
     <div id="dash-cta-area" style="margin-bottom:8px;">
       ${status === 'empty'
-        ? `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-            <button class="btn btn-primary" id="btn-go-saisie" style="font-size:0.82rem;padding:11px;">✏️ Saisir les données de ${nomMois(month)}</button>
+        ? `<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
+            <button class="btn btn-primary" id="btn-go-saisie" style="font-size:0.82rem;padding:11px;">✏️ Saisir ${nomMois(month)}</button>
             <button class="btn btn-outline" id="btn-go-craquage" style="font-size:0.82rem;padding:11px;">💥 Craquage</button>
+            <button class="btn btn-outline" id="btn-add-achat" style="font-size:0.82rem;padding:11px;">💳 Dépense</button>
           </div>`
-        : `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-            <button class="btn ${status === 'partial' ? 'btn-primary' : 'btn-outline'}" id="btn-go-saisie" style="font-size:0.82rem;padding:11px;">✏️ ${status === 'partial' ? 'Compléter' : 'Modifier'}</button>
-            <button class="btn btn-outline" id="btn-go-craquage" style="font-size:0.82rem;padding:11px;">💥 Craquage</button>
-          </div>`
+        : status === 'partial'
+          ? `<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
+              <button class="btn btn-primary" id="btn-go-saisie" style="font-size:0.82rem;padding:11px;">✏️ Compléter la saisie mensuelle</button>
+              <button class="btn btn-outline" id="btn-go-craquage" style="font-size:0.82rem;padding:11px;">💥 Craquage</button>
+              <button class="btn btn-outline" id="btn-add-achat" style="font-size:0.82rem;padding:11px;">💳 Dépense</button>
+            </div>`
+          : `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+              <button class="btn btn-outline" id="btn-go-craquage" style="font-size:0.82rem;padding:11px;">💥 Craquage</button>
+              <button class="btn btn-outline" id="btn-add-achat" style="font-size:0.82rem;padding:11px;">💳 Dépense</button>
+            </div>`
       }
     </div>
 
@@ -358,7 +365,7 @@ async function _renderResume(container, s, users) {
     ${users.length >= 2 ? `
     <div class="card" style="margin-bottom:12px;">
       <div class="card-header">
-        <span class="card-title">⚖️ Répartition ${nomMois(month)}</span>
+        <span>⚖️ Répartition ${nomMois(month)}</span>
         <span style="font-size:0.65rem;color:var(--text-3);">Prévisionnel</span>
       </div>
       <div style="display:grid;gap:8px;margin-bottom:10px;">
@@ -401,7 +408,7 @@ async function _renderResume(container, s, users) {
             ${bRow('Charges', dk.charges)}
             ${courses > 0 ? `<tr><td>${isReel?'Courses (confirmé)':'Budget courses'}</td>${uCols?users.map(u=>`<td style="text-align:right">${eur(dk.courses?.byUser?.[u.id]??0)}</td>`).join(''):''}<td style="text-align:right">${eur(courses)}</td></tr>` : ''}
             ${extras > 0 ? `<tr><td>${isReel?'Loisirs (confirmé)':'Budget loisirs'}</td>${uCols?users.map(u=>`<td style="text-align:right">${eur(dk.extras?.byUser?.[u.id]??0)}</td>`).join(''):''}<td style="text-align:right">${eur(extras)}</td></tr>` : ''}
-            ${bRow('Achats exc.', dk.achats ?? {total:0,byUser:{}})}
+            ${bRow('Dép. ponctuelles', dk.achats ?? {total:0,byUser:{}})}
             ${bRow('Imprévus', dk.imprevus ?? {total:0,byUser:{}})}
             ${customBudgets.map(b => {
               const spent = allBudgetOps.filter(o=>o.category===b.id).reduce((s,o)=>s+(Number(o.amount)||0),0);
@@ -477,6 +484,9 @@ async function _renderResume(container, s, users) {
   });
 
   el.querySelector('#btn-go-saisie')?.addEventListener('click', () => navigateTo('argent', { tab: 'saisir' }));
+  el.querySelector('#btn-add-achat')?.addEventListener('click', () => {
+    showAchatModal(null, async () => { await _renderResume(container, s, users); });
+  });
   el.querySelector('#btn-go-analyse-detail')?.addEventListener('click', () => navigateTo('stats'));
   el.querySelector('#btn-go-craquage')?.addEventListener('click', () => {
     showCraquageModal(null, month, year, users, async () => {
@@ -563,7 +573,7 @@ async function _renderResume(container, s, users) {
             ${bRow('Charges', dk.charges)}
             ${courses > 0 ? `<tr><td>${isReel?'Courses (confirmé)':'Budget courses'}</td>${uCols?users.map(u=>`<td style="text-align:right">${eur(dk.courses?.byUser?.[u.id]??0)}</td>`).join(''):''}<td style="text-align:right">${eur(courses)}</td></tr>` : ''}
             ${extras > 0 ? `<tr><td>${isReel?'Loisirs (confirmé)':'Budget loisirs'}</td>${uCols?users.map(u=>`<td style="text-align:right">${eur(dk.extras?.byUser?.[u.id]??0)}</td>`).join(''):''}<td style="text-align:right">${eur(extras)}</td></tr>` : ''}
-            ${bRow('Achats exc.', dk.achats ?? {total:0,byUser:{}})}
+            ${bRow('Dép. ponctuelles', dk.achats ?? {total:0,byUser:{}})}
             ${bRow('Imprévus', dk.imprevus ?? {total:0,byUser:{}})}
             ${customBudgets.map(b => {
               const spent = allBudgetOps.filter(o=>o.category===b.id).reduce((s,o)=>s+(Number(o.amount)||0),0);
@@ -861,7 +871,7 @@ function _fillDetailTable(el, { kpi: kpiReel, kpiPrev, realCourses, realExtras }
         ${buildRow('Charges',     dk.charges,  users)}
         ${buildRow(isReel ? 'Courses (confirmé)' : 'Budget courses', dc, users)}
         ${buildRow(isReel ? 'Loisirs (confirmé)' : 'Budget loisirs', de, users)}
-        ${buildRow('Achats exc.', dk.achats,   users)}
+        ${buildRow('Dép. ponctuelles', dk.achats,   users)}
         ${buildRow('Imprévus',    dk.imprevus, users)}
       </tbody>
       <tfoot>

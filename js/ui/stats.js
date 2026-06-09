@@ -340,7 +340,7 @@ async function _renderDetailTab(container, year, month, users) {
         ${buildRow('Charges', dk.charges)}
         ${courses > 0 ? `<tr><td>${isReel ? 'Courses (confirmé)' : 'Budget courses'}</td>${users.map(u => `<td style="text-align:right">${eur(dk.courses.byUser?.[u.id] ?? 0)}</td>`).join('')}<td style="text-align:right">${eur(courses)}</td></tr>` : ''}
         ${extras > 0 ? `<tr><td>${isReel ? 'Loisirs (confirmé)' : 'Budget loisirs'}</td>${users.map(u => `<td style="text-align:right">${eur(dk.extras.byUser?.[u.id] ?? 0)}</td>`).join('')}<td style="text-align:right">${eur(extras)}</td></tr>` : ''}
-        ${buildRow('Achats exc.', dk.achats ?? {total:0,byUser:{}})}
+        ${buildRow('Dép. ponctuelles', dk.achats ?? {total:0,byUser:{}})}
         ${buildRow('Imprévus', dk.imprevus ?? {total:0,byUser:{}})}
         ${(settings.customBudgets || []).map(b => {
           const spent = budgetOps.filter(o => o.category === b.id).reduce((s, o) => s + (Number(o.amount) || 0), 0);
@@ -708,7 +708,7 @@ function renderChartChargesCat(yearKPI, allCharges = []) {
 function renderChartRepartition(yearKPI) {
   const canvas = document.getElementById('chart-repartition');
   if (!canvas || !yearKPI) return;
-  const labels = ['Charges fixes', 'Courses', 'Loisirs', 'Achats exc.', 'Imprévus'];
+  const labels = ['Charges fixes', 'Courses', 'Loisirs', 'Dép. ponctuelles', 'Imprévus'];
   const data   = [yearKPI.charges.total, yearKPI.courses.total, yearKPI.extras.total, yearKPI.achats.total, yearKPI.imprevus.total];
   const total  = data.reduce((s, v) => s + v, 0);
   canvas.setAttribute('role', 'img');
