@@ -265,7 +265,6 @@ function buildHTML(s, users, archived, N) {
         <div class="card">
           <div class="card-header"><span class="card-title" style="color:var(--danger);">⚠️ Zone dangereuse</span></div>
           <button class="btn btn-outline btn-full" style="margin-bottom:8px;" id="btn-clear-cache">🔄 Vider le cache et recharger</button>
-          <button class="btn btn-outline btn-full" style="margin-bottom:8px;" id="btn-replay-tour">🎓 Rejouer le tour guidé</button>
           <button class="btn btn-danger btn-full" id="btn-reset">Effacer toutes les données…</button>
         </div>
 
@@ -647,12 +646,6 @@ function bindEvents(container, s, users, archived, N) {
   });
 
   // ── Reset cache ──
-  container.querySelector('#btn-replay-tour')?.addEventListener('click', async () => {
-    await setSetting('tourCompleted', false);
-    const { _startTour } = await import('../app.js');
-    _startTour(true);
-  });
-
   container.querySelector('#btn-clear-cache')?.addEventListener('click', async () => {
     const btn = container.querySelector('#btn-clear-cache');
     if (btn) { btn.disabled = true; btn.textContent = '⏳ Nettoyage…'; }

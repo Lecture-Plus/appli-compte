@@ -381,7 +381,7 @@ async function init() {
     if (_swipeX === null || State.page !== 'dashboard') { _swipeX = null; return; }
     const delta = e.changedTouches[0].clientX - _swipeX;
     _swipeX = null;
-    if (Math.abs(delta) < 60) return; // seuil 60px
+    if (Math.abs(delta) < 90) return; // seuil 90px
     const dir = delta < 0 ? 1 : -1;  // swipe gauche = mois suivant
     const nx = addMonth(State.year, State.month, dir);
     State.year = nx.year; State.month = nx.month;
@@ -421,10 +421,6 @@ async function init() {
 
   // ── First-run: "Qui utilise cet appareil ?" ──
   await showFirstRunModal();
-
-  // ── Tour guidé (1ère fois seulement) ──
-  const tourDone = await getSetting('tourCompleted');
-  if (!tourDone) setTimeout(() => _startTour(), 1000);
 
   // Service Worker
   if ('serviceWorker' in navigator) {
@@ -593,94 +589,3 @@ export function applyTheme(theme) {
 }
 
 document.addEventListener('DOMContentLoaded', () => init());
-
-// ── Tour guidé ──────────────────────────────────────────────
-const TOUR_STEPS = [
-  {
-    selector: '[data-page="dashboard"]',
-    title:    '👋 Bienvenue dans Compta+ !',
-    text:     'Le <strong>Dashboard</strong> affiche votre solde, score budgétaire et budget journalier restant. Cliquez sur le score pour voir le détail.',
-  },
-  {
-    selector: '[data-page="argent"]',
-    title:    '✏️ Saisir les données du mois',
-    text:     'La page <strong>Argent</strong> centralise la saisie des revenus, charges, budgets et épargne. À faire en début de mois !',
-  },
-  {
-    selector: '#fab-quick',
-    title:    '⚡ Accès rapide',
-    text:     'Ce bouton flottant vous amène directement à la saisie depuis n\'importe quelle page.',
-  },
-  {
-    selector: '[data-page="stats"]',
-    title:    '📈 Analysez vos finances',
-    text:     'La page <strong>Analyse</strong> propose des graphiques, comparaison N vs N-1, insights automatiques et export PDF.',
-  },
-  {
-    selector: '[data-page="settings"]',
-    title:    '⚙️ Paramètres',
-    text:     'Configurez le mode de répartition, synchronisez sur Drive, importez des charges types et personnalisez l\'app. <br><br><em>Appuyez sur <kbd>Alt+?</kbd> pour voir les raccourcis clavier.</em>',
-  },
-];
-
-export async function _startTour(force = false) {
-  const done = await getSetting('tourCompleted');
-  if (done && !force) return;
-
-  let step = 0;
-  const overlay = document.createElement('div');
-  overlay.id = 'tour-overlay';
-  overlay.style.cssText = 'position:fixed;inset:0;z-index:9000;pointer-events:none;';
-  document.body.appendChild(overlay);
-
-  const bubble = document.createElement('div');
-  bubble.style.cssText = 'position:fixed;z-index:9001;background:var(--bg-card);border:2px solid var(--primary);border-radius:14px;box-shadow:0 8px 32px rgba(108,99,255,.35);padding:16px 18px;max-width:300px;pointer-events:all;';
-  document.body.appendChild(bubble);
-
-  const backdrop = document.createElement('div');
-  backdrop.style.cssText = 'position:fixed;inset:0;z-index:8999;background:rgba(0,0,0,.45);';
-  backdrop.addEventListener('click', skip);
-  document.body.appendChild(backdrop);
-
-  function skip() {
-    cleanup();
-    setSetting('tourCompleted', true);
-  }
-
-  function cleanup() {
-    overlay.remove(); bubble.remove(); backdrop.remove();
-  }
-
-  function showStep(i) {
-    if (i >= TOUR_STEPS.length) { skip(); return; }
-    const s = TOUR_STEPS[i];
-    const target = document.querySelector(s.selector.split(' || ')[0]) || document.querySelector((s.selector.split(' || ')[1] || '').trim());
-    bubble.innerHTML = `
-      <div style="font-size:0.7rem;color:var(--text-3);margin-bottom:6px;">${i + 1} / ${TOUR_STEPS.length}</div>
-      <div style="font-weight:800;font-size:0.95rem;margin-bottom:6px;">${s.title}</div>
-      <div style="font-size:0.82rem;color:var(--text-2);line-height:1.5;">${s.text}</div>
-      <div style="display:flex;justify-content:space-between;margin-top:14px;">
-        <button id="tour-skip" style="background:transparent;border:none;font-size:0.78rem;color:var(--text-3);cursor:pointer;">Passer</button>
-        <button id="tour-next" class="btn btn-primary" style="padding:6px 16px;font-size:0.82rem;">${i < TOUR_STEPS.length - 1 ? 'Suivant →' : 'Terminer ✓'}</button>
-      </div>
-    `;
-    bubble.querySelector('#tour-skip')?.addEventListener('click', skip);
-    bubble.querySelector('#tour-next')?.addEventListener('click', () => showStep(i + 1));
-
-    if (target) {
-      const rect = target.getBoundingClientRect();
-      const bw = 300, bh = 160;
-      let left = Math.min(rect.left + rect.width / 2 - bw / 2, window.innerWidth - bw - 12);
-      let top  = rect.bottom + 12;
-      if (top + bh > window.innerHeight) top = rect.top - bh - 12;
-      bubble.style.left = Math.max(8, left) + 'px';
-      bubble.style.top  = Math.max(8, top) + 'px';
-    } else {
-      bubble.style.left = '50%';
-      bubble.style.top  = '50%';
-      bubble.style.transform = 'translate(-50%,-50%)';
-    }
-  }
-
-  showStep(0);
-}

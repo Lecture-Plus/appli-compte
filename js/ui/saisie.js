@@ -659,9 +659,16 @@ function _renderPrevTable(container, kpiPrev, kpiReel) {
         ${buildRow('Dép. ponctuelles', dk.achats ?? {total:0,byUser:{}})}
         ${buildRow('Imprévus', dk.imprevus ?? {total:0,byUser:{}})}
         ${customBudgets.map(b => {
-          const spent = _budgetOpsCache.filter(o=>o.category===b.id).reduce((s,o)=>s+(Number(o.amount)||0),0);
-          const uc = uCols ? _users.map(()=>'<td></td>').join('') : '';
-          return `<tr><td>${b.icon||'📌'} ${escHtml(b.name)}</td>${uc}<td style="text-align:right">${eur(spent)}</td></tr>`;
+          if (isReel) {
+            const bOps = _budgetOpsCache.filter(o=>o.category===b.id);
+            const spent = bOps.reduce((s,o)=>s+(Number(o.amount)||0),0);
+            const bByUser = uCols ? (() => { const acc={}; for(const o of bOps){if(o.userId){const k=String(o.userId);acc[k]=(acc[k]||0)+(Number(o.amount)||0);}else{const share=(Number(o.amount)||0)/_users.length;for(const u of _users){const k=String(u.id);acc[k]=(acc[k]||0)+share;}}} return acc; })() : {};
+            return `<tr><td>${b.icon||'📌'} ${escHtml(b.name)}</td>${uCols?_users.map(u=>`<td style="text-align:right">${eur(bByUser[String(u.id)]??0)}</td>`).join(''):''}<td style="text-align:right">${eur(spent)}</td></tr>`;
+          } else {
+            const bgt = b.allocation==='equal'?(Number(b.amount)||0)*_users.length:b.allocation==='custom'?Object.values(b.amountByUser||{}).reduce((s,v)=>s+(Number(v)||0),0):Number(b.amount)||0;
+            const bByUserP = uCols ? (() => { const acc={}; if(b.allocation==='custom'){for(const u of _users)acc[String(u.id)]=Number(b.amountByUser?.[u.id]??b.amountByUser?.[String(u.id)])||0;}else if(b.allocation==='equal'){for(const u of _users)acc[String(u.id)]=Number(b.amount)||0;}else{const sh=_users.length?bgt/_users.length:bgt;for(const u of _users)acc[String(u.id)]=sh;} return acc; })() : {};
+            return `<tr><td>${b.icon||'📌'} ${escHtml(b.name)}</td>${uCols?_users.map(u=>`<td style="text-align:right">${eur(bByUserP[String(u.id)]??0)}</td>`).join(''):''}<td style="text-align:right">${eur(bgt)}</td></tr>`;
+          }
         }).join('')}
       </tbody>
       <tfoot>

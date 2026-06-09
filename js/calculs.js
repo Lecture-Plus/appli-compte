@@ -160,9 +160,14 @@ export function calcMonth(monthData, charges, achats, repartCfg, users, budgetOp
     const aidesRep = repartCfg?.aidesRepartition || {};
     const revForDist = _mk(uids);
     for (const uid of uids) revForDist[uid] = revU[uid] + (aidesRep[uid] ? aidesU[uid] : 0);
-    const base = _sum(revForDist) || 1;
-    for (const uid of uids) {
-      partSharedU[uid] = (totalCommon + (useBudgetOps ? bopsShared : 0)) * (revForDist[uid] / base);
+    const base = _sum(revForDist);
+    if (base === 0) {
+      // Aucun revenu déclaré : répartition égale
+      for (const uid of uids) partSharedU[uid] = (totalCommon + (useBudgetOps ? bopsShared : 0)) / N;
+    } else {
+      for (const uid of uids) {
+        partSharedU[uid] = (totalCommon + (useBudgetOps ? bopsShared : 0)) * (revForDist[uid] / base);
+      }
     }
   } else {
     // 'separe' : coûts partagés divisés équitablement
@@ -186,8 +191,12 @@ export function calcMonth(monthData, charges, achats, repartCfg, users, budgetOp
     const aidesRep   = repartCfg?.aidesRepartition || {};
     const revForDist2 = _mk(uids);
     for (const uid of uids) revForDist2[uid] = revU[uid] + (aidesRep[uid] ? aidesU[uid] : 0);
-    const base2 = _sum(revForDist2) || 1;
-    for (const uid of uids) sharedChgU[uid] = totalSharedChg * (revForDist2[uid] / base2);
+    const base2 = _sum(revForDist2);
+    if (base2 === 0) {
+      for (const uid of uids) sharedChgU[uid] = totalSharedChg / N;
+    } else {
+      for (const uid of uids) sharedChgU[uid] = totalSharedChg * (revForDist2[uid] / base2);
+    }
   } else {
     for (const uid of uids) sharedChgU[uid] = totalSharedChg / N;
   }

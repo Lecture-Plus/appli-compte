@@ -311,7 +311,7 @@ svg { display: block; }
 
 /* ─── 12. Progress bars ─── */
 .progress-wrap { margin-top: 8px; }
-.progress-labels { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; font-size: 0.78rem; color: var(--text-2); }
+.progress-labels { display: flex; flex-direction: column; gap: 2px; margin-bottom: 6px; font-size: 0.75rem; color: var(--text-2); }
 .progress-labels .pct { font-weight: 700; color: var(--text); }
 .progress-track { height: 6px; background: var(--bg-2); border-radius: 99px; overflow: hidden; }
 .progress-bar {

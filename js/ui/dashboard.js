@@ -383,10 +383,16 @@ async function _renderResume(container, s, users) {
             ${bRow('Dép. ponctuelles', dk.achats ?? {total:0,byUser:{}})}
             ${bRow('Imprévus', dk.imprevus ?? {total:0,byUser:{}})}
             ${customBudgets.map(b => {
-              const bOps = allBudgetOps.filter(o=>o.category===b.id);
-              const spent = bOps.reduce((s,o)=>s+(Number(o.amount)||0),0);
-              const bByUser = uCols ? (() => { const acc={}; for(const o of bOps){if(o.userId){const k=String(o.userId);acc[k]=(acc[k]||0)+(Number(o.amount)||0);}else{const share=(Number(o.amount)||0)/users.length;for(const u of users){const k=String(u.id);acc[k]=(acc[k]||0)+share;}}} return acc; })() : {};
-              return `<tr><td>${b.icon||'📌'} ${escHtml(b.name)}</td>${uCols?users.map(u=>`<td style="text-align:right">${eur(bByUser[String(u.id)]??0)}</td>`).join(''):''}<td style="text-align:right">${eur(spent)}</td></tr>`;
+              if (isReel) {
+                const bOps = allBudgetOps.filter(o=>o.category===b.id);
+                const spent = bOps.reduce((s,o)=>s+(Number(o.amount)||0),0);
+                const bByUser = uCols ? (() => { const acc={}; for(const o of bOps){if(o.userId){const k=String(o.userId);acc[k]=(acc[k]||0)+(Number(o.amount)||0);}else{const share=(Number(o.amount)||0)/users.length;for(const u of users){const k=String(u.id);acc[k]=(acc[k]||0)+share;}}} return acc; })() : {};
+                return `<tr><td>${b.icon||'📌'} ${escHtml(b.name)}</td>${uCols?users.map(u=>`<td style="text-align:right">${eur(bByUser[String(u.id)]??0)}</td>`).join(''):''}<td style="text-align:right">${eur(spent)}</td></tr>`;
+              } else {
+                const bgt = b.allocation==='equal'?(Number(b.amount)||0)*users.length:b.allocation==='custom'?Object.values(b.amountByUser||{}).reduce((s,v)=>s+(Number(v)||0),0):Number(b.amount)||0;
+                const bByUserP = uCols ? (() => { const acc={}; if(b.allocation==='custom'){for(const u of users)acc[String(u.id)]=Number(b.amountByUser?.[u.id]??b.amountByUser?.[String(u.id)])||0;}else if(b.allocation==='equal'){for(const u of users)acc[String(u.id)]=Number(b.amount)||0;}else{const sh=users.length?bgt/users.length:bgt;for(const u of users)acc[String(u.id)]=sh;} return acc; })() : {};
+                return `<tr><td>${b.icon||'📌'} ${escHtml(b.name)}</td>${uCols?users.map(u=>`<td style="text-align:right">${eur(bByUserP[String(u.id)]??0)}</td>`).join(''):''}<td style="text-align:right">${eur(bgt)}</td></tr>`;
+              }
             }).join('')}
           </tbody>
           <tfoot>
@@ -550,10 +556,16 @@ async function _renderResume(container, s, users) {
             ${bRow('Dép. ponctuelles', dk.achats ?? {total:0,byUser:{}})}
             ${bRow('Imprévus', dk.imprevus ?? {total:0,byUser:{}})}
             ${customBudgets.map(b => {
-              const bOps2 = allBudgetOps.filter(o=>o.category===b.id);
-              const spent = bOps2.reduce((s,o)=>s+(Number(o.amount)||0),0);
-              const bByUser2 = uCols ? (() => { const acc={}; for(const o of bOps2){if(o.userId){const k=String(o.userId);acc[k]=(acc[k]||0)+(Number(o.amount)||0);}else{const share=(Number(o.amount)||0)/users.length;for(const u of users){const k=String(u.id);acc[k]=(acc[k]||0)+share;}}} return acc; })() : {};
-              return `<tr><td>${b.icon||'📌'} ${escHtml(b.name)}</td>${uCols?users.map(u=>`<td style="text-align:right">${eur(bByUser2[String(u.id)]??0)}</td>`).join(''):''}<td style="text-align:right">${eur(spent)}</td></tr>`;
+              if (isReel) {
+                const bOps2 = allBudgetOps.filter(o=>o.category===b.id);
+                const spent = bOps2.reduce((s,o)=>s+(Number(o.amount)||0),0);
+                const bByUser2 = uCols ? (() => { const acc={}; for(const o of bOps2){if(o.userId){const k=String(o.userId);acc[k]=(acc[k]||0)+(Number(o.amount)||0);}else{const share=(Number(o.amount)||0)/users.length;for(const u of users){const k=String(u.id);acc[k]=(acc[k]||0)+share;}}} return acc; })() : {};
+                return `<tr><td>${b.icon||'📌'} ${escHtml(b.name)}</td>${uCols?users.map(u=>`<td style="text-align:right">${eur(bByUser2[String(u.id)]??0)}</td>`).join(''):''}<td style="text-align:right">${eur(spent)}</td></tr>`;
+              } else {
+                const bgt2 = b.allocation==='equal'?(Number(b.amount)||0)*users.length:b.allocation==='custom'?Object.values(b.amountByUser||{}).reduce((s,v)=>s+(Number(v)||0),0):Number(b.amount)||0;
+                const bByUserP2 = uCols ? (() => { const acc={}; if(b.allocation==='custom'){for(const u of users)acc[String(u.id)]=Number(b.amountByUser?.[u.id]??b.amountByUser?.[String(u.id)])||0;}else if(b.allocation==='equal'){for(const u of users)acc[String(u.id)]=Number(b.amount)||0;}else{const sh=users.length?bgt2/users.length:bgt2;for(const u of users)acc[String(u.id)]=sh;} return acc; })() : {};
+                return `<tr><td>${b.icon||'📌'} ${escHtml(b.name)}</td>${uCols?users.map(u=>`<td style="text-align:right">${eur(bByUserP2[String(u.id)]??0)}</td>`).join(''):''}<td style="text-align:right">${eur(bgt2)}</td></tr>`;
+              }
             }).join('')}
           </tbody>
           <tfoot>
@@ -585,7 +597,16 @@ function _showPinBudgetModal(currentPinned, customBudgets, onPin, users = []) {
     document.getElementById('pin-go-budgets')?.addEventListener('click', async () => {
       closeModal();
       const freshS = await getAllSettings();
-      showEditBudgetModal(null, freshS.customBudgets || [], async () => { await onPin(); }, users);
+      const beforeIds = new Set((freshS.customBudgets || []).map(b => b.id));
+      showEditBudgetModal(null, freshS.customBudgets || [], async () => {
+        const afterS = await getAllSettings();
+        const newBudget = (afterS.customBudgets || []).find(b => !beforeIds.has(b.id));
+        if (newBudget) {
+          const pinned = [...(afterS.pinnedBudgets || []), newBudget.id].slice(0, 4);
+          await setSetting('pinnedBudgets', pinned);
+        }
+        await onPin();
+      }, users);
     });
     return;
   }
