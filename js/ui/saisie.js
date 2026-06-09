@@ -5,6 +5,7 @@
 import { State }                                       from '../app.js';
 import { getMonthlyData, saveMonthlyData,
          getChargesForMonth, getAchatsForMonth,
+         getAllCharges, saveCharge, deleteCharge,
          saveAchat, deleteAchat, getRepartition, saveRepartition,
          getAllSettings, saveSavingsOperation,
          saveBudgetOp, getBudgetOpsForMonth,
@@ -12,7 +13,10 @@ import { getMonthlyData, saveMonthlyData,
 import { calcMonth, whatIf }                           from '../calculs.js';
 import { eur, pct, nomMois, addMonth, escHtml,
          signClass, debounce, showToast, uid,
-         openModal, closeModal, MOIS }                 from '../utils.js';
+         openModal, closeModal, MOIS,
+         getCategoryInfo }                             from '../utils.js';
+import { showChargeModal,
+         showChargesTemplatesModal }                   from './charges.js';
 
 let _md       = null;
 let _repCfg   = null;
@@ -94,138 +98,114 @@ export async function render(container) {
 
     ${_isEmptyMonth && _hasPrevData ? `<div id="prefill-banner" style="background:var(--primary-bg);border-left:3px solid var(--primary);border-radius:var(--radius);padding:10px 14px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;gap:8px;"><div><div style="font-weight:600;font-size:0.82rem;color:var(--primary);">Pré-remplir depuis ${nomMois(prevM.month)} ${prevM.year} ?</div><div style="font-size:0.72rem;color:var(--text-3);margin-top:2px;">Revenus et budgets copiés — modifiez si besoin.</div></div><button class="btn btn-primary btn-sm" id="btn-prefill" style="flex-shrink:0;">Copier</button></div>` : ''}
 
-    <!-- ── Zone 1 : Revenus ── -->
-    <div class="form-section" style="margin-bottom:10px;">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-        <div class="form-section-title" style="margin:0;"><span class="section-icon">💰</span>Revenus ${nomMois(month)}</div>
-        <button class="btn btn-sm btn-outline" id="btn-toggle-aides" style="font-size:0.72rem;">⬇ Aides &amp; primes</button>
-      </div>
-      <div class="form-grid-${Math.min(N, 4)}">
-        ${_users.map(u => inputField(`rev-${u.id}`, u, _md.users[String(u.id)]?.revenus, '€')).join('')}
-      </div>
-      <div id="aides-primes-section" style="display:none;margin-top:10px;padding-top:10px;border-top:1px solid var(--border);">
-        <div style="font-size:0.75rem;font-weight:600;color:var(--text-3);margin-bottom:8px;">Aides (CAF, APL, allocations…)</div>
-        ${_users.map(u => {
-          const aidesVal = _md.users[String(u.id)]?.aides ?? '';
-          const aidesRep = (_repCfg.aidesRepartition || {})[String(u.id)] ?? false;
-          return `
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
-              <span style="flex:1;font-size:0.8rem;font-weight:600;display:flex;align-items:center;gap:5px;">
-                <span style="width:8px;height:8px;border-radius:50%;background:${escHtml(u.color||'#6C63FF')};display:inline-block;"></span>
-                ${escHtml(u.name)}
-              </span>
-              <div class="input-wrap" style="width:110px;">
-                <input type="number" class="form-input input-euro" id="aid-${u.id}" min="0" step="1" placeholder="0" value="${Number(aidesVal)||''}" style="padding-right:22px;font-size:0.82rem;">
-                <span class="input-suffix">€</span>
-              </div>
-              <label style="display:flex;align-items:center;gap:4px;font-size:0.72rem;color:var(--text-2);cursor:pointer;white-space:nowrap;">
-                <input type="checkbox" id="aid-rep-${u.id}" ${aidesRep ? 'checked' : ''}> Répartition
-              </label>
-            </div>`;
-        }).join('')}
-        <div style="font-size:0.75rem;font-weight:600;color:var(--text-3);margin:12px 0 8px;">Primes &amp; Bonus</div>
-        <p style="font-size:0.72rem;color:var(--text-3);margin:-4px 0 8px;">Personnels — jamais comptabilisés dans la répartition</p>
-        <div class="form-grid-${Math.min(N, 4)}">
-          ${_users.map(u => inputField(`pri-${u.id}`, u, _md.users[String(u.id)]?.primes, '€')).join('')}
+    <!-- Accordion 1: Revenus -->
+    <details class="settings-group" open>
+      <summary class="settings-group-title">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
+        💰 Revenus ${nomMois(month)}
+      </summary>
+      <div class="settings-group-body">
+        <div class="form-grid-${Math.min(N, 4)}" style="margin-bottom:10px;">
+          ${_users.map(u => inputField(`rev-${u.id}`, u, _md.users[String(u.id)]?.revenus, '€')).join('')}
         </div>
-      </div>
-    </div>
-
-    ${!modeHidden ? `
-    <!-- ── Mode répartition ── -->
-    <div class="form-section" style="margin-bottom:10px;">
-      <div class="form-section-title"><span class="section-icon">⚖️</span>Répartition des charges</div>
-      <div class="tabs" id="mode-tabs">
-        <button class="tab-btn ${_repCfg.mode === 'separe'       ? 'active' : ''}" data-mode="separe">Séparé</button>
-        <button class="tab-btn ${_repCfg.mode === 'fixe'         ? 'active' : ''}" data-mode="fixe">Fixe %</button>
-        <button class="tab-btn ${_repCfg.mode === 'equitable'    ? 'active' : ''}" data-mode="equitable">Équitable</button>
-        <button class="tab-btn ${_repCfg.mode === 'personnalise' ? 'active' : ''}" data-mode="personnalise">🎛 Perso</button>
-      </div>
-      <div id="mode-options" class="form-grid-${Math.min(N, 4)}" style="margin-top:8px;${_repCfg.mode !== 'fixe' ? 'display:none;' : ''}">
-        ${_users.map(u => `
-          <div class="form-group">
-            <label class="form-label" style="display:flex;align-items:center;gap:6px;">
-              <span style="background:${escHtml(u.color||'#6C63FF')};width:12px;height:12px;border-radius:50%;display:inline-block;"></span>
-              ${escHtml(u.name)} (%)
-            </label>
-            <div class="input-wrap">
-              <input type="number" class="form-input input-euro pct-field" data-uid="${u.id}"
-                min="0" max="100" step="1" value="${_repCfg.pcts?.[u.id] ?? Math.round(100/_users.length)}">
-              <span class="input-suffix">%</span>
-            </div>
-          </div>`).join('')}
-      </div>
-      <div id="equitable-info" style="margin-top:8px;${_repCfg.mode !== 'equitable' ? 'display:none;' : ''}"></div>
-      <div id="mode-desc" style="font-size:0.78rem;color:var(--text-3);margin-top:6px;">${getModeDesc(_repCfg.mode)}</div>
-    </div>` : ''}
-
-    <!-- ── Zone 2 : Budgets du mois ── -->
-    <div class="form-section" style="margin-bottom:10px;">
-      <div class="form-section-title"><span class="section-icon">📊</span>Budgets du mois</div>
-      ${N === 1 ? `
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-        <div>
-          <div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;color:var(--text-3);margin-bottom:6px;">🛍️ Courses</div>
-          <div class="input-wrap">
-            <input type="number" class="form-input input-euro" id="crs-${_users[0].id}"
-              min="0" step="0.01" placeholder="0.00" value="${Number(_md.users[String(_users[0].id)]?.courses) || ''}">
-            <span class="input-suffix">€</span>
+        <div style="margin-bottom:8px;">
+          <button class="btn btn-sm btn-outline" id="btn-toggle-aides" style="font-size:0.72rem;">⬇ Aides &amp; primes</button>
+        </div>
+        <div id="aides-primes-section" style="display:none;padding-top:10px;border-top:1px solid var(--border);">
+          <div style="font-size:0.75rem;font-weight:600;color:var(--text-3);margin-bottom:8px;">Aides (CAF, APL, allocations…)</div>
+          ${_users.map(u => {
+            const aidesVal = _md.users[String(u.id)]?.aides ?? '';
+            const aidesRep = (_repCfg.aidesRepartition || {})[String(u.id)] ?? false;
+            return `
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+                <span style="flex:1;font-size:0.8rem;font-weight:600;display:flex;align-items:center;gap:5px;">
+                  <span style="width:8px;height:8px;border-radius:50%;background:${escHtml(u.color||'#6C63FF')};display:inline-block;"></span>
+                  ${escHtml(u.name)}
+                </span>
+                <div class="input-wrap" style="width:110px;">
+                  <input type="number" class="form-input input-euro" id="aid-${u.id}" min="0" step="1" placeholder="0" value="${Number(aidesVal)||''}" style="padding-right:22px;font-size:0.82rem;">
+                  <span class="input-suffix">€</span>
+                </div>
+                <label style="display:flex;align-items:center;gap:4px;font-size:0.72rem;color:var(--text-2);cursor:pointer;white-space:nowrap;">
+                  <input type="checkbox" id="aid-rep-${u.id}" ${aidesRep ? 'checked' : ''}> Répartition
+                </label>
+              </div>`;
+          }).join('')}
+          <div style="font-size:0.75rem;font-weight:600;color:var(--text-3);margin:12px 0 8px;">Primes &amp; Bonus</div>
+          <p style="font-size:0.72rem;color:var(--text-3);margin:-4px 0 8px;">Personnels — jamais comptabilisés dans la répartition</p>
+          <div class="form-grid-${Math.min(N, 4)}">
+            ${_users.map(u => inputField(`pri-${u.id}`, u, _md.users[String(u.id)]?.primes, '€')).join('')}
           </div>
         </div>
-        <div>
-          <div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;color:var(--text-3);margin-bottom:6px;">🎮 Loisirs</div>
-          <div class="input-wrap">
-            <input type="number" class="form-input input-euro" id="ext-${_users[0].id}"
-              min="0" step="0.01" placeholder="0.00" value="${Number(_md.users[String(_users[0].id)]?.extras) || ''}">
-            <span class="input-suffix">€</span>
+        ${!modeHidden ? `
+        <div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border);">
+          <div style="font-size:0.78rem;font-weight:700;color:var(--text-2);margin-bottom:8px;">⚖️ Répartition des charges</div>
+          <div class="tabs" id="mode-tabs">
+            <button class="tab-btn ${_repCfg.mode === 'separe'       ? 'active' : ''}" data-mode="separe">Séparé</button>
+            <button class="tab-btn ${_repCfg.mode === 'fixe'         ? 'active' : ''}" data-mode="fixe">Fixe %</button>
+            <button class="tab-btn ${_repCfg.mode === 'equitable'    ? 'active' : ''}" data-mode="equitable">Équitable</button>
+            <button class="tab-btn ${_repCfg.mode === 'personnalise' ? 'active' : ''}" data-mode="personnalise">🎛 Perso</button>
           </div>
-        </div>
-      </div>` : `
-      <div style="margin-bottom:10px;" id="courses-section">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
-          <div style="font-size:0.78rem;font-weight:700;color:var(--text);">🛍️ Courses alimentaires</div>
-          <button class="btn btn-sm btn-outline" id="btn-courses-mode" style="font-size:0.7rem;">${_coursesFoyerMode ? '👤 Par personne' : '🏠 Foyer'}</button>
-        </div>
-        <div id="courses-content">${_buildCoursesContent(N)}</div>
+          <div id="mode-options" class="form-grid-${Math.min(N, 4)}" style="margin-top:8px;${_repCfg.mode !== 'fixe' ? 'display:none;' : ''}">
+            ${_users.map(u => `
+              <div class="form-group">
+                <label class="form-label" style="display:flex;align-items:center;gap:6px;">
+                  <span style="background:${escHtml(u.color||'#6C63FF')};width:12px;height:12px;border-radius:50%;display:inline-block;"></span>
+                  ${escHtml(u.name)} (%)
+                </label>
+                <div class="input-wrap">
+                  <input type="number" class="form-input input-euro pct-field" data-uid="${u.id}"
+                    min="0" max="100" step="1" value="${_repCfg.pcts?.[u.id] ?? Math.round(100/_users.length)}">
+                  <span class="input-suffix">%</span>
+                </div>
+              </div>`).join('')}
+          </div>
+          <div id="equitable-info" style="margin-top:8px;${_repCfg.mode !== 'equitable' ? 'display:none;' : ''}"></div>
+          <div id="mode-desc" style="font-size:0.78rem;color:var(--text-3);margin-top:6px;">${getModeDesc(_repCfg.mode)}</div>
+        </div>` : ''}
       </div>
-      <div id="extras-section">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
-          <div style="font-size:0.78rem;font-weight:700;color:var(--text);">🎮 Loisirs &amp; Sorties</div>
-          <button class="btn btn-sm btn-outline" id="btn-extras-mode" style="font-size:0.7rem;">${_extrasFoyerMode ? '👤 Par personne' : '🏠 Foyer'}</button>
-        </div>
-        <div id="extras-content">${_buildExtrasContent(N)}</div>
-      </div>`}
-    </div>
+    </details>
 
-    <!-- ── Zone 3 : Imprévus ── -->
-    <div class="form-section" style="margin-bottom:10px;">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
-        <div class="form-section-title" style="margin:0;"><span class="section-icon">⚡</span>Imprévus</div>
-        <button class="btn btn-sm btn-secondary" id="btn-add-imprevu">+ Ajouter</button>
-      </div>
-      <p style="font-size:0.75rem;color:var(--text-3);margin:0 0 6px;">Dépenses non planifiées (panne, urgence…). Pour les achats ponctuels importants (meubles, appareils), utilisez <strong>Ce mois → Dépenses</strong>.</p>
-      <div id="imprevu-list"></div>
-    </div>
-
-    <!-- ── Outils secondaires ── -->
-    <details class="tools-details">
-      <summary>📊 Récapitulatif, Notes &amp; Outils</summary>
-      <div class="tools-details-body">
-        <div class="calc-preview" id="calc-preview" style="margin-bottom:10px;">
-          <div class="calc-preview-title">📊 Récapitulatif du mois</div>
-          <div id="calc-rows">Calcul en cours…</div>
+    <!-- Accordion 2: Charges du mois -->
+    <details class="settings-group" open>
+      <summary class="settings-group-title">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+        🏠 Charges du mois
+      </summary>
+      <div class="settings-group-body">
+        <div style="display:flex;gap:8px;margin-bottom:12px;">
+          <button class="btn btn-sm btn-outline" id="btn-import-charges">📥 Importer</button>
+          <button class="btn btn-sm btn-primary" id="btn-add-charge">+ Ajouter</button>
         </div>
-        <div class="form-section" style="margin-bottom:10px;">
-          <div class="form-section-title"><span class="section-icon">📝</span>Notes du mois</div>
-          <textarea id="notes-field" class="form-input" rows="3"
-            placeholder="Remarques, événements du mois…" style="resize:vertical;">${escHtml(_md.notes || '')}</textarea>
-        </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
-          <button class="btn btn-danger" id="btn-craquage">💥 Craquage</button>
-          <button class="btn btn-outline" id="btn-whatif">🧮 What-if</button>
+        <div id="saisie-charges-list"></div>
+        <div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--border);">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+            <div style="font-weight:700;font-size:0.82rem;">⚡ Imprévus</div>
+            <button class="btn btn-sm btn-secondary" id="btn-add-imprevu">+ Ajouter</button>
+          </div>
+          <p style="font-size:0.75rem;color:var(--text-3);margin:0 0 6px;">Dépenses non planifiées (panne, urgence…). Pour les achats ponctuels importants, utilisez <strong>Ce mois → Budgets</strong>.</p>
+          <div id="imprevu-list"></div>
         </div>
       </div>
     </details>
+
+    <!-- Accordion 3: Récapitulatif prévisionnel -->
+    <details class="settings-group">
+      <summary class="settings-group-title">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+        📋 Récapitulatif prévisionnel
+      </summary>
+      <div class="settings-group-body">
+        <div id="saisie-prev-table" style="margin-bottom:10px;"></div>
+        <div class="form-group">
+          <label class="form-label" style="margin-bottom:4px;font-size:0.78rem;">📝 Notes du mois</label>
+          <textarea id="notes-field" class="form-input" rows="3"
+            placeholder="Remarques, événements du mois…" style="resize:vertical;">${escHtml(_md.notes || '')}</textarea>
+        </div>
+      </div>
+    </details>
+
+    <!-- ── Footer sticky ── -->
     <!-- ── Footer sticky ── -->
     <div class="saisie-footer" id="saisie-footer">
       <div>
@@ -413,21 +393,105 @@ export async function render(container) {
     if (btn) btn.style.color = 'var(--success)';
   }
 
-  // ── What-if ──
-  container.querySelector('#btn-whatif')?.addEventListener('click', () => {
-    showWhatIfModal(container, month, year);
+  // ── Charges du mois ──
+  _renderSaisieChargesList(container);
+  container.querySelector('#btn-add-charge')?.addEventListener('click', () => {
+    showChargeModal(null, () => { _renderSaisieChargesList(container); updatePreview(container); });
   });
+  container.querySelector('#btn-import-charges')?.addEventListener('click', () => {
+    _showImportChargesOptions(container);
+  });
+}
 
-  // ── Craquage ──
-  container.querySelector('#btn-craquage')?.addEventListener('click', () => {
-    showCraquageModal(container, month, year, _users, () => updatePreview(container));
+// ── Render inline charges list ──
+function _renderSaisieChargesList(container) {
+  const el = container.querySelector('#saisie-charges-list');
+  if (!el) return;
+  if (!_chargesCache.length) {
+    el.innerHTML = `<p style="font-size:0.78rem;color:var(--text-3);text-align:center;padding:8px 0;">Aucune charge ce mois-ci.</p>`;
+    return;
+  }
+  const byCat = {};
+  for (const c of _chargesCache) { (byCat[c.category || 'autre'] ??= []).push(c); }
+  el.innerHTML = Object.entries(byCat).map(([catId, items]) => {
+    const info = getCategoryInfo(catId);
+    const total = items.reduce((s, c) => s + (c.lines?.reduce((ss, l) => ss + (Number(l.amount)||0), 0) || Number(c.amount)||0), 0);
+    return `<div style="margin-bottom:10px;">
+      <div style="font-size:0.72rem;font-weight:700;color:var(--text-3);text-transform:uppercase;margin-bottom:4px;">${escHtml(info.icon || '')} ${escHtml(info.label || catId)} — ${eur(total)}</div>
+      <div class="item-list">
+        ${items.map(c => {
+          const lines = c.lines?.length ? c.lines : [{ amount: c.amount, qui: c.qui }];
+          const lineTotal = lines.reduce((s, l) => s + (Number(l.amount)||0), 0);
+          return `<div class="list-item charge-item" data-cid="${c.id}" style="cursor:pointer;">
+            <div class="list-item-body"><div class="list-item-title">${escHtml(c.label)}</div></div>
+            <div class="list-item-right"><div class="list-item-amount">${eur(lineTotal)}</div></div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>`;
+  }).join('');
+  el.querySelectorAll('.charge-item[data-cid]').forEach(item => {
+    item.addEventListener('click', async () => {
+      const id = Number(item.dataset.cid);
+      const charges = await getAllCharges();
+      const charge = charges.find(c => c.id === id);
+      if (charge) showChargeModal(charge, async () => {
+        _chargesCache = await getChargesForMonth(State.month, State.year);
+        _renderSaisieChargesList(container);
+        updatePreview(container);
+      });
+    });
+  });
+}
+
+// ── Import charges options ──
+function _showImportChargesOptions(container) {
+  const { year, month } = State;
+  openModal('📥 Importer des charges',
+    `<div style="display:flex;flex-direction:column;gap:10px;">
+      <button class="btn btn-outline" id="imp-prev-month" style="text-align:left;padding:14px;">
+        <strong>📅 Du mois précédent</strong><br>
+        <span style="font-size:0.78rem;color:var(--text-3);">Copie toutes les charges du mois passé</span>
+      </button>
+      <button class="btn btn-outline" id="imp-templates" style="text-align:left;padding:14px;">
+        <strong>📋 Charges types</strong><br>
+        <span style="font-size:0.78rem;color:var(--text-3);">Sélectionnez des charges prédéfinies</span>
+      </button>
+    </div>`,
+    `<button class="btn btn-outline" id="imp-cancel">Annuler</button>`
+  );
+  document.getElementById('imp-cancel')?.addEventListener('click', closeModal);
+  document.getElementById('imp-templates')?.addEventListener('click', () => {
+    closeModal();
+    showChargesTemplatesModal(async () => {
+      _chargesCache = await getChargesForMonth(month, year);
+      _renderSaisieChargesList(container);
+      updatePreview(container);
+    });
+  });
+  document.getElementById('imp-prev-month')?.addEventListener('click', async () => {
+    const prevM = addMonth(year, month, -1);
+    const prevCharges = (await getAllCharges()).filter(c => c.year === prevM.year && c.month === prevM.month);
+    if (!prevCharges.length) {
+      showToast('Aucune charge le mois précédent', 'warning');
+      closeModal();
+      return;
+    }
+    for (const c of prevCharges) {
+      const { id: _id, ...rest } = c;
+      await saveCharge({ ...rest, year, month });
+    }
+    _chargesCache = await getChargesForMonth(month, year);
+    _renderSaisieChargesList(container);
+    updatePreview(container);
+    closeModal();
+    showToast(`${prevCharges.length} charge(s) importée(s) ✅`, 'success');
   });
 }
 
 // ── Synchronise les inputs vers _md et _repCfg ──
 function syncFormToState(container) {
   if (!_md.users) _md.users = {};
-  // Clamp à 0 pour tous les champs financiers (pas de revenus/dépenses négatifs via ce formulaire)
   const _v = id => Math.max(0, Number(container.querySelector(`#${id}`)?.value) || 0);
   _users.forEach(u => {
     const uid = String(u.id);
@@ -435,28 +499,13 @@ function syncFormToState(container) {
     _md.users[uid].revenus  = _v(`rev-${u.id}`);
     _md.users[uid].primes   = _v(`pri-${u.id}`);
     _md.users[uid].aides    = _v(`aid-${u.id}`);
-    _md.users[uid].extras   = _v(`ext-${u.id}`);
-    // imprevus is computed from imprévusList — not read from an input
+    // courses/extras/imprevus are NOT reset here (managed separately)
   });
   // Aides répartition
   if (!_repCfg.aidesRepartition) _repCfg.aidesRepartition = {};
   _users.forEach(u => {
     _repCfg.aidesRepartition[String(u.id)] = container.querySelector(`#aid-rep-${u.id}`)?.checked ?? false;
   });
-  // Courses : mode foyer ou individuel
-  if (_coursesFoyerMode && _users.length > 1) {
-    const total   = _v('crs-foyer');
-    const perUser = _users.length > 0 ? total / _users.length : 0;
-    _users.forEach(u => { _md.users[String(u.id)].courses = perUser; });
-  } else {
-    _users.forEach(u => { _md.users[String(u.id)].courses = _v(`crs-${u.id}`); });
-  }
-  // Extras : mode foyer ou individuel (override si foyer mode)
-  if (_extrasFoyerMode && _users.length > 1) {
-    const total   = _v('ext-foyer');
-    const perUser = _users.length > 0 ? total / _users.length : 0;
-    _users.forEach(u => { _md.users[String(u.id)].extras = perUser; });
-  }
 
   if (!_repCfg.pcts) _repCfg.pcts = {};
   container.querySelectorAll('.pct-field').forEach(input => {
@@ -532,62 +581,55 @@ function _renderImprévusList(container) {
   });
 }
 
-// ── Aperçu ──
+// ── Aperçu + table prévisionnel ──
 function updatePreview(container) {
-  const el = container.querySelector('#calc-rows');
-  if (!el) return;
-
   syncFormToState(container);
+  const kpi = calcMonth(_md, _chargesCache, _achatsCache, _repCfg, _users);
 
-  const kpi = calcMonth(_md, _chargesCache, _achatsCache, _repCfg, _users, _budgetOpsCache);
-  // Montants réels confirmés (vs. plafonds budget)
-  const _realCoursesTotal = _budgetOpsCache.filter(o => o.category === 'courses').reduce((s, o) => s + (Number(o.amount) || 0), 0);
-  const _realExtrasTotal  = _budgetOpsCache.filter(o => o.category === 'extras').reduce((s, o) => s + (Number(o.amount) || 0), 0);
-
-  let byUserRows = '';
-  if (_users.length > 1) {
-    byUserRows = _users.map(u => {
-      const uid = String(u.id);
-      return `
-        <div class="calc-preview-row total">
-          <span style="display:flex;align-items:center;gap:6px;">
-            <span style="width:8px;height:8px;border-radius:50%;background:${escHtml(u.color||'#6C63FF')};display:inline-block;"></span>
-            ${escHtml(u.name)} : à payer
-          </span>
-          <span>${eur(kpi.aPayer.byUser[uid] ?? 0)}</span>
-        </div>
-        <div class="calc-preview-row">
-          <span style="padding-left:14px;">Solde ${escHtml(u.name)}</span>
-          <span class="${signClass(kpi.solde.byUser[uid] ?? 0)}">${eur(kpi.solde.byUser[uid] ?? 0)}</span>
-        </div>
-      `;
-    }).join('');
-  }
-
-  el.innerHTML = `
-    <div class="calc-preview-row"><span>Revenus</span><span>${eur(kpi.revenus.total)}</span></div>
-    ${kpi.aides.total > 0 ? `<div class="calc-preview-row"><span>Aides</span><span>${eur(kpi.aides.total)}</span></div>` : ''}
-    <div class="calc-preview-row"><span>Primes & Bonus</span><span>${eur(kpi.primes.total)}</span></div>
-    <div class="calc-preview-row"><span>Charges récurrentes</span><span>${eur(kpi.charges.total)}</span></div>
-    <div class="calc-preview-row"><span>Courses ✅<small style="color:var(--text-3);margin-left:4px;">(plaf.${eur(kpi.courses.total)})</small></span><span>${eur(_realCoursesTotal)}</span></div>
-    <div class="calc-preview-row"><span>Loisirs ✅<small style="color:var(--text-3);margin-left:4px;">(plaf.${eur(kpi.extras.total)})</small></span><span>${eur(_realExtrasTotal)}</span></div>
-    <div class="calc-preview-row"><span>Imprévus</span><span>${eur(kpi.imprevus.total)}</span></div>
-    ${byUserRows}
-    <div class="calc-preview-row total" style="font-size:1rem;">
-      <span>Solde net total</span>
-      <span class="${signClass(kpi.solde.total)}">${eur(kpi.solde.total)}</span>
-    </div>
-    <div class="calc-preview-row">
-      <span>Taux d'épargne</span>
-      <span>${pct(kpi.txEpargne.total, 1)}</span>
-    </div>
-  `;
   const footerSolde = container.querySelector('#footer-solde');
   if (footerSolde) {
     footerSolde.textContent = eur(kpi.solde.total);
     footerSolde.className = 'saisie-footer-amount ' + signClass(kpi.solde.total);
   }
+  _renderPrevTable(container, kpi);
 }
+
+// ── Table récapitulatif prévisionnel ──
+function _renderPrevTable(container, kpi) {
+  const el = container.querySelector('#saisie-prev-table');
+  if (!el || !kpi) return;
+  const N = _users.length;
+  const uHeaders = N > 1 ? _users.map(u =>
+    `<th style="text-align:right"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${escHtml(u.color||'#7C5CFC')};margin-right:3px;"></span>${escHtml(u.name)}</th>`
+  ).join('') : '';
+  const buildRow = (label, cat, style = '') => {
+    if (!cat || cat.total === 0) return '';
+    const uCols = N > 1 ? _users.map(u => `<td style="text-align:right">${eur(cat.byUser?.[u.id] ?? 0)}</td>`).join('') : '';
+    return `<tr${style ? ` class="${style}"` : ''}><td>${escHtml(label)}</td>${uCols}<td style="text-align:right">${eur(cat.total)}</td></tr>`;
+  };
+  const soldeColor = kpi.solde.total >= 0 ? 'var(--success)' : 'var(--danger)';
+  const uSoldeCols = N > 1 ? _users.map(u => {
+    const v = kpi.solde.byUser?.[u.id] ?? 0;
+    return `<td style="text-align:right;color:${v>=0?'var(--success)':'var(--danger)'}">${eur(v)}</td>`;
+  }).join('') : '';
+  el.innerHTML = `<div style="overflow-x:auto;"><table class="data-table">
+    <thead><tr><th>Catégorie</th>${uHeaders}<th style="text-align:right">Total</th></tr></thead>
+    <tbody>
+      ${buildRow('Revenus', kpi.revenus)}
+      ${(kpi.aides?.total ?? 0) > 0 ? buildRow('Aides', kpi.aides) : ''}
+      ${(kpi.primes?.total ?? 0) > 0 ? buildRow('Primes', kpi.primes) : ''}
+      ${buildRow('Charges fixes', kpi.charges)}
+      ${buildRow('Imprévus', kpi.imprevus)}
+    </tbody>
+    <tfoot>
+      ${N > 1 ? `<tr class="row-total"><td>À envoyer</td>${_users.map(u => `<td style="text-align:right">${eur(kpi.aPayer.byUser?.[u.id]??0)}</td>`).join('')}<td style="text-align:right">${eur(kpi.aPayer.total)}</td></tr>` : ''}
+      <tr class="row-total"><td>Solde prévisionnel</td>${uSoldeCols}<td style="text-align:right;color:${soldeColor}">${eur(kpi.solde.total)}</td></tr>
+      <tr><td>Taux d'épargne</td>${N > 1 ? _users.map(() => '<td></td>').join('') : ''}<td style="text-align:right">${pct(kpi.txEpargne?.total ?? 0, 1)}</td></tr>
+    </tfoot>
+  </table></div>
+  <p style="font-size:0.72rem;color:var(--text-3);margin-top:6px;padding:0 2px;">💡 Calcul prévisionnel basé sur les revenus et charges saisis ce mois-ci.</p>`;
+}
+
 
 // ── Auto-save ──
 async function doSave(container) {

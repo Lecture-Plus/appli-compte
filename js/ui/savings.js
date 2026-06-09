@@ -856,7 +856,7 @@ async function _renderSalariale(el, container) {
             ? `✅ Vous avez versé assez pour épuiser la capacité restante (${eur(yearAbonRemaining)} d'abond. disponible)`
             : `Il manque ${eur(abonMissing)} de versements pour utiliser toute la capacité restante`}</div>
       </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(90px,1fr));gap:8px;">
         <div style="background:var(--success-bg);border-radius:var(--radius-sm);padding:10px;text-align:center;">
           <div style="font-size:0.62rem;color:var(--text-3);font-weight:700;text-transform:uppercase;">Abond. période</div>
           <div style="font-size:1rem;font-weight:800;color:var(--success);margin-top:2px;">${eur(estimatedAbonPeriod)}</div>
@@ -912,9 +912,9 @@ async function _renderSalariale(el, container) {
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="15" height="15"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
         Ajouter un versement
       </button>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-        <button class="btn btn-success" id="sal-btn-abon">🏦 Valider un abondement</button>
-        <button class="btn btn-secondary" id="sal-btn-transfer">💸 Transférer vers économies</button>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;">
+        <button class="btn btn-success" id="sal-btn-abon" style="flex:1;min-width:140px;">🏦 Valider un abondement</button>
+        <button class="btn btn-secondary" id="sal-btn-transfer" style="flex:1;min-width:140px;">💸 Transférer vers économies</button>
       </div>
       <button class="btn btn-outline btn-full" id="sal-btn-abon-recu" style="margin-top:8px;">✅ Abondement déjà perçu</button>
     </div>

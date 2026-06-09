@@ -58,6 +58,7 @@ export async function navigateTo(page, params = {}) {
     btn.classList.toggle('active', btn.dataset.page === page);
   });
 
+  document.getElementById('btn-settings-gear')?.classList.toggle('active', page === 'settings');
   document.getElementById('page-title').textContent = PAGE_TITLES[page] ?? 'Compta+';
   window.location.hash = page;
 
@@ -299,6 +300,7 @@ async function init() {
   document.querySelectorAll('.nav-item').forEach(btn => {
     btn.addEventListener('click', () => navigateTo(btn.dataset.page));
   });
+  document.getElementById('btn-settings-gear')?.addEventListener('click', () => navigateTo('settings'));
 
   // Nav scroll hide/show
   _initNavScroll();

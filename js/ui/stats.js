@@ -296,12 +296,13 @@ async function _renderDetailTab(container, year, month, users) {
     return;
   }
   wrap.innerHTML = `<div class="loading" style="padding:32px;text-align:center;"><div class="spinner"></div></div>`;
-  const [md, charges, achats, repCfg, budgetOps] = await Promise.all([
+  const [md, charges, achats, repCfg, budgetOps, settings] = await Promise.all([
     getMonthlyData(year, month),
     getChargesForMonth(month, year),
     getAchatsForMonth(year, month),
     getRepartition(year, month),
     getBudgetOpsForMonth(year, month),
+    getAllSettings(),
   ]);
   if (!md) {
     wrap.innerHTML = `<div style="padding:24px;text-align:center;color:var(--text-3);font-size:0.85rem;">Aucune donnée pour ${MOIS[month - 1]} ${year}.</div>`;
@@ -341,6 +342,12 @@ async function _renderDetailTab(container, year, month, users) {
         <tr><td>${isReel ? 'Loisirs (confirmé)' : 'Budget loisirs'}</td>${users.map(u => `<td style="text-align:right">${eur(dk.extras.byUser?.[u.id] ?? 0)}</td>`).join('')}<td style="text-align:right">${eur(extras)}</td></tr>
         ${buildRow('Achats exc.', dk.achats)}
         ${buildRow('Imprévus', dk.imprevus)}
+        ${(settings.customBudgets || []).map(b => {
+          const spent = budgetOps.filter(o => o.category === b.id).reduce((s, o) => s + (Number(o.amount) || 0), 0);
+          if (spent === 0 && !isReel) return '';
+          const label = `${b.icon || '📌'} ${b.name}`;
+          return `<tr><td>${escHtml(label)}</td>${users.map(() => '<td></td>').join('')}<td style="text-align:right">${eur(spent)}</td></tr>`;
+        }).join('')}
       </tbody>
       <tfoot>
         <tr class="row-total"><td>${isReel ? 'À payer' : 'À envoyer (prév.)'}</td>${users.map(u => `<td style="text-align:right">${eur(dk.aPayer.byUser?.[u.id] ?? 0)}</td>`).join('')}<td style="text-align:right">${eur(dk.aPayer.total)}</td></tr>

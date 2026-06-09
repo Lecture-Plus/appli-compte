@@ -1,23 +1,23 @@
 // ============================================================
-// js/ui/argent.js – Page "Ce mois" : Saisir + Dépenses + Charges fixes
+// js/ui/argent.js – Page "Ce mois" : Saisie mensuelle + Budgets
 // ============================================================
 
 import * as saisieModule  from './saisie.js';
 import * as chargesModule from './charges.js';
 
-// tabs: saisir | depenses | charges
-let _arTab = 'saisir';
+// tabs: saisie | budgets
+let _arTab = 'saisie';
 
 export async function render(container, params = {}) {
   if (params.tab) _arTab = params.tab;
   // Guard: anciens noms de tabs
-  if (['epargne', 'recurrentes', 'budgets'].includes(_arTab)) _arTab = 'saisir';
+  if (['saisir', 'epargne', 'recurrentes', 'charges'].includes(_arTab)) _arTab = 'saisie';
+  if (_arTab === 'depenses') _arTab = 'budgets';
 
   container.innerHTML = `
     <div class="tabs" id="argent-tabs" style="margin-bottom:0;">
-      <button class="tab-btn ${_arTab === 'saisir'   ? 'active' : ''}" data-artab="saisir">Saisir</button>
-      <button class="tab-btn ${_arTab === 'depenses' ? 'active' : ''}" data-artab="depenses">Dépenses</button>
-      <button class="tab-btn ${_arTab === 'charges'  ? 'active' : ''}" data-artab="charges">Charges fixes</button>
+      <button class="tab-btn ${_arTab === 'saisie'   ? 'active' : ''}" data-artab="saisie">Saisie mensuelle</button>
+      <button class="tab-btn ${_arTab === 'budgets'  ? 'active' : ''}" data-artab="budgets">Budgets</button>
     </div>
     <div id="argent-body" style="margin-top:12px;"></div>
   `;
@@ -25,9 +25,8 @@ export async function render(container, params = {}) {
   const renderTab = () => {
     const body = container.querySelector('#argent-body');
     if (!body) return;
-    if (_arTab === 'saisir')        saisieModule.render(body);
-    else if (_arTab === 'depenses') chargesModule.renderSection(body, 'budgets');
-    else                            chargesModule.renderSection(body, 'recurrentes');
+    if (_arTab === 'saisie')   saisieModule.render(body);
+    else                       chargesModule.renderSection(body, 'budgets');
   };
 
   container.querySelectorAll('#argent-tabs .tab-btn').forEach(btn => {

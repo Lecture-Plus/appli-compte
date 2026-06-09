@@ -309,7 +309,10 @@ async function _renderResume(container, s, users) {
     <!-- ── CTAs adaptatifs ── -->
     <div id="dash-cta-area" style="margin-bottom:8px;">
       ${status === 'empty'
-        ? `<button class="btn btn-primary btn-full" id="btn-go-saisie" style="font-size:0.88rem;padding:13px;border-radius:var(--radius);">✏️ Saisir les données de ${nomMois(month)}</button>`
+        ? `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+            <button class="btn btn-primary" id="btn-go-saisie" style="font-size:0.82rem;padding:11px;">✏️ Saisir les données de ${nomMois(month)}</button>
+            <button class="btn btn-outline" id="btn-go-craquage" style="font-size:0.82rem;padding:11px;">💥 Craquage</button>
+          </div>`
         : `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
             <button class="btn ${status === 'partial' ? 'btn-primary' : 'btn-outline'}" id="btn-go-saisie" style="font-size:0.82rem;padding:11px;">✏️ ${status === 'partial' ? 'Compléter' : 'Modifier'}</button>
             <button class="btn btn-outline" id="btn-go-craquage" style="font-size:0.82rem;padding:11px;">💥 Craquage</button>
