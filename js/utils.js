@@ -272,8 +272,11 @@ export function openModal(title, bodyHTML, footerHTML = '') {
   document.getElementById('modal-body').innerHTML    = bodyHTML;
   document.getElementById('modal-footer').innerHTML  = footerHTML;
   const overlay = document.getElementById('modal-overlay');
+  // Mémoriser l'élément actif pour le restaurer à la fermeture
+  overlay._returnFocus = document.activeElement;
   overlay.classList.remove('hidden');
   overlay.removeAttribute('aria-hidden');
+  overlay.removeAttribute('inert');
 
   // Focus trap : garder le focus à l'intérieur de la modal
   const focusable = Array.from(overlay.querySelectorAll(
@@ -298,12 +301,20 @@ export function openModal(title, bodyHTML, footerHTML = '') {
 /** Ferme la modal */
 export function closeModal() {
   const overlay = document.getElementById('modal-overlay');
-  overlay.classList.add('hidden');
-  overlay.setAttribute('aria-hidden', 'true');
+  // Restaurer le focus AVANT de masquer (sinon aria-hidden sur élément focusé)
+  const returnTo = overlay._returnFocus;
+  if (returnTo && typeof returnTo.focus === 'function') {
+    try { returnTo.focus(); } catch (_) {}
+  }
+  overlay._returnFocus = null;
   if (overlay._focusTrapHandler) {
     overlay.removeEventListener('keydown', overlay._focusTrapHandler);
     overlay._focusTrapHandler = null;
   }
+  overlay.classList.add('hidden');
+  // Utiliser inert + aria-hidden pour masquer proprement aux AT
+  overlay.setAttribute('inert', '');
+  overlay.setAttribute('aria-hidden', 'true');
   document.getElementById('modal-body').innerHTML   = '';
   document.getElementById('modal-footer').innerHTML = '';
 }
