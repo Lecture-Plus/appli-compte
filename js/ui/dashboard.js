@@ -245,7 +245,6 @@ async function _renderResume(container, s, users) {
 
   // ── Budget journalier restant ──
   const _today     = new Date();
-  const _isCurrentMonth = (_today.getFullYear() === year && (_today.getMonth() + 1) === month);
   const _daysLeft  = _isCurrentMonth
     ? (new Date(year, month, 0).getDate() - _today.getDate() + 1)
     : new Date(year, month, 0).getDate();
