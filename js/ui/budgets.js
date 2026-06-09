@@ -29,6 +29,7 @@ async function _renderPage(container) {
   ]);
 
   const customBudgets = settings.customBudgets || [];
+  const pinnedBudgets = settings.pinnedBudgets || [];
 
   // ── Budgets depuis la saisie mensuelle ──
   const budgetCourses = users.reduce((s, u) => s + (Number(md?.users?.[String(u.id)]?.courses) || 0), 0);
@@ -66,6 +67,7 @@ async function _renderPage(container) {
       spent:  spent('courses'),
       ops:    opsByCategory['courses'] || [],
       users,
+      pinned: pinnedBudgets.includes('courses'),
       hint:   budgetCourses === 0 ? '⚠️ Aucun budget courses dans la saisie mensuelle.' : null,
     })}
 
@@ -78,6 +80,7 @@ async function _renderPage(container) {
       spent:  spent('extras'),
       ops:    opsByCategory['extras'] || [],
       users,
+      pinned: pinnedBudgets.includes('extras'),
       hint:   budgetExtras === 0 ? '⚠️ Aucun budget extras dans la saisie mensuelle.' : null,
     })}
 
@@ -87,6 +90,7 @@ async function _renderPage(container) {
       icon:   b.icon || '📌',
       title:  b.name,
       budget: Number(b.amount) || 0,
+      pinned: pinnedBudgets.includes(b.id),
       spent:  spent(b.id),
       ops:    opsByCategory[b.id] || [],
       users,
@@ -151,6 +155,20 @@ async function _renderPage(container) {
     _showEditBudgetModal(null, customBudgets, () => _renderPage(container));
   });
 
+  // ── Épingler / désépingler sur l'accueil ──
+  container.querySelectorAll('.bgt-pin-toggle').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = btn.dataset.bgtId;
+      const current = (await getAllSettings()).pinnedBudgets || [];
+      const newPinned = current.includes(id)
+        ? current.filter(p => p !== id)
+        : [...current, id].slice(0, 4);
+      await setSetting('pinnedBudgets', newPinned);
+      showToast(newPinned.includes(id) ? '📌 Épinglé sur l\'accueil' : 'Retiré de l\'accueil', 'success');
+      _renderPage(container);
+    });
+  });
+
   // ── Gérer les budgets ──
   container.querySelector('#btn-manage-budgets')?.addEventListener('click', () => {
     _showManageBudgetsModal(customBudgets, () => _renderPage(container));
@@ -169,7 +187,7 @@ async function _renderPage(container) {
 // ────────────────────────────────────────────────────────────
 // Section catégorie
 // ────────────────────────────────────────────────────────────
-function _buildCategorySection({ id, icon, title, budget, spent, ops, users, hint, isCustom = false }) {
+function _buildCategorySection({ id, icon, title, budget, spent, ops, users, hint, isCustom = false, pinned = false }) {
   const remaining = budget - spent;
   const pctUsed   = budget > 0 ? Math.min(100, Math.round((spent / budget) * 100)) : (spent > 0 ? 100 : 0);
   const color     = pctUsed >= 100 ? 'danger' : pctUsed >= 80 ? 'warning' : 'success';
@@ -190,6 +208,10 @@ function _buildCategorySection({ id, icon, title, budget, spent, ops, users, hin
         <span class="card-title">${icon} ${escHtml(title)}</span>
         <div style="display:flex;align-items:center;gap:0;">
           ${editBtn}
+          <button class="btn-icon bgt-pin-toggle" data-bgt-id="${escHtml(id)}" title="${pinned ? 'Retirer de l\'accueil' : 'Épingler sur l\'accueil'}"
+            style="width:28px;height:28px;color:${pinned ? 'var(--primary)' : 'var(--text-3)'};margin-right:2px;">
+            📌
+          </button>
           <button class="btn btn-sm btn-primary" data-add-op="${id}" data-cat-name="${escHtml(title)}" data-cat-icon="${escHtml(icon)}">+ Ajouter</button>
         </div>
       </div>
@@ -330,7 +352,33 @@ function _showEditBudgetModal(existing, customBudgets, onSave) {
   const title   = isNew ? '📌 Nouveau budget' : `✏️ Modifier "${existing.name}"`;
   const selIcon = existing?.icon || '📌';
 
+  // Modèles prédéfinis (filtrés pour ceux non encore créés)
+  const PRESET_BUDGETS = [
+    { name: 'Loisirs',    icon: '🎉' },
+    { name: 'Courses',    icon: '🛒' },
+    { name: 'Restaurant', icon: '🍽️' },
+    { name: 'Vêtements',  icon: '👗' },
+    { name: 'Gaming',     icon: '🎮' },
+    { name: 'Cinéma',     icon: '🎬' },
+    { name: 'Voyage',     icon: '✈️' },
+  ];
+  const existingNames = (customBudgets || []).map(b => b.name.toLowerCase());
+  const availablePresets = isNew
+    ? PRESET_BUDGETS.filter(p => !existingNames.includes(p.name.toLowerCase()))
+    : [];
+
   openModal(title, `
+    ${availablePresets.length > 0 ? `
+    <div style="margin-bottom:14px;">
+      <div style="font-size:0.72rem;font-weight:700;color:var(--text-3);text-transform:uppercase;margin-bottom:6px;">Démarrer depuis un modèle</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;">
+        ${availablePresets.map(p => `
+          <button type="button" class="btn btn-sm btn-outline preset-pick" data-name="${escHtml(p.name)}" data-icon="${p.icon}" style="font-size:0.78rem;padding:4px 10px;">
+            ${p.icon} ${escHtml(p.name)}
+          </button>`).join('')}
+      </div>
+    </div>
+    <hr style="margin-bottom:14px;border-color:var(--border);">` : ''}
     <div class="form-group" style="margin-bottom:12px;">
       <label class="form-label">Nom du budget *</label>
       <input type="text" class="form-input" id="bgt-name" placeholder="Ex: Restaurant, Sport, Vêtements…"
@@ -369,6 +417,19 @@ function _showEditBudgetModal(existing, customBudgets, onSave) {
   `, `<button class="btn btn-primary btn-full" id="bgt-save">${isNew ? 'Créer le budget' : 'Enregistrer'}</button>`);
 
   document.getElementById('bgt-name')?.focus();
+
+  // Modèles prédéfinis : remplir le formulaire
+  document.querySelectorAll('.preset-pick').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.getElementById('bgt-name').value = btn.dataset.name;
+      const iconEl = document.getElementById('bgt-icon');
+      if (iconEl) iconEl.value = btn.dataset.icon;
+      // Mettre à jour la sélection visuelle des icônes
+      document.querySelectorAll('.icon-pick').forEach(b => {
+        b.style.borderColor = b.dataset.icon === btn.dataset.icon ? 'var(--primary)' : 'transparent';
+      });
+    });
+  });
 
   // Sélecteur icône
   document.querySelectorAll('.icon-pick').forEach(btn => {

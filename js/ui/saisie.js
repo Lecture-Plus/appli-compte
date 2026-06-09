@@ -26,12 +26,14 @@ let _saveInd  = null; // référence à l'indicateur "Sauvegardé"
 let _chargesCache = [];
 let _achatsCache  = [];
 let _budgetOpsCache = [];
+let _settings = null;
 let _coursesFoyerMode = localStorage.getItem('coursesFoyerMode') === '1';
 let _extrasFoyerMode  = localStorage.getItem('extrasFoyerMode')  === '1';
 
 export async function render(container) {
   _users = await getActiveUsers();
   const s     = await getAllSettings();
+  _settings = s;
   const { year, month } = State;
   const N = _users.length;
 
@@ -584,7 +586,22 @@ function _renderImprévusList(container) {
 // ── Aperçu + table prévisionnel ──
 function updatePreview(container) {
   syncFormToState(container);
-  const kpi = calcMonth(_md, _chargesCache, _achatsCache, _repCfg, _users);
+
+  // Injecter les budgetCibles comme fallback si md.users n'a pas de courses/extras
+  const budgCibles = _settings?.budgetCibles || {};
+  const N = _users.length || 1;
+  const prevUsers = {};
+  for (const u of _users) {
+    const uid = String(u.id);
+    const base = _md.users?.[uid] || {};
+    prevUsers[uid] = {
+      ...base,
+      courses: Number(base.courses) || (Number(budgCibles.courses) || 0) / N,
+      extras:  Number(base.extras)  || (Number(budgCibles.extras)  || 0) / N,
+    };
+  }
+  const mdPrev = { ..._md, users: prevUsers };
+  const kpi = calcMonth(mdPrev, _chargesCache, _achatsCache, _repCfg, _users);
 
   const footerSolde = container.querySelector('#footer-solde');
   if (footerSolde) {
@@ -594,41 +611,57 @@ function updatePreview(container) {
   _renderPrevTable(container, kpi);
 }
 
-// ── Table récapitulatif prévisionnel ──
+// ── Table récapitulatif prévisionnel (identique Historique → Détail) ──
 function _renderPrevTable(container, kpi) {
   const el = container.querySelector('#saisie-prev-table');
   if (!el || !kpi) return;
   const N = _users.length;
+  const customBudgets = _settings?.customBudgets || [];
+
   const uHeaders = N > 1 ? _users.map(u =>
     `<th style="text-align:right"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${escHtml(u.color||'#7C5CFC')};margin-right:3px;"></span>${escHtml(u.name)}</th>`
   ).join('') : '';
-  const buildRow = (label, cat, style = '') => {
-    if (!cat || cat.total === 0) return '';
-    const uCols = N > 1 ? _users.map(u => `<td style="text-align:right">${eur(cat.byUser?.[u.id] ?? 0)}</td>`).join('') : '';
-    return `<tr${style ? ` class="${style}"` : ''}><td>${escHtml(label)}</td>${uCols}<td style="text-align:right">${eur(cat.total)}</td></tr>`;
+
+  const buildRow = (label, total, byUser = {}) => {
+    const uCols = N > 1 ? _users.map(u => `<td style="text-align:right">${eur(byUser?.[u.id] ?? 0)}</td>`).join('') : '';
+    return `<tr><td>${label}</td>${uCols}<td style="text-align:right">${eur(total)}</td></tr>`;
   };
-  const soldeColor = kpi.solde.total >= 0 ? 'var(--success)' : 'var(--danger)';
+
+  const revenusAides = (kpi.revenus?.total || 0) + (kpi.aides?.total || 0);
+  const revenusAidesU = N > 1 ? Object.fromEntries(_users.map(u => [
+    u.id, (kpi.revenus?.byUser?.[u.id] ?? 0) + (kpi.aides?.byUser?.[u.id] ?? 0)
+  ])) : {};
+
+  const uPayerCols = N > 1 ? _users.map(u => `<td style="text-align:right">${eur(kpi.aPayer?.byUser?.[u.id]??0)}</td>`).join('') : '';
   const uSoldeCols = N > 1 ? _users.map(u => {
-    const v = kpi.solde.byUser?.[u.id] ?? 0;
+    const v = kpi.solde?.byUser?.[u.id] ?? 0;
     return `<td style="text-align:right;color:${v>=0?'var(--success)':'var(--danger)'}">${eur(v)}</td>`;
   }).join('') : '';
+  const soldeColor = (kpi.solde?.total ?? 0) >= 0 ? 'var(--success)' : 'var(--danger)';
+
   el.innerHTML = `<div style="overflow-x:auto;"><table class="data-table">
     <thead><tr><th>Catégorie</th>${uHeaders}<th style="text-align:right">Total</th></tr></thead>
     <tbody>
-      ${buildRow('Revenus', kpi.revenus)}
-      ${(kpi.aides?.total ?? 0) > 0 ? buildRow('Aides', kpi.aides) : ''}
-      ${(kpi.primes?.total ?? 0) > 0 ? buildRow('Primes', kpi.primes) : ''}
-      ${buildRow('Charges fixes', kpi.charges)}
-      ${buildRow('Imprévus', kpi.imprevus)}
+      ${buildRow('Revenus &amp; Aides', revenusAides, revenusAidesU)}
+      ${(kpi.primes?.total ?? 0) > 0 ? buildRow('Primes', kpi.primes.total, kpi.primes.byUser) : ''}
+      ${buildRow('Charges', kpi.charges?.total || 0, kpi.charges?.byUser)}
+      ${(kpi.courses?.total ?? 0) > 0 ? buildRow('Budget courses', kpi.courses.total, kpi.courses.byUser) : ''}
+      ${(kpi.extras?.total ?? 0) > 0 ? buildRow('Budget loisirs', kpi.extras.total, kpi.extras.byUser) : ''}
+      ${(kpi.achats?.total ?? 0) > 0 ? buildRow('Achats exc.', kpi.achats.total, kpi.achats.byUser) : ''}
+      ${(kpi.imprevus?.total ?? 0) > 0 ? buildRow('Imprévus', kpi.imprevus.total, {}) : ''}
+      ${customBudgets.map(b => {
+        const spent = _budgetOpsCache.filter(o => o.category === b.id).reduce((s, o) => s + (Number(o.amount)||0), 0);
+        return (spent > 0 || Number(b.amount) > 0) ? buildRow(`${b.icon||'📌'} ${escHtml(b.name)}`, spent, {}) : '';
+      }).join('')}
     </tbody>
     <tfoot>
-      ${N > 1 ? `<tr class="row-total"><td>À envoyer</td>${_users.map(u => `<td style="text-align:right">${eur(kpi.aPayer.byUser?.[u.id]??0)}</td>`).join('')}<td style="text-align:right">${eur(kpi.aPayer.total)}</td></tr>` : ''}
-      <tr class="row-total"><td>Solde prévisionnel</td>${uSoldeCols}<td style="text-align:right;color:${soldeColor}">${eur(kpi.solde.total)}</td></tr>
-      <tr><td>Taux d'épargne</td>${N > 1 ? _users.map(() => '<td></td>').join('') : ''}<td style="text-align:right">${pct(kpi.txEpargne?.total ?? 0, 1)}</td></tr>
+      <tr class="row-total"><td>À payer (prév.)</td>${uPayerCols}<td style="text-align:right">${eur(kpi.aPayer?.total || 0)}</td></tr>
+      <tr class="row-total"><td>Solde prévisionnel</td>${uSoldeCols}<td style="text-align:right;color:${soldeColor}">${eur(kpi.solde?.total || 0)}</td></tr>
     </tfoot>
   </table></div>
-  <p style="font-size:0.72rem;color:var(--text-3);margin-top:6px;padding:0 2px;">💡 Calcul prévisionnel basé sur les revenus et charges saisis ce mois-ci.</p>`;
+  <p style="font-size:0.72rem;color:var(--text-3);margin-top:8px;padding:0 2px;">💡 Ce calcul utilise les plafonds de budget et la répartition configurée. Il représente le maximum à envoyer sur le compte joint.</p>`;
 }
+
 
 
 // ── Auto-save ──

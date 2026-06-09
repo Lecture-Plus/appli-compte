@@ -11,7 +11,7 @@ import { getMonthlyData, getChargesForMonth,
          deleteSavingsOperation,
          getAllCharges, getAllBudgetOps,
          getBudgetOpsForMonth, saveBudgetOp,
-         getActiveUsers }                                  from '../db.js';
+         getActiveUsers, setSetting }                                  from '../db.js';
 import { calcMonth, calcPrevisionnel }                    from '../calculs.js';
 import { eur, pct, nomMois, addMonth, signClass,
          txEparClass, completenessStatus,
@@ -138,7 +138,7 @@ async function _renderResume(container, s, users) {
   const { year, month } = State;
 
   const customBudgets = s.customBudgets || [];
-  const pinnedBudgets = s.pinnedBudgets || ['courses', 'extras'];
+  const pinnedBudgets = s.pinnedBudgets || [];
 
   const [md, charges, achats, repCfg, savInfo, allSavOps, allBudgetOps, allAchats] = await Promise.all([
     getMonthlyData(year, month),
@@ -321,31 +321,38 @@ async function _renderResume(container, s, users) {
     </div>
 
     <!-- ── Suivi budgets épinglés ── -->
-    ${pendingCraquages.length > 0 ? `
-    <div class="card" style="margin-bottom:12px;border:1.5px solid var(--warning);">
-      <div class="card-header">
-        <span class="card-title">⚠️ Dépassements en attente</span>
-        <span class="chip warning">${pendingCraquages.length}</span>
-      </div>
-      <p style="font-size:0.78rem;color:var(--text-3);margin-bottom:8px;">Ces dépassements n'ont pas encore de source de financement.</p>
-      <div class="item-list">${pendingCraquages.map(a => `<div class="list-item"><div class="list-item-icon" style="background:var(--warning-bg);">\u23f3</div><div class="list-item-body"><div class="list-item-title">${escHtml(a.label)}</div><div class="list-item-sub">${nomMois(a.month)} ${a.year}</div></div><div class="list-item-right"><div class="list-item-amount" style="color:var(--warning);">\u2212${eur(a.amount)}</div><button class="btn btn-sm btn-primary dash-attrib-crq" data-id="${a.id}" data-label="${escHtml(a.label)}" data-amount="${a.amount}" data-month="${a.month}" data-year="${a.year}" style="margin-top:4px;">Attribuer</button></div></div>`).join('')}</div>
-    </div>` : ''}
-    ${pinnedCards.length > 0 ? `<div style="display:grid;grid-template-columns:${pinnedCards.map(() => '1fr').join(' ')};gap:8px;margin-top:12px;margin-bottom:12px;align-items:stretch;">
-      ${pinnedCards.map(c => `<div class="card" style="padding:12px;box-sizing:border-box;position:relative;" data-quickadd-cat="${escHtml(c.id)}" data-quickadd-label="${escHtml(c.label)}">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
-          <div style="font-size:0.72rem;font-weight:600;color:var(--text-3);">${c.icon} ${escHtml(c.label)}</div>
-          <button class="btn btn-sm btn-primary btn-quickadd" data-qcat="${escHtml(c.id)}" data-qlabel="${escHtml(c.icon+' '+c.label)}" style="padding:2px 8px;font-size:0.7rem;line-height:1.4;">+</button>
-        </div>
-        <div class="progress-track" style="height:6px;margin-bottom:6px;">
-          <div class="progress-bar ${c.budget > 0 ? (c.spent/c.budget >= 1 ? 'danger' : c.spent/c.budget >= 0.8 ? 'warning' : 'success') : 'success'}" style="width:${c.budget > 0 ? Math.min(100, Math.round(c.spent/c.budget*100)) : 0}%;"></div>
-        </div>
-        <div style="display:flex;justify-content:space-between;font-size:0.75rem;">
-          <span style="color:var(--${c.budget > 0 ? (c.spent/c.budget >= 1 ? 'danger' : c.spent/c.budget >= 0.8 ? 'warning' : 'success') : 'text-2'});">${eur(c.spent)} dépensé</span>
-          <span style="color:var(--text-3);">/ ${eur(c.budget)}</span>
-        </div>
-        ${(c.budget > 0 && c.spent > c.budget) ? `<div style="font-size:0.7rem;color:var(--danger);margin-top:3px;">⚠️ +${eur(c.spent - c.budget)}</div>` : ''}
-      </div>`).join('')}
-    </div>` : '<div style="margin-bottom:12px;"></div>'}
+    ${(() => {
+      const availableToPinIds = ['courses','extras',...customBudgets.map(b=>b.id)].filter(id=>!pinnedBudgets.includes(id));
+      const canAddMore = pinnedCards.length < 4 && availableToPinIds.length > 0;
+      const allItems = [...pinnedCards, ...(canAddMore ? [{ type:'add' }] : [])];
+      if (!allItems.length) return '<div style="margin-bottom:12px;"></div>';
+      const gridCols = Math.min(allItems.length, 4);
+      return `<div style="display:grid;grid-template-columns:repeat(${gridCols},1fr);gap:8px;margin-top:12px;margin-bottom:12px;align-items:stretch;">
+        ${allItems.map(c => {
+          if (c.type === 'add') return `<div class="card dash-pin-add" style="padding:12px;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;cursor:pointer;min-height:80px;border:1.5px dashed var(--border);">
+            <div style="width:30px;height:30px;border-radius:50%;background:var(--primary-bg);display:flex;align-items:center;justify-content:center;font-size:1.2rem;color:var(--primary);font-weight:700;">+</div>
+            <div style="font-size:0.72rem;color:var(--text-3);text-align:center;">Épingler</div>
+          </div>`;
+          const pBar = c.budget > 0 ? (c.spent/c.budget >= 1 ? 'danger' : c.spent/c.budget >= 0.8 ? 'warning' : 'success') : 'success';
+          const pct  = c.budget > 0 ? Math.min(100, Math.round(c.spent/c.budget*100)) : 0;
+          return `<div class="card" style="padding:12px;box-sizing:border-box;position:relative;" data-quickadd-cat="${escHtml(c.id)}" data-quickadd-label="${escHtml(c.label)}">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+              <div style="font-size:0.72rem;font-weight:600;color:var(--text-3);">${c.icon} ${escHtml(c.label)}</div>
+              <div style="display:flex;gap:2px;align-items:center;">
+                <button class="btn-icon dash-unpin-card" data-pid="${escHtml(c.id)}" title="Désépingler" style="width:22px;height:22px;font-size:0.7rem;color:var(--primary);">📌</button>
+                <button class="btn btn-sm btn-primary btn-quickadd" data-qcat="${escHtml(c.id)}" data-qlabel="${escHtml(c.icon+' '+c.label)}" style="padding:2px 8px;font-size:0.7rem;line-height:1.4;">+</button>
+              </div>
+            </div>
+            <div class="progress-track" style="height:6px;margin-bottom:6px;"><div class="progress-bar ${pBar}" style="width:${pct}%;"></div></div>
+            <div style="display:flex;justify-content:space-between;font-size:0.75rem;">
+              <span style="color:var(--${pBar});">${eur(c.spent)} dépensé</span>
+              <span style="color:var(--text-3);">/ ${eur(c.budget)}</span>
+            </div>
+            ${(c.budget > 0 && c.spent > c.budget) ? `<div style="font-size:0.7rem;color:var(--danger);margin-top:3px;">⚠️ +${eur(c.spent - c.budget)}</div>` : ''}
+          </div>`;
+        }).join('')}
+      </div>`;
+    })()}
 
     <!-- ── Répartition du mois (multi-user) ── -->
     ${users.length >= 2 ? `
@@ -364,13 +371,65 @@ async function _renderResume(container, s, users) {
             </div>
             <div style="text-align:right;">
               <div style="font-size:1rem;font-weight:800;color:var(--primary);">${eur(aPayer)}</div>
-              <div style="font-size:0.62rem;color:var(--text-3);">\u00e0 envoyer ce mois</div>
+              <div style="font-size:0.62rem;color:var(--text-3);">à envoyer ce mois</div>
             </div>
           </div>`;
         }).join('')}
       </div>
       <button class="btn btn-outline btn-full" style="font-size:0.78rem;" id="btn-go-analyse-detail">Voir le détail dans Historique →</button>
     </div>` : ''}
+
+    <!-- ── Détail mensuel (accordéon) ── -->
+    ${(() => {
+      const buildDashDetailTable = (isReel) => {
+        const dk = isReel ? kpiReel : kpiPrev;
+        const courses = isReel ? realCourses.total : kpiPrev.courses?.total || 0;
+        const extras  = isReel ? realExtras.total  : kpiPrev.extras?.total  || 0;
+        const uCols   = users.length > 1;
+        const hdr = uCols ? users.map(u => `<th style="text-align:right"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${escHtml(u.color||'#7C5CFC')};margin-right:3px;"></span>${escHtml(u.name)}</th>`).join('') : '';
+        const bRow = (label, cat) => {
+          if (!cat) return '';
+          const uc = uCols ? users.map(u => `<td style="text-align:right">${eur(cat.byUser?.[u.id]??0)}</td>`).join('') : '';
+          return `<tr><td>${label}</td>${uc}<td style="text-align:right">${eur(cat.total)}</td></tr>`;
+        };
+        const sTotal = dk.solde?.total ?? 0;
+        return `<div style="overflow-x:auto;padding:0 12px 4px;"><table class="data-table">
+          <thead><tr><th>Catégorie</th>${hdr}<th style="text-align:right">Total</th></tr></thead>
+          <tbody>
+            ${bRow('Revenus &amp; Aides', { total:(dk.revenus?.total||0)+(dk.aides?.total||0), byUser: uCols?Object.fromEntries(users.map(u=>[u.id,(dk.revenus?.byUser?.[u.id]??0)+(dk.aides?.byUser?.[u.id]??0)])):{}  })}
+            ${(dk.primes?.total??0)>0 ? bRow('Primes', dk.primes) : ''}
+            ${bRow('Charges', dk.charges)}
+            <tr><td>${isReel?'Courses (confirmé)':'Budget courses'}</td>${uCols?users.map(u=>`<td style="text-align:right">${eur(dk.courses?.byUser?.[u.id]??0)}</td>`).join(''):''}<td style="text-align:right">${eur(courses)}</td></tr>
+            <tr><td>${isReel?'Loisirs (confirmé)':'Budget loisirs'}</td>${uCols?users.map(u=>`<td style="text-align:right">${eur(dk.extras?.byUser?.[u.id]??0)}</td>`).join(''):''}<td style="text-align:right">${eur(extras)}</td></tr>
+            ${(dk.achats?.total??0)>0 ? bRow('Achats exc.', dk.achats) : ''}
+            ${(dk.imprevus?.total??0)>0 ? bRow('Imprévus', dk.imprevus) : ''}
+            ${customBudgets.map(b => {
+              const spent = allBudgetOps.filter(o=>o.category===b.id).reduce((s,o)=>s+(Number(o.amount)||0),0);
+              if (!spent && !isReel) return '';
+              return `<tr><td>${b.icon||'📌'} ${escHtml(b.name)}</td>${uCols?users.map(()=>'<td></td>').join(''):''}<td style="text-align:right">${eur(spent)}</td></tr>`;
+            }).join('')}
+          </tbody>
+          <tfoot>
+            ${uCols ? `<tr class="row-total"><td>${isReel?'À payer':'À envoyer (prév.)'}</td>${users.map(u=>`<td style="text-align:right">${eur(dk.aPayer?.byUser?.[u.id]??0)}</td>`).join('')}<td style="text-align:right">${eur(dk.aPayer?.total||0)}</td></tr>` : ''}
+            <tr class="row-total"><td>Solde ${isReel?'net':'prévisionnel'}</td>${uCols?users.map(u=>{const v=dk.solde?.byUser?.[u.id]??0;return`<td style="text-align:right;color:${v>=0?'var(--success)':'var(--danger)'}">${eur(v)}</td>`;}).join(''):''}<td style="text-align:right;color:${sTotal>=0?'var(--success)':'var(--danger)'}">${eur(sTotal)}</td></tr>
+          </tfoot>
+        </table></div>${!isReel?'<p style="font-size:0.72rem;color:var(--text-3);margin:0 12px 4px;">💡 Ce calcul utilise les plafonds de budget et la répartition configurée.</p>':''}`;
+      };
+      return `<details class="settings-group" id="dash-detail-accord" style="margin-bottom:12px;">
+        <summary class="settings-group-title">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+          📋 Détail ${nomMois(month)} ${year}
+        </summary>
+        <div class="settings-group-body" style="padding:8px 0 4px;">
+          <div style="display:flex;gap:4px;padding:0 12px 8px;">
+            <button class="btn btn-sm dash-dmode btn-primary" data-dmode="previsionnel" style="font-size:0.68rem;padding:2px 8px;">📅 Prévisionnel</button>
+            <button class="btn btn-sm dash-dmode btn-outline" data-dmode="reel" style="font-size:0.68rem;padding:2px 8px;">✅ Réel</button>
+          </div>
+          <p id="dash-detail-hint" style="font-size:0.72rem;color:var(--text-3);margin:0 12px 8px;">📅 Simulation avec tous les budgets et charges du mois configurés</p>
+          <div id="dash-detail-table">${buildDashDetailTable(false)}</div>
+        </div>
+      </details>`;
+    })()}
 
     <div style="height:16px;"></div>
   `;
@@ -445,7 +504,111 @@ async function _renderResume(container, s, users) {
       );
     });
   });
+
+  // ── Épingler / désépingler ──
+  el.querySelectorAll('.dash-unpin-card').forEach(btn => {
+    btn.addEventListener('click', async e => {
+      e.stopPropagation();
+      const newPinned = pinnedBudgets.filter(p => p !== btn.dataset.pid);
+      await setSetting('pinnedBudgets', newPinned);
+      const freshS = await getAllSettings();
+      await _renderResume(container, freshS, users);
+    });
+  });
+
+  el.querySelector('.dash-pin-add')?.addEventListener('click', () => {
+    _showPinBudgetModal(pinnedBudgets, customBudgets, async () => {
+      const freshS = await getAllSettings();
+      await _renderResume(container, freshS, users);
+    });
+  });
+
+  // ── Toggle détail prévisionnel/réel ──
+  let _dashDetailMode = 'previsionnel';
+  el.querySelectorAll('.dash-dmode').forEach(btn => {
+    btn.addEventListener('click', () => {
+      _dashDetailMode = btn.dataset.dmode;
+      el.querySelectorAll('.dash-dmode').forEach(b => {
+        b.classList.toggle('btn-primary', b.dataset.dmode === _dashDetailMode);
+        b.classList.toggle('btn-outline',  b.dataset.dmode !== _dashDetailMode);
+      });
+      const hint  = el.querySelector('#dash-detail-hint');
+      const table = el.querySelector('#dash-detail-table');
+      const isReel = _dashDetailMode === 'reel';
+      if (hint) hint.textContent = isReel
+        ? '✅ Dépenses et charges réelles constatées'
+        : '📅 Simulation avec tous les budgets et charges du mois configurés';
+      // Rebuild table inline (closure over kpiPrev/kpiReel/realCourses/realExtras)
+      if (table) {
+        const dk = isReel ? kpiReel : kpiPrev;
+        const courses = isReel ? realCourses.total : (kpiPrev.courses?.total || 0);
+        const extras  = isReel ? realExtras.total  : (kpiPrev.extras?.total  || 0);
+        const uCols   = users.length > 1;
+        const hdr = uCols ? users.map(u => `<th style="text-align:right"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${escHtml(u.color||'#7C5CFC')};margin-right:3px;"></span>${escHtml(u.name)}</th>`).join('') : '';
+        const bRow = (label, cat) => {
+          if (!cat) return '';
+          const uc = uCols ? users.map(u => `<td style="text-align:right">${eur(cat.byUser?.[u.id]??0)}</td>`).join('') : '';
+          return `<tr><td>${label}</td>${uc}<td style="text-align:right">${eur(cat.total)}</td></tr>`;
+        };
+        const sTotal = dk.solde?.total ?? 0;
+        table.innerHTML = `<div style="overflow-x:auto;padding:0 12px 4px;"><table class="data-table">
+          <thead><tr><th>Catégorie</th>${hdr}<th style="text-align:right">Total</th></tr></thead>
+          <tbody>
+            ${bRow('Revenus &amp; Aides', { total:(dk.revenus?.total||0)+(dk.aides?.total||0), byUser: uCols?Object.fromEntries(users.map(u=>[u.id,(dk.revenus?.byUser?.[u.id]??0)+(dk.aides?.byUser?.[u.id]??0)])):{}  })}
+            ${(dk.primes?.total??0)>0 ? bRow('Primes', dk.primes) : ''}
+            ${bRow('Charges', dk.charges)}
+            <tr><td>${isReel?'Courses (confirmé)':'Budget courses'}</td>${uCols?users.map(u=>`<td style="text-align:right">${eur(dk.courses?.byUser?.[u.id]??0)}</td>`).join(''):''}<td style="text-align:right">${eur(courses)}</td></tr>
+            <tr><td>${isReel?'Loisirs (confirmé)':'Budget loisirs'}</td>${uCols?users.map(u=>`<td style="text-align:right">${eur(dk.extras?.byUser?.[u.id]??0)}</td>`).join(''):''}<td style="text-align:right">${eur(extras)}</td></tr>
+            ${(dk.achats?.total??0)>0 ? bRow('Achats exc.', dk.achats) : ''}
+            ${(dk.imprevus?.total??0)>0 ? bRow('Imprévus', dk.imprevus) : ''}
+            ${customBudgets.map(b => {
+              const spent = allBudgetOps.filter(o=>o.category===b.id).reduce((s,o)=>s+(Number(o.amount)||0),0);
+              if (!spent && !isReel) return '';
+              return `<tr><td>${b.icon||'📌'} ${escHtml(b.name)}</td>${uCols?users.map(()=>'<td></td>').join(''):''}<td style="text-align:right">${eur(spent)}</td></tr>`;
+            }).join('')}
+          </tbody>
+          <tfoot>
+            ${uCols ? `<tr class="row-total"><td>${isReel?'À payer':'À envoyer (prév.)'}</td>${users.map(u=>`<td style="text-align:right">${eur(dk.aPayer?.byUser?.[u.id]??0)}</td>`).join('')}<td style="text-align:right">${eur(dk.aPayer?.total||0)}</td></tr>` : ''}
+            <tr class="row-total"><td>Solde ${isReel?'net':'prévisionnel'}</td>${uCols?users.map(u=>{const v=dk.solde?.byUser?.[u.id]??0;return`<td style="text-align:right;color:${v>=0?'var(--success)':'var(--danger)'}">${eur(v)}</td>`;}).join(''):''}<td style="text-align:right;color:${sTotal>=0?'var(--success)':'var(--danger)'}">${eur(sTotal)}</td></tr>
+          </tfoot>
+        </table></div>${!isReel?'<p style="font-size:0.72rem;color:var(--text-3);margin:0 12px 4px;">💡 Ce calcul utilise les plafonds de budget et la répartition configurée.</p>':''}`;
+      }
+    });
+  });
 }
+// ── Modal : épingler un budget ──
+function _showPinBudgetModal(currentPinned, customBudgets, onPin) {
+  const available = [
+    { id: 'courses', icon: '🛒', label: 'Courses' },
+    { id: 'extras',  icon: '🎉', label: 'Loisirs' },
+    ...(customBudgets || []).map(b => ({ id: b.id, icon: b.icon || '📌', label: b.name })),
+  ].filter(b => !currentPinned.includes(b.id));
+
+  if (!available.length) {
+    showToast('Tous les budgets disponibles sont déjà épinglés', 'warning');
+    return;
+  }
+  openModal('📌 Épingler un budget',
+    `<p style="font-size:0.78rem;color:var(--text-3);margin-bottom:12px;">Sélectionnez un budget à afficher sur l'accueil (max 4).</p>
+     <div style="display:flex;flex-direction:column;gap:8px;">
+      ${available.map(b => `
+        <button class="btn btn-outline dash-pin-choice" data-bid="${escHtml(b.id)}" style="text-align:left;padding:10px 14px;">
+          ${b.icon} <strong>${escHtml(b.label)}</strong>
+        </button>`).join('')}
+    </div>`,
+    `<button class="btn btn-outline" id="pin-modal-cancel">Annuler</button>`
+  );
+  document.getElementById('pin-modal-cancel')?.addEventListener('click', closeModal);
+  document.querySelectorAll('.dash-pin-choice').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const newPinned = [...currentPinned, btn.dataset.bid].slice(0, 4);
+      await setSetting('pinnedBudgets', newPinned);
+      closeModal();
+      onPin();
+    });
+  });
+}
+
 // ══════════════════════════════════════════════════
 // ONGLET PRÉVISIONNEL
 // ══════════════════════════════════════════════════

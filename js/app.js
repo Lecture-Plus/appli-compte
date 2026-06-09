@@ -143,6 +143,15 @@ async function checkBudgetAlerts() {
       badge.textContent = exceeded > 0 ? exceeded : '';
       badge.classList.toggle('hidden', exceeded === 0);
     }
+
+    // badge-saisie : "!" si le mois courant n'est pas complet
+    const { completenessStatus } = await import('./utils.js');
+    const badgeSaisie = document.getElementById('badge-saisie');
+    if (badgeSaisie) {
+      const st = completenessStatus(md);
+      badgeSaisie.textContent = st !== 'done' ? '!' : '';
+      badgeSaisie.classList.toggle('hidden', st === 'done');
+    }
   } catch (e) { /* silencieux */ }
 }
 
