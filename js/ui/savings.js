@@ -7,7 +7,8 @@ import { getAllSavingsOperations, saveSavingsOperation,
          saveSavingsConfirmed, getAllSettings, setSetting,
          getActiveUsers,
          getAllSalarySavings, saveSalarySaving, deleteSalarySaving,
-         getAllSalaryAbondements, saveSalaryAbondement, deleteSalaryAbondement }
+         getAllSalaryAbondements, saveSalaryAbondement, deleteSalaryAbondement,
+         getAllSavingsGoals, saveSavingsGoal, deleteSavingsGoal }
                                                              from '../db.js';
 import { calcSavingsBalance }                                from '../calculs.js';
 import { eur, escHtml, showToast, showToastWithUndo, openModal, closeModal,
@@ -231,9 +232,17 @@ async function _renderEconomies(el, container) {
       <button class="btn btn-primary btn-full" id="sv-save-goal">Enregistrer</button>
     </div>
 
-    <!-- Section : Projection épargne 12 mois -->
+    <!-- Section : Objectifs d'épargne nommés -->
     <div class="card" style="margin-bottom:12px;">
-      <div class="card-header"><span class="card-title">🔭 Projection épargne</span></div>
+      <div class="card-header">
+        <span class="card-title">🎯 Mes objectifs</span>
+        <button class="btn btn-sm btn-primary" id="btn-add-goal">+ Ajouter</button>
+      </div>
+      <div id="goals-list"></div>
+    </div>
+
+    <!-- Section : Projection épargne 12 mois -->
+    <div class="card" style="margin-bottom:12px;">      <div class="card-header"><span class="card-title">🔭 Projection épargne</span></div>
       <p style="font-size:0.78rem;color:var(--text-3);margin-bottom:10px;">Simulez l'impact d'un versement mensuel supplémentaire sur votre épargne.</p>
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
         <label class="form-label" style="margin:0;white-space:nowrap;">Versement mensuel</label>
@@ -309,6 +318,83 @@ async function _renderEconomies(el, container) {
       _renderPage(container);
     });
   });
+
+  // ── Objectifs nommés ──
+  const _renderGoalsList = async () => {
+    const goalsEl = el.querySelector('#goals-list');
+    if (!goalsEl) return;
+    const goals = await getAllSavingsGoals();
+    if (!goals.length) {
+      goalsEl.innerHTML = `<p style="font-size:0.78rem;color:var(--text-3);text-align:center;padding:12px 0;">Aucun objectif. Créez-en un !</p>`;
+      return;
+    }
+    goalsEl.innerHTML = goals.map(g => {
+      const pct = g.targetAmount > 0 ? Math.min(100, Math.round(balance / g.targetAmount * 100)) : 0;
+      const barClass = pct >= 100 ? 'success' : pct >= 60 ? 'primary' : 'warning';
+      return `<div class="list-item" style="flex-direction:column;align-items:stretch;padding:10px 0;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+          <span style="font-size:0.9rem;font-weight:700;">${escHtml(g.icon || '🎯')} ${escHtml(g.label)}</span>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span style="font-size:0.78rem;color:var(--text-3);">${eur(balance)} / ${eur(g.targetAmount)}</span>
+            <button class="btn btn-sm btn-outline goal-edit" data-id="${g.id}" style="padding:2px 6px;font-size:0.7rem;">✏️</button>
+            <button class="btn btn-sm btn-outline goal-del" data-id="${g.id}" style="padding:2px 6px;font-size:0.7rem;color:var(--danger);">🗑</button>
+          </div>
+        </div>
+        <div class="progress-track"><div class="progress-bar ${barClass}" style="width:${pct}%;"></div></div>
+        <div style="font-size:0.7rem;color:var(--text-3);margin-top:2px;">${pct}%${g.targetDate ? ` · Échéance : ${new Date(g.targetDate).toLocaleDateString('fr-FR')}` : ''}</div>
+      </div>`;
+    }).join('');
+    goalsEl.querySelectorAll('.goal-del').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = Number(btn.dataset.id);
+        showToastWithUndo('Objectif supprimé', async () => { await deleteSavingsGoal(id); _renderGoalsList(); }, 6000, 'warning');
+      });
+    });
+    goalsEl.querySelectorAll('.goal-edit').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const id   = Number(btn.dataset.id);
+        const goals2 = await getAllSavingsGoals();
+        const g    = goals2.find(x => x.id === id);
+        if (g) _showGoalModal(g, _renderGoalsList);
+      });
+    });
+  };
+
+  const _showGoalModal = (existing, onSave) => {
+    const g = existing || {};
+    openModal(
+      existing ? '✏️ Modifier l\'objectif' : '🎯 Nouvel objectif',
+      `<div class="form-group"><label class="form-label">Emoji / Icône</label>
+        <input class="form-input" id="gm-icon" maxlength="4" value="${escHtml(g.icon || '🎯')}" style="width:60px;text-align:center;font-size:1.2rem;"></div>
+       <div class="form-group"><label class="form-label">Nom de l'objectif *</label>
+        <input class="form-input" id="gm-label" placeholder="Ex: Vacances, Voiture…" value="${escHtml(g.label || '')}"></div>
+       <div class="form-group"><label class="form-label">Montant cible (€)</label>
+        <div class="input-wrap"><input type="number" class="form-input input-euro" id="gm-amount" min="0" step="100" value="${g.targetAmount || ''}"><span class="input-suffix">€</span></div></div>
+       <div class="form-group"><label class="form-label">Échéance (optionnel)</label>
+        <input type="date" class="form-input" id="gm-date" value="${g.targetDate || ''}"></div>`,
+      `<button class="btn btn-outline" id="gm-cancel">Annuler</button>
+       <button class="btn btn-primary" id="gm-save">Enregistrer</button>`
+    );
+    document.getElementById('gm-cancel')?.addEventListener('click', closeModal);
+    document.getElementById('gm-save')?.addEventListener('click', async () => {
+      const label  = document.getElementById('gm-label')?.value.trim();
+      if (!label) { showToast('Nom requis', 'error'); return; }
+      const goal = {
+        ...(existing || {}),
+        icon:         document.getElementById('gm-icon')?.value.trim() || '🎯',
+        label,
+        targetAmount: Number(document.getElementById('gm-amount')?.value) || 0,
+        targetDate:   document.getElementById('gm-date')?.value || null,
+        createdAt:    existing?.createdAt || new Date().toISOString(),
+      };
+      await saveSavingsGoal(goal);
+      closeModal();
+      onSave?.();
+    });
+  };
+
+  el.querySelector('#btn-add-goal')?.addEventListener('click', () => _showGoalModal(null, _renderGoalsList));
+  _renderGoalsList();
 
   el.querySelectorAll('.op-delete').forEach(btn => {
     btn.addEventListener('click', async (e) => {

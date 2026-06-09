@@ -5,7 +5,7 @@
 import { emit, on } from './events.js';
 
 const DB_NAME    = 'budgetFoyer';
-const DB_VERSION = 5;  // v5 : salary_savings + salary_abondements stores
+const DB_VERSION = 6;  // v6 : savings_goals store
 
 let _db = null;
 
@@ -107,6 +107,11 @@ async function openDB() {
       }
       if (!db.objectStoreNames.contains('salary_abondements')) {
         db.createObjectStore('salary_abondements', { keyPath: 'id', autoIncrement: true });
+      }
+
+      // ── v6 : Objectifs d'épargne multiples ──
+      if (!db.objectStoreNames.contains('savings_goals')) {
+        db.createObjectStore('savings_goals', { keyPath: 'id', autoIncrement: true });
       }
     };
   });
@@ -432,7 +437,7 @@ export async function saveArchive(archive)   { await _put('archives', archive); 
 export async function exportAllData() {
   const [users, settings, monthlyData, charges, achats, repartition, archives,
          savings_operations, savings_confirmed,
-         budget_ops, salary_savings, salary_abondements] = await Promise.all([
+         budget_ops, salary_savings, salary_abondements, savings_goals] = await Promise.all([
     _getAll('users'),
     _getAll('settings'),
     _getAll('monthlyData'),
@@ -445,22 +450,23 @@ export async function exportAllData() {
     _getAll('budget_ops'),
     _getAll('salary_savings'),
     _getAll('salary_abondements'),
+    _getAll('savings_goals'),
   ]);
 
   return {
-    version:    3,   // v3 du format JSON (+ budget_ops, salary_savings, salary_abondements)
-    appName:    'Compta+',
+    version:    4,   // v4 du format JSON (+ savings_goals)
+    appName:    'ComptaPlus',
     exportedAt: new Date().toISOString(),
     users, settings, monthlyData, charges, achats,
     repartition, archives, savings_operations, savings_confirmed,
-    budget_ops, salary_savings, salary_abondements,
+    budget_ops, salary_savings, salary_abondements, savings_goals,
   };
 }
 
 // ── Validation avancée d'un fichier de sauvegarde ─────────────────────────────
 const _ARRAY_STORES = ['users','monthlyData','charges','achats','repartition',
   'archives','savings_operations','savings_confirmed','budget_ops',
-  'salary_savings','salary_abondements'];
+  'salary_savings','salary_abondements','savings_goals'];
 
 /**
  * Valide un objet de sauvegarde avant import.
@@ -512,7 +518,7 @@ export async function importAllData(data) {
 
   const stores = ['users', 'settings', 'monthlyData', 'charges', 'achats',
                   'repartition', 'archives', 'savings_operations', 'savings_confirmed',
-                  'budget_ops', 'salary_savings', 'salary_abondements'];
+                  'budget_ops', 'salary_savings', 'salary_abondements', 'savings_goals'];
   const db     = await openDB();
 
   try {
@@ -552,7 +558,7 @@ export async function importAllData(data) {
 export async function resetAllData() {
   const stores = ['users', 'settings', 'monthlyData', 'charges', 'achats',
                   'repartition', 'archives', 'savings_operations', 'savings_confirmed',
-                  'budget_ops', 'salary_savings', 'salary_abondements'];
+                  'budget_ops', 'salary_savings', 'salary_abondements', 'savings_goals'];
   for (const s of stores) await _clear(s);
   _settingsCache = null; _usersCache = null;
   if (_db) { try { _db.close(); } catch (_) {} }
@@ -567,6 +573,12 @@ export async function getAllSavingsOperations()           { return _getAll('savi
 export async function getSavingsOperationsForMonth(y, m) { return _getAllByIndex('savings_operations', 'yearMonth', [y, m]); }
 export async function saveSavingsOperation(op)           { return _put('savings_operations', op); }
 export async function deleteSavingsOperation(id)         { return _delete('savings_operations', id); }
+
+/* ── Objectifs d'épargne multiples ── */
+
+export async function getAllSavingsGoals()    { return _getAll('savings_goals'); }
+export async function saveSavingsGoal(goal)  { return _put('savings_goals', goal); }
+export async function deleteSavingsGoal(id)  { return _delete('savings_goals', id); }
 
 /* ── Confirmations mensuelles ── */
 
