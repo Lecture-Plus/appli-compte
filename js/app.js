@@ -32,7 +32,7 @@ const PAGES = {
 
 const PAGE_TITLES = {
   dashboard: 'Accueil',
-  argent:    'Argent',
+  argent:    'Ce mois',
   charges:   'Charges & Budgets',
   savings:   'Épargne',
   stats:     'Analyse',
@@ -303,9 +303,6 @@ async function init() {
   // Nav scroll hide/show
   _initNavScroll();
 
-  // Settings via icône header
-  document.getElementById('btn-settings')?.addEventListener('click', () => navigateTo('settings'));
-
   // Modal : fermeture
   document.getElementById('modal-close')?.addEventListener('click', closeModal);
   document.getElementById('modal-overlay')?.addEventListener('click', e => {
@@ -359,9 +356,9 @@ async function init() {
         e.preventDefault();
         openModal('⌨️ Raccourcis clavier',
           `<div style="font-size:0.85rem;line-height:1.9;">
-            <div><kbd>Alt+1</kbd> → Accueil &nbsp; <kbd>Alt+2</kbd> → Argent</div>
-            <div><kbd>Alt+3</kbd> → Charges &nbsp; <kbd>Alt+4</kbd> → Épargne</div>
-            <div><kbd>Alt+5</kbd> → Statistiques &nbsp; <kbd>Alt+6</kbd> → Paramètres</div>
+            <div><kbd>Alt+1</kbd> → Accueil &nbsp; <kbd>Alt+2</kbd> → Ce mois</div>
+            <div><kbd>Alt+3</kbd> → Analyse &nbsp; <kbd>Alt+4</kbd> → Épargne</div>
+            <div><kbd>Alt+5</kbd> → Réglages</div>
             <div><kbd>Alt+N</kbd> → Mois suivant &nbsp; <kbd>Alt+P</kbd> → Mois précédent</div>
             <div><kbd>Échap</kbd> → Fermer modal &nbsp; <kbd>Alt+?</kbd> → Cette aide</div>
           </div>`,
@@ -617,7 +614,7 @@ const TOUR_STEPS = [
     text:     'La page <strong>Analyse</strong> propose des graphiques, comparaison N vs N-1, insights automatiques et export PDF.',
   },
   {
-    selector: '[data-page="settings"] || #btn-settings',
+    selector: '[data-page="settings"]',
     title:    '⚙️ Paramètres',
     text:     'Configurez le mode de répartition, synchronisez sur Drive, importez des charges types et personnalisez l\'app. <br><br><em>Appuyez sur <kbd>Alt+?</kbd> pour voir les raccourcis clavier.</em>',
   },

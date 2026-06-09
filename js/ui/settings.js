@@ -31,230 +31,249 @@ function buildHTML(s, users, archived, N) {
   const driveOk = s[DRIVE_URL_KEY] && isValidDriveUrl(s[DRIVE_URL_KEY]);
 
   return `
-    <!-- Section : Utilisateurs du foyer -->
-    <div class="card" style="margin-bottom:12px;">
-      <div class="card-header">
-        <span class="card-title">👥 Utilisateurs du foyer</span>
-        <button class="btn btn-sm btn-primary" id="btn-add-user">+ Ajouter</button>
-      </div>
-      ${users.length === 0
-        ? `<div class="empty-state" style="padding:16px 0;">
-             <div class="empty-state-text">Aucun utilisateur configuré.<br>Commencez par en ajouter un.</div>
-           </div>`
-        : `<div id="users-list">
-             ${users.map(u => buildUserRow(u)).join('')}
-           </div>`
-      }
-      <p class="form-hint" style="margin-top:8px;">
-        La suppression d'un utilisateur est mémorisée pour conserver les stats historiques.
-      </p>
-    </div>
+    <div class="settings-accordion">
 
-    <!-- Utilisateurs archivés -->
-    ${archived.length > 0 ? `
-    <div class="card" style="margin-bottom:12px;">
-      <div class="card-header">
-        <span class="card-title" style="color:var(--text-3);">🗄️ Utilisateurs archivés</span>
-        <span class="chip" style="font-size:0.68rem;">${archived.length}</span>
-      </div>
-      <div class="item-list">
-        ${archived.map(u => `
-          <div class="list-item">
-            <div class="list-item-icon" style="background:${escHtml(u.color||'#999')};opacity:0.5;">${escHtml((u.name||'?')[0].toUpperCase())}</div>
-            <div class="list-item-body">
-              <div class="list-item-title" style="color:var(--text-3);">${escHtml(u.name)}</div>
-              <div class="list-item-sub">Archivé le ${u.deletedAt ? new Date(u.deletedAt).toLocaleDateString('fr-FR') : '—'}</div>
-            </div>
-            <button class="btn btn-sm btn-outline btn-restore" data-uid="${u.id}" style="color:var(--success);border-color:var(--success);">Restaurer</button>
-          </div>`).join('')}
-      </div>
-    </div>` : ''}
+    <!-- ══ FOYER ══ -->
+    <details class="settings-group" open>
+      <summary class="settings-group-title">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        Foyer
+      </summary>
+      <div class="settings-group-body">
 
-    <!-- Section : Mon profil (cet appareil) -->
-    <div class="card" style="margin-bottom:12px;">
-      <div class="card-header"><span class="card-title">🪪 Mon profil (cet appareil)</span></div>
-      <div class="form-group">
-        <label class="form-label">Qui utilise cet appareil ?</label>
-        <select class="form-select" id="s-device-user">
-          <option value="">-- Sélectionner --</option>
-          ${users.map(u => `<option value="${u.id}"
-            ${String(State.currentUserId) === String(u.id) ? 'selected' : ''}>
-            ${escHtml(u.name)}
-          </option>`).join('')}
-        </select>
-        <p class="form-hint">Ce réglage est propre à cet appareil et n'est pas synchronisé.</p>
-      </div>
-    </div>
-
-    <!-- Section : Répartition par défaut (masqué si solo) -->
-    ${N >= 2 ? `
-    <div class="card" style="margin-bottom:12px;">
-      <div class="card-header"><span class="card-title">⚖️ Mode de répartition par défaut</span></div>
-      <div class="tabs" id="repartition-tabs" style="margin-bottom:8px;">
-        <button class="tab-btn ${s.defaultRepartMode === 'separe'       ? 'active' : ''}" data-mode="separe">Séparé</button>
-        <button class="tab-btn ${s.defaultRepartMode === 'fixe'         ? 'active' : ''}" data-mode="fixe">Fixe %</button>
-        <button class="tab-btn ${s.defaultRepartMode === 'equitable'    ? 'active' : ''}" data-mode="equitable">Équitable</button>
-        <button class="tab-btn ${s.defaultRepartMode === 'personnalise' ? 'active' : ''}" data-mode="personnalise">🎛 Perso</button>
-      </div>
-      <div id="repartition-mode-hint" style="font-size:0.78rem;color:var(--text-3);padding:8px 10px;background:var(--bg-2);border-radius:8px;margin-bottom:8px;"></div>
-      <p style="font-size:0.78rem;color:var(--text-3);">Ce mode sera pré-sélectionné pour les nouveaux mois.</p>
-    </div>` : ''}
-
-    <!-- Section : Apparence -->
-    <div class="card" style="margin-bottom:12px;">
-      <div class="card-header"><span class="card-title">🎨 Apparence</span></div>
-      <div class="settings-row">
-        <span class="settings-row-label">Thème</span>
-        <select class="form-select" id="s-theme" style="width:140px;">
-          <option value="auto"  ${s.theme === 'auto'  ? 'selected' : ''}>Automatique</option>
-          <option value="dark"  ${s.theme === 'dark'  ? 'selected' : ''}>Sombre</option>
-          <option value="light" ${s.theme === 'light' ? 'selected' : ''}>Clair</option>
-        </select>
-      </div>
-    </div>
-
-    <!-- Section : Notifications -->
-    <div class="card" style="margin-bottom:12px;">
-      <div class="card-header">
-        <span class="card-title">🔔 Rappels</span>
-        ${'Notification' in window && Notification.permission === 'granted'
-          ? `<span class="chip success" style="font-size:0.68rem;">✓ Autorisé</span>`
-          : 'Notification' in window && Notification.permission === 'denied'
-          ? `<span class="chip danger" style="font-size:0.68rem;">Bloqué – modifiez le navigateur</span>`
-          : `<span class="chip" style="font-size:0.68rem;">Non demandé</span>`}
-      </div>
-      <div class="toggle-wrap" style="margin-bottom:10px;">
-        <div class="toggle-info">
-          <label for="s-notif">Notification de rappel mensuelle</label>
-          <p>Si la saisie n'est pas faite avant le jour indiqué ci-dessous</p>
+        <div class="card" style="margin-bottom:10px;">
+          <div class="card-header">
+            <span class="card-title">Utilisateurs du foyer</span>
+            <button class="btn btn-sm btn-primary" id="btn-add-user">+ Ajouter</button>
+          </div>
+          ${users.length === 0
+            ? `<div class="empty-state" style="padding:12px 0;">
+                 <div class="empty-state-text">Aucun utilisateur configuré.<br>Commencez par en ajouter un.</div>
+               </div>`
+            : `<div id="users-list">${users.map(u => buildUserRow(u)).join('')}</div>`}
+          <p class="form-hint" style="margin-top:8px;">La suppression conserve les données historiques.</p>
         </div>
-        <label class="toggle">
-          <input type="checkbox" id="s-notif" ${s.notifEnabled ? 'checked' : ''} ${'Notification' in window && Notification.permission === 'denied' ? 'disabled' : ''}>
-          <span class="toggle-slider"></span>
-        </label>
-      </div>
-      <div class="form-group" style="margin-bottom:14px;display:flex;align-items:center;gap:10px;">
-        <label class="form-label" style="margin:0;white-space:nowrap;">Rappeler si pas saisi avant le</label>
-        <input type="number" class="form-input" id="s-notif-day" min="1" max="28" step="1" value="${s.notifDay || 7}" style="width:70px;">
-        <span style="font-size:0.82rem;color:var(--text-3);">du mois</span>
-      </div>
 
-      <!-- Rappels personnalisés -->
-      <div style="border-top:1px solid var(--border);padding-top:12px;margin-top:4px;">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
-          <span style="font-weight:700;font-size:0.85rem;">Rappels personnalisés</span>
-          <button class="btn btn-sm btn-primary" id="btn-add-reminder">+ Ajouter</button>
-        </div>
-        ${(s.customReminders || []).length === 0
-          ? `<p style="font-size:0.78rem;color:var(--text-3);">Aucun rappel personnalisé. Cliquez sur <strong>+ Ajouter</strong>.</p>`
-          : `<div id="custom-reminders-list">${(s.customReminders || []).map(r => `
-              <div class="list-item" style="margin-bottom:6px;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius-sm);">
+        ${archived.length > 0 ? `
+        <div class="card" style="margin-bottom:10px;">
+          <div class="card-header">
+            <span class="card-title" style="color:var(--text-3);">Archivés</span>
+            <span class="chip" style="font-size:0.68rem;">${archived.length}</span>
+          </div>
+          <div class="item-list">
+            ${archived.map(u => `
+              <div class="list-item">
+                <div class="list-item-icon" style="background:${escHtml(u.color||'#999')};opacity:0.5;">${escHtml((u.name||'?')[0].toUpperCase())}</div>
                 <div class="list-item-body">
-                  <div class="list-item-title" style="font-size:0.85rem;">${escHtml(r.label)}</div>
-                  <div class="list-item-sub">Chaque mois le ${r.dayOfMonth}</div>
+                  <div class="list-item-title" style="color:var(--text-3);">${escHtml(u.name)}</div>
+                  <div class="list-item-sub">Archivé le ${u.deletedAt ? new Date(u.deletedAt).toLocaleDateString('fr-FR') : '—'}</div>
                 </div>
-                <div style="display:flex;align-items:center;gap:8px;">
-                  <label class="toggle" style="transform:scale(0.85);">
-                    <input type="checkbox" class="reminder-toggle" data-rid="${r.id}" ${r.enabled ? 'checked' : ''}>
-                    <span class="toggle-slider"></span>
-                  </label>
-                  <button class="btn-icon reminder-del" data-rid="${r.id}" style="width:26px;height:26px;color:var(--text-3);">✕</button>
-                </div>
-              </div>`).join('')}</div>`}
+                <button class="btn btn-sm btn-outline btn-restore" data-uid="${u.id}" style="color:var(--success);border-color:var(--success);">Restaurer</button>
+              </div>`).join('')}
+          </div>
+        </div>` : ''}
+
+        <div class="card" style="margin-bottom:10px;">
+          <div class="card-header"><span class="card-title">Cet appareil</span></div>
+          <div class="form-group">
+            <label class="form-label">Qui utilise cet appareil ?</label>
+            <select class="form-select" id="s-device-user">
+              <option value="">-- Sélectionner --</option>
+              ${users.map(u => `<option value="${u.id}"
+                ${String(State.currentUserId) === String(u.id) ? 'selected' : ''}>
+                ${escHtml(u.name)}</option>`).join('')}
+            </select>
+            <p class="form-hint">Propre à cet appareil, non synchronisé.</p>
+          </div>
+        </div>
+
+        ${N >= 2 ? `
+        <div class="card">
+          <div class="card-header"><span class="card-title">⚖️ Répartition par défaut</span></div>
+          <div class="tabs" id="repartition-tabs" style="margin-bottom:8px;">
+            <button class="tab-btn ${s.defaultRepartMode === 'separe'       ? 'active' : ''}" data-mode="separe">Séparé</button>
+            <button class="tab-btn ${s.defaultRepartMode === 'fixe'         ? 'active' : ''}" data-mode="fixe">Fixe %</button>
+            <button class="tab-btn ${s.defaultRepartMode === 'equitable'    ? 'active' : ''}" data-mode="equitable">Équitable</button>
+            <button class="tab-btn ${s.defaultRepartMode === 'personnalise' ? 'active' : ''}" data-mode="personnalise">Perso</button>
+          </div>
+          <div id="repartition-mode-hint" style="font-size:0.78rem;color:var(--text-3);padding:8px 10px;background:var(--bg-2);border-radius:8px;margin-bottom:6px;"></div>
+          <p style="font-size:0.75rem;color:var(--text-3);">Pré-sélectionné pour les nouveaux mois.</p>
+        </div>` : ''}
+
       </div>
-    </div>
+    </details>
 
-    <!-- Section : Archivage (masqué) -->
-    <!-- <div class="card" ..>Archives</div> -->
+    <!-- ══ APPARENCE & RAPPELS ══ -->
+    <details class="settings-group">
+      <summary class="settings-group-title">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+        Apparence &amp; Rappels
+      </summary>
+      <div class="settings-group-body">
 
-    <!-- Toggle options avancées -->
-    <button id="btn-toggle-advanced" class="btn btn-outline btn-full" style="margin-bottom:12px;font-size:0.8rem;">
-      ⚙️ Options avancées (Drive, Import/Export, Reset)
-    </button>
+        <div class="card" style="margin-bottom:10px;">
+          <div class="card-header"><span class="card-title">Thème</span></div>
+          <div class="settings-row">
+            <span class="settings-row-label">Apparence de l'app</span>
+            <select class="form-select" id="s-theme" style="width:140px;">
+              <option value="auto"  ${s.theme === 'auto'  ? 'selected' : ''}>Automatique</option>
+              <option value="dark"  ${s.theme === 'dark'  ? 'selected' : ''}>Sombre</option>
+              <option value="light" ${s.theme === 'light' ? 'selected' : ''}>Clair</option>
+            </select>
+          </div>
+        </div>
 
-    <div id="adv-section" style="display:none;">
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">🔔 Rappels</span>
+            ${'Notification' in window && Notification.permission === 'granted'
+              ? `<span class="chip success" style="font-size:0.68rem;">✓ Autorisé</span>`
+              : 'Notification' in window && Notification.permission === 'denied'
+              ? `<span class="chip danger" style="font-size:0.68rem;">Bloqué</span>`
+              : `<span class="chip" style="font-size:0.68rem;">Non demandé</span>`}
+          </div>
+          <div class="toggle-wrap" style="margin-bottom:10px;">
+            <div class="toggle-info">
+              <label for="s-notif">Rappel mensuel de saisie</label>
+              <p>Si la saisie n'est pas faite avant le jour indiqué</p>
+            </div>
+            <label class="toggle">
+              <input type="checkbox" id="s-notif" ${s.notifEnabled ? 'checked' : ''} ${'Notification' in window && Notification.permission === 'denied' ? 'disabled' : ''}>
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+          <div class="form-group" style="margin-bottom:14px;display:flex;align-items:center;gap:10px;">
+            <label class="form-label" style="margin:0;white-space:nowrap;">Rappeler avant le</label>
+            <input type="number" class="form-input" id="s-notif-day" min="1" max="28" step="1" value="${s.notifDay || 7}" style="width:70px;">
+            <span style="font-size:0.82rem;color:var(--text-3);">du mois</span>
+          </div>
+          <div style="border-top:1px solid var(--border);padding-top:12px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+              <span style="font-weight:700;font-size:0.85rem;">Rappels personnalisés</span>
+              <button class="btn btn-sm btn-primary" id="btn-add-reminder">+ Ajouter</button>
+            </div>
+            ${(s.customReminders || []).length === 0
+              ? `<p style="font-size:0.78rem;color:var(--text-3);">Aucun rappel personnalisé.</p>`
+              : `<div id="custom-reminders-list">${(s.customReminders || []).map(r => `
+                  <div class="list-item" style="margin-bottom:6px;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius-sm);">
+                    <div class="list-item-body">
+                      <div class="list-item-title" style="font-size:0.85rem;">${escHtml(r.label)}</div>
+                      <div class="list-item-sub">Chaque mois le ${r.dayOfMonth}</div>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:8px;">
+                      <label class="toggle" style="transform:scale(0.85);">
+                        <input type="checkbox" class="reminder-toggle" data-rid="${r.id}" ${r.enabled ? 'checked' : ''}>
+                        <span class="toggle-slider"></span>
+                      </label>
+                      <button class="btn-icon reminder-del" data-rid="${r.id}" style="width:26px;height:26px;color:var(--text-3);">✕</button>
+                    </div>
+                  </div>`).join('')}</div>`}
+          </div>
+        </div>
 
-    <!-- Section : Sync Google Drive -->
-    <div class="card" style="margin-bottom:12px;">
-      <div class="card-header">
-        <span class="card-title">☁️ Sync Google Drive</span>
-        <span id="drive-status" class="chip ${driveOk ? 'success' : ''}" style="font-size:0.68rem;">
-          ${driveOk ? '● Configuré' : '○ Non configuré'}
-        </span>
       </div>
-      <p style="font-size:0.78rem;color:var(--text-2);margin-bottom:12px;">
-        Synchronisez vos données sur tous vos appareils via Google Drive.
-        <button class="btn btn-sm" id="btn-drive-help" style="font-size:0.72rem;color:var(--primary);text-decoration:underline;padding:0;margin-left:4px;">Comment configurer ?</button>
-      </p>
-      <div class="form-group" style="margin-bottom:10px;">
-        <label class="form-label">URL du Web App Apps Script</label>
-        <input type="url" class="form-input" id="s-drive-url"
-          placeholder="https://script.google.com/macros/s/..."
-          value="${escHtml(s[DRIVE_URL_KEY] || '')}">
-        <p class="form-hint">Partagez cette URL entre vos appareils pour synchroniser les données.</p>
-      </div>
-      <button class="btn btn-outline btn-full btn-sm" id="s-save-drive-url" style="margin-bottom:10px;">Enregistrer l'URL</button>
-      <div style="display:flex;gap:8px;margin-bottom:8px;">
-        <button class="btn btn-sm btn-secondary" style="flex:1;" id="btn-drive-test">🔍 Tester la connexion</button>
-        <button class="btn btn-sm btn-outline" style="flex:1;" id="btn-drive-qr">📲 QR Code</button>
-      </div>
-      <div id="drive-qr-wrap" style="display:none;text-align:center;margin-bottom:10px;padding:12px;background:var(--bg-2);border-radius:10px;">
-        <canvas id="drive-qr-canvas" style="border-radius:6px;"></canvas>
-        <p style="font-size:0.72rem;color:var(--text-3);margin-top:6px;">Scannez ce QR code pour configurer l'URL sur un autre appareil.</p>
-      </div>
-      <div id="drive-test-result" style="display:none;font-size:0.75rem;padding:8px 10px;border-radius:8px;margin-bottom:10px;"></div>
-      <div style="display:flex;gap:8px;">
-        <button class="btn btn-secondary" style="flex:1;" id="btn-push-drive">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/><path d="M5 21h14"/></svg>
-          Envoyer ☁️
-        </button>
-        <button class="btn btn-outline" style="flex:1;" id="btn-pull-drive">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><polyline points="7 16 12 21 17 16"/><line x1="12" y1="21" x2="12" y2="9"/><path d="M5 3h14"/></svg>
-          Récupérer ⬇️
-        </button>
-      </div>
-      <p id="drive-last-sync" style="font-size:0.7rem;color:var(--text-3);text-align:center;margin-top:8px;">
-        ${s[DRIVE_SYNC_KEY] ? 'Dernière sync : ' + new Date(s[DRIVE_SYNC_KEY]).toLocaleString('fr-FR') : ''}
-      </p>
-    </div>
+    </details>
 
-    <!-- Section : Templates de charges -->
-    <div class="card" style="margin-bottom:12px;">
-      <div class="card-header"><span class="card-title">📋 Charges types</span></div>
-      <p style="font-size:0.78rem;color:var(--text-3);margin-bottom:10px;">Importez des charges prédéfinies (loyer, EDF, internet…) pour démarrer rapidement.</p>
-      <button class="btn btn-outline btn-full" id="btn-import-templates">📋 Importer des charges types</button>
-    </div>
+    <!-- ══ SAUVEGARDE & SYNC ══ -->
+    <details class="settings-group" ${!driveOk ? 'open' : ''}>
+      <summary class="settings-group-title">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        Sauvegarde &amp; Sync
+        ${!driveOk ? `<span class="chip" style="font-size:0.63rem;margin-left:6px;background:var(--warning-bg);color:var(--warning);">Drive non configuré</span>` : `<span class="chip success" style="font-size:0.63rem;margin-left:6px;">Drive ✓</span>`}
+      </summary>
+      <div class="settings-group-body">
 
-    <!-- Section : Données locales -->
-    <div class="card" style="margin-bottom:12px;">
-      <div class="card-header"><span class="card-title">💾 Sauvegarde locale</span></div>
-      <p style="font-size:0.78rem;color:var(--text-3);margin-bottom:12px;">
-        Exportez vos données en JSON pour les sauvegarder ou les transférer manuellement.
-        ${s.lastBackup ? `<br>Dernière sauvegarde: ${new Date(s.lastBackup).toLocaleDateString('fr-FR')}` : ''}
-      </p>
-      <div style="display:flex;flex-direction:column;gap:8px;">
-        <button class="btn btn-secondary btn-full" id="btn-export">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-          Exporter (JSON)
-        </button>
-        <button class="btn btn-outline btn-full" id="btn-import">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-          Importer depuis un fichier JSON
-        </button>
+        <div class="card" style="margin-bottom:10px;">
+          <div class="card-header">
+            <span class="card-title">☁️ Google Drive</span>
+            <span id="drive-status" class="chip ${driveOk ? 'success' : ''}" style="font-size:0.68rem;">
+              ${driveOk ? '● Configuré' : '○ Non configuré'}
+            </span>
+          </div>
+          <p style="font-size:0.78rem;color:var(--text-2);margin-bottom:12px;">
+            Synchronisez vos données sur tous vos appareils.
+            <button class="btn btn-sm" id="btn-drive-help" style="font-size:0.72rem;color:var(--primary);text-decoration:underline;padding:0;margin-left:4px;">Comment configurer ?</button>
+          </p>
+          <div class="form-group" style="margin-bottom:10px;">
+            <label class="form-label">URL du Web App Apps Script</label>
+            <input type="url" class="form-input" id="s-drive-url"
+              placeholder="https://script.google.com/macros/s/..."
+              value="${escHtml(s[DRIVE_URL_KEY] || '')}">
+            <p class="form-hint">Partagez cette URL entre vos appareils.</p>
+          </div>
+          <button class="btn btn-outline btn-full btn-sm" id="s-save-drive-url" style="margin-bottom:10px;">Enregistrer l'URL</button>
+          <div style="display:flex;gap:8px;margin-bottom:8px;">
+            <button class="btn btn-sm btn-secondary" style="flex:1;" id="btn-drive-test">🔍 Tester</button>
+            <button class="btn btn-sm btn-outline" style="flex:1;" id="btn-drive-qr">📲 QR Code</button>
+          </div>
+          <div id="drive-qr-wrap" style="display:none;text-align:center;margin-bottom:10px;padding:12px;background:var(--bg-2);border-radius:10px;">
+            <canvas id="drive-qr-canvas" style="border-radius:6px;"></canvas>
+            <p style="font-size:0.72rem;color:var(--text-3);margin-top:6px;">Scannez ce QR code sur un autre appareil.</p>
+          </div>
+          <div id="drive-test-result" style="display:none;font-size:0.75rem;padding:8px 10px;border-radius:8px;margin-bottom:10px;"></div>
+          <div style="display:flex;gap:8px;">
+            <button class="btn btn-secondary" style="flex:1;" id="btn-push-drive">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/><path d="M5 21h14"/></svg>
+              Envoyer ☁️
+            </button>
+            <button class="btn btn-outline" style="flex:1;" id="btn-pull-drive">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><polyline points="7 16 12 21 17 16"/><line x1="12" y1="21" x2="12" y2="9"/><path d="M5 3h14"/></svg>
+              Récupérer ⬇️
+            </button>
+          </div>
+          <p id="drive-last-sync" style="font-size:0.7rem;color:var(--text-3);text-align:center;margin-top:8px;">
+            ${s[DRIVE_SYNC_KEY] ? 'Dernière sync : ' + new Date(s[DRIVE_SYNC_KEY]).toLocaleString('fr-FR') : ''}
+          </p>
+        </div>
+
+        <div class="card" style="margin-bottom:10px;">
+          <div class="card-header"><span class="card-title">💾 Sauvegarde locale (JSON)</span></div>
+          <p style="font-size:0.78rem;color:var(--text-3);margin-bottom:12px;">
+            Export/import manuel de toutes vos données.
+            ${s.lastBackup ? `Dernière sauvegarde : ${new Date(s.lastBackup).toLocaleDateString('fr-FR')}` : ''}
+          </p>
+          <div style="display:flex;flex-direction:column;gap:8px;">
+            <button class="btn btn-secondary btn-full" id="btn-export">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              Exporter (JSON)
+            </button>
+            <button class="btn btn-outline btn-full" id="btn-import">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              Importer depuis un fichier JSON
+            </button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header"><span class="card-title">📋 Charges types</span></div>
+          <p style="font-size:0.78rem;color:var(--text-3);margin-bottom:10px;">Importez des charges prédéfinies (loyer, EDF, internet…) pour démarrer rapidement.</p>
+          <button class="btn btn-outline btn-full" id="btn-import-templates">Importer des charges types</button>
+        </div>
+
       </div>
-    </div>
+    </details>
 
-    <!-- Section : Danger -->
-    <div class="card" style="margin-bottom:24px; border-color:var(--danger);">
-      <div class="card-header"><span class="card-title" style="color:var(--danger);">⚠️ Zone dangereuse</span></div>
-      <button class="btn btn-outline btn-full" style="margin-bottom:8px;" id="btn-clear-cache">🔄 Vider le cache et recharger l'application</button>
-      <button class="btn btn-outline btn-full" style="margin-bottom:8px;" id="btn-replay-tour">🎓 Rejouer le tour guidé</button>
-      <button class="btn btn-danger btn-full" id="btn-reset">Effacer toutes les données…</button>
-    </div>
+    <!-- ══ AVANCÉ ══ -->
+    <details class="settings-group">
+      <summary class="settings-group-title">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.65 1.65 0 0 0 15 19.4a1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        Avancé
+      </summary>
+      <div class="settings-group-body">
 
-    </div><!-- /adv-section -->
+        <div class="card">
+          <div class="card-header"><span class="card-title" style="color:var(--danger);">⚠️ Zone dangereuse</span></div>
+          <button class="btn btn-outline btn-full" style="margin-bottom:8px;" id="btn-clear-cache">🔄 Vider le cache et recharger</button>
+          <button class="btn btn-outline btn-full" style="margin-bottom:8px;" id="btn-replay-tour">🎓 Rejouer le tour guidé</button>
+          <button class="btn btn-danger btn-full" id="btn-reset">Effacer toutes les données…</button>
+        </div>
 
-    <div style="text-align:center;color:var(--text-3);font-size:0.75rem;margin-bottom:24px;">
+      </div>
+    </details>
+
+    </div><!-- /.settings-accordion -->
+
+    <div style="text-align:center;color:var(--text-3);font-size:0.75rem;margin:16px 0 24px;">
       Compta+ · Données stockées localement sur cet appareil
     </div>
   `;
@@ -274,16 +293,6 @@ function buildUserRow(u) {
 }
 
 function bindEvents(container, s, users, archived, N) {
-  // ── Toggle options avancées ──
-  container.querySelector('#btn-toggle-advanced')?.addEventListener('click', () => {
-    const sec = container.querySelector('#adv-section');
-    const btn = container.querySelector('#btn-toggle-advanced');
-    if (!sec || !btn) return;
-    const open = sec.style.display !== 'none';
-    sec.style.display = open ? 'none' : '';
-    btn.textContent   = open ? '⚙️ Options avancées (Drive, Import/Export, Reset)' : '🔼 Masquer les options avancées';
-  });
-
   // ── Ajouter un utilisateur ──
   container.querySelector('#btn-add-user')?.addEventListener('click', () => {
     showUserModal(null, () => render(container));

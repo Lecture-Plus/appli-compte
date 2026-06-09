@@ -709,6 +709,48 @@ svg { display: block; }
 .insight-text { font-size:0.82rem; font-weight:600; color:var(--text-2); line-height:1.45; }
 .insight-text strong { color:var(--text); }
 
+/* ─── Settings accordion (details/summary) ─── */
+.settings-accordion { display:flex; flex-direction:column; gap:8px; }
+.settings-group {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--bg-card);
+}
+.settings-group summary.settings-group-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 16px;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--text);
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+  background: var(--bg-card);
+  transition: background var(--transition);
+}
+.settings-group summary.settings-group-title::-webkit-details-marker { display: none; }
+.settings-group summary.settings-group-title::marker { display: none; }
+.settings-group summary.settings-group-title::after {
+  content: '';
+  margin-left: auto;
+  width: 18px; height: 18px; flex-shrink: 0;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236B7280' stroke-width='2.5'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-size: contain; background-repeat: no-repeat; background-position: center;
+  transition: transform 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.settings-group[open] summary.settings-group-title::after { transform: rotate(-180deg); }
+.settings-group summary.settings-group-title:hover { background: var(--bg-2); }
+.settings-group[open] summary.settings-group-title {
+  border-bottom: 1px solid var(--border);
+}
+.settings-group-body {
+  padding: 12px 12px 4px;
+  background: var(--bg-card);
+}
+
 /* ─── Accessibilité : respect du mouvement réduit ─── */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

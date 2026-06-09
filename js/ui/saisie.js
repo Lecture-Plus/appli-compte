@@ -195,7 +195,7 @@ export async function render(container) {
         <div class="form-section-title" style="margin:0;"><span class="section-icon">⚡</span>Imprévus</div>
         <button class="btn btn-sm btn-secondary" id="btn-add-imprevu">+ Ajouter</button>
       </div>
-      <p style="font-size:0.75rem;color:var(--text-3);margin:0 0 6px;">Dépenses non planifiées (panne, urgence…). Les achats exceptionnels (meubles, appareils) se gèrent dans l'onglet <strong>Achats</strong>.</p>
+      <p style="font-size:0.75rem;color:var(--text-3);margin:0 0 6px;">Dépenses non planifiées (panne, urgence…). Pour les achats ponctuels importants (meubles, appareils), utilisez <strong>Ce mois → Charges → Exceptionnels</strong>.</p>
       <div id="imprevu-list"></div>
     </div>
 
