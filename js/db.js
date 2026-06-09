@@ -5,7 +5,7 @@
 import { emit, on } from './events.js';
 
 const DB_NAME    = 'budgetFoyer';
-const DB_VERSION = 6;  // v6 : savings_goals store
+const DB_VERSION = 7;  // v7 : fix savings_goals manquant pour users bloqués à v6
 
 let _db = null;
 
@@ -28,8 +28,18 @@ async function openDB() {
   return new Promise((resolve, reject) => {
     const req = indexedDB.open(DB_NAME, DB_VERSION);
 
-    req.onerror = () => reject(new Error('Impossible d\'ouvrir la base de données locale.'));
-    req.onsuccess = () => { _db = req.result; resolve(_db); };
+    req.onerror   = () => reject(new Error('Impossible d\'ouvrir la base de données locale.'));
+    req.onblocked  = () => {
+      // Une autre connexion bloque la mise à niveau — fermer le cache local
+      console.warn('[DB] Connexion IDB bloquée — rechargez la page.');
+      if (_db) { try { _db.close(); } catch (_) {} _db = null; }
+    };
+    req.onsuccess  = () => {
+      _db = req.result;
+      // Fermer proprement si un autre onglet/SW demande une mise à niveau
+      _db.onversionchange = () => { try { _db.close(); } catch (_) {} _db = null; };
+      resolve(_db);
+    };
 
     req.onupgradeneeded = (e) => {
       const db         = e.target.result;
@@ -109,7 +119,7 @@ async function openDB() {
         db.createObjectStore('salary_abondements', { keyPath: 'id', autoIncrement: true });
       }
 
-      // ── v6 : Objectifs d'épargne multiples ──
+      // ── v6-v7 : Objectifs d'épargne multiples ──
       if (!db.objectStoreNames.contains('savings_goals')) {
         db.createObjectStore('savings_goals', { keyPath: 'id', autoIncrement: true });
       }
