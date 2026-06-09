@@ -1140,6 +1140,7 @@ export function showEditBudgetModal(existing, customBudgets, onSave) {
     const amount = parseFloat(document.getElementById('bgt-amount')?.value) || 0;
     const icon   = document.getElementById('bgt-icon')?.value || '📌';
     if (!name) { showToast('Saisissez un nom', 'error'); return; }
+    if (isNew && amount <= 0) { showToast('Saisissez un montant mensuel', 'error'); return; }
     const updated = isNew ? [...customBudgets, {id:'custom_'+Date.now(), name, icon, amount}]
       : customBudgets.map(b => b.id===existing.id ? {...b, name, icon, amount} : b);
     await setSetting('customBudgets', updated);

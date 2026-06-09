@@ -654,13 +654,12 @@ function _renderPrevTable(container, kpiPrev, kpiReel) {
         ${buildRow('Revenus &amp; Aides', revenusAides)}
         ${(dk.primes?.total??0)>0 ? buildRow('Primes', dk.primes) : ''}
         ${buildRow('Charges', dk.charges)}
-        <tr><td>${isReel?'Courses (confirmé)':'Budget courses'}</td>${uCols?_users.map(u=>`<td style="text-align:right">${eur(dk.courses?.byUser?.[u.id]??0)}</td>`).join(''):''}<td style="text-align:right">${eur(courses)}</td></tr>
-        <tr><td>${isReel?'Loisirs (confirmé)':'Budget loisirs'}</td>${uCols?_users.map(u=>`<td style="text-align:right">${eur(dk.extras?.byUser?.[u.id]??0)}</td>`).join(''):''}<td style="text-align:right">${eur(extras)}</td></tr>
-        ${(dk.achats?.total??0)>0 ? buildRow('Achats exc.', dk.achats) : ''}
-        ${(dk.imprevus?.total??0)>0 ? buildRow('Imprévus', dk.imprevus) : ''}
+        ${courses > 0 ? `<tr><td>${isReel?'Courses (confirmé)':'Budget courses'}</td>${uCols?_users.map(u=>`<td style="text-align:right">${eur(dk.courses?.byUser?.[u.id]??0)}</td>`).join(''):''}<td style="text-align:right">${eur(courses)}</td></tr>` : ''}
+        ${extras > 0 ? `<tr><td>${isReel?'Loisirs (confirmé)':'Budget loisirs'}</td>${uCols?_users.map(u=>`<td style="text-align:right">${eur(dk.extras?.byUser?.[u.id]??0)}</td>`).join(''):''}<td style="text-align:right">${eur(extras)}</td></tr>` : ''}
+        ${buildRow('Achats exc.', dk.achats ?? {total:0,byUser:{}})}
+        ${buildRow('Imprévus', dk.imprevus ?? {total:0,byUser:{}})}
         ${customBudgets.map(b => {
           const spent = _budgetOpsCache.filter(o=>o.category===b.id).reduce((s,o)=>s+(Number(o.amount)||0),0);
-          if (spent===0 && !isReel) return '';
           const uc = uCols ? _users.map(()=>'<td></td>').join('') : '';
           return `<tr><td>${b.icon||'📌'} ${escHtml(b.name)}</td>${uc}<td style="text-align:right">${eur(spent)}</td></tr>`;
         }).join('')}

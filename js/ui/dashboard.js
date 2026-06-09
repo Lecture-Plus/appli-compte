@@ -399,13 +399,12 @@ async function _renderResume(container, s, users) {
             ${bRow('Revenus &amp; Aides', { total:(dk.revenus?.total||0)+(dk.aides?.total||0), byUser: uCols?Object.fromEntries(users.map(u=>[u.id,(dk.revenus?.byUser?.[u.id]??0)+(dk.aides?.byUser?.[u.id]??0)])):{}  })}
             ${(dk.primes?.total??0)>0 ? bRow('Primes', dk.primes) : ''}
             ${bRow('Charges', dk.charges)}
-            <tr><td>${isReel?'Courses (confirmé)':'Budget courses'}</td>${uCols?users.map(u=>`<td style="text-align:right">${eur(dk.courses?.byUser?.[u.id]??0)}</td>`).join(''):''}<td style="text-align:right">${eur(courses)}</td></tr>
-            <tr><td>${isReel?'Loisirs (confirmé)':'Budget loisirs'}</td>${uCols?users.map(u=>`<td style="text-align:right">${eur(dk.extras?.byUser?.[u.id]??0)}</td>`).join(''):''}<td style="text-align:right">${eur(extras)}</td></tr>
-            ${(dk.achats?.total??0)>0 ? bRow('Achats exc.', dk.achats) : ''}
-            ${(dk.imprevus?.total??0)>0 ? bRow('Imprévus', dk.imprevus) : ''}
+            ${courses > 0 ? `<tr><td>${isReel?'Courses (confirmé)':'Budget courses'}</td>${uCols?users.map(u=>`<td style="text-align:right">${eur(dk.courses?.byUser?.[u.id]??0)}</td>`).join(''):''}<td style="text-align:right">${eur(courses)}</td></tr>` : ''}
+            ${extras > 0 ? `<tr><td>${isReel?'Loisirs (confirmé)':'Budget loisirs'}</td>${uCols?users.map(u=>`<td style="text-align:right">${eur(dk.extras?.byUser?.[u.id]??0)}</td>`).join(''):''}<td style="text-align:right">${eur(extras)}</td></tr>` : ''}
+            ${bRow('Achats exc.', dk.achats ?? {total:0,byUser:{}})}
+            ${bRow('Imprévus', dk.imprevus ?? {total:0,byUser:{}})}
             ${customBudgets.map(b => {
               const spent = allBudgetOps.filter(o=>o.category===b.id).reduce((s,o)=>s+(Number(o.amount)||0),0);
-              if (!spent && !isReel) return '';
               return `<tr><td>${b.icon||'📌'} ${escHtml(b.name)}</td>${uCols?users.map(()=>'<td></td>').join(''):''}<td style="text-align:right">${eur(spent)}</td></tr>`;
             }).join('')}
           </tbody>
@@ -562,13 +561,12 @@ async function _renderResume(container, s, users) {
             ${bRow('Revenus &amp; Aides', { total:(dk.revenus?.total||0)+(dk.aides?.total||0), byUser: uCols?Object.fromEntries(users.map(u=>[u.id,(dk.revenus?.byUser?.[u.id]??0)+(dk.aides?.byUser?.[u.id]??0)])):{}  })}
             ${(dk.primes?.total??0)>0 ? bRow('Primes', dk.primes) : ''}
             ${bRow('Charges', dk.charges)}
-            <tr><td>${isReel?'Courses (confirmé)':'Budget courses'}</td>${uCols?users.map(u=>`<td style="text-align:right">${eur(dk.courses?.byUser?.[u.id]??0)}</td>`).join(''):''}<td style="text-align:right">${eur(courses)}</td></tr>
-            <tr><td>${isReel?'Loisirs (confirmé)':'Budget loisirs'}</td>${uCols?users.map(u=>`<td style="text-align:right">${eur(dk.extras?.byUser?.[u.id]??0)}</td>`).join(''):''}<td style="text-align:right">${eur(extras)}</td></tr>
-            ${(dk.achats?.total??0)>0 ? bRow('Achats exc.', dk.achats) : ''}
-            ${(dk.imprevus?.total??0)>0 ? bRow('Imprévus', dk.imprevus) : ''}
+            ${courses > 0 ? `<tr><td>${isReel?'Courses (confirmé)':'Budget courses'}</td>${uCols?users.map(u=>`<td style="text-align:right">${eur(dk.courses?.byUser?.[u.id]??0)}</td>`).join(''):''}<td style="text-align:right">${eur(courses)}</td></tr>` : ''}
+            ${extras > 0 ? `<tr><td>${isReel?'Loisirs (confirmé)':'Budget loisirs'}</td>${uCols?users.map(u=>`<td style="text-align:right">${eur(dk.extras?.byUser?.[u.id]??0)}</td>`).join(''):''}<td style="text-align:right">${eur(extras)}</td></tr>` : ''}
+            ${bRow('Achats exc.', dk.achats ?? {total:0,byUser:{}})}
+            ${bRow('Imprévus', dk.imprevus ?? {total:0,byUser:{}})}
             ${customBudgets.map(b => {
               const spent = allBudgetOps.filter(o=>o.category===b.id).reduce((s,o)=>s+(Number(o.amount)||0),0);
-              if (!spent && !isReel) return '';
               return `<tr><td>${b.icon||'📌'} ${escHtml(b.name)}</td>${uCols?users.map(()=>'<td></td>').join(''):''}<td style="text-align:right">${eur(spent)}</td></tr>`;
             }).join('')}
           </tbody>

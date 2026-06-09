@@ -338,13 +338,12 @@ async function _renderDetailTab(container, year, month, users) {
         ${(dk.aides?.total ?? 0) > 0 ? buildRow('Aides', dk.aides) : ''}
         ${buildRow('Primes', dk.primes)}
         ${buildRow('Charges', dk.charges)}
-        <tr><td>${isReel ? 'Courses (confirmé)' : 'Budget courses'}</td>${users.map(u => `<td style="text-align:right">${eur(dk.courses.byUser?.[u.id] ?? 0)}</td>`).join('')}<td style="text-align:right">${eur(courses)}</td></tr>
-        <tr><td>${isReel ? 'Loisirs (confirmé)' : 'Budget loisirs'}</td>${users.map(u => `<td style="text-align:right">${eur(dk.extras.byUser?.[u.id] ?? 0)}</td>`).join('')}<td style="text-align:right">${eur(extras)}</td></tr>
-        ${buildRow('Achats exc.', dk.achats)}
-        ${buildRow('Imprévus', dk.imprevus)}
+        ${courses > 0 ? `<tr><td>${isReel ? 'Courses (confirmé)' : 'Budget courses'}</td>${users.map(u => `<td style="text-align:right">${eur(dk.courses.byUser?.[u.id] ?? 0)}</td>`).join('')}<td style="text-align:right">${eur(courses)}</td></tr>` : ''}
+        ${extras > 0 ? `<tr><td>${isReel ? 'Loisirs (confirmé)' : 'Budget loisirs'}</td>${users.map(u => `<td style="text-align:right">${eur(dk.extras.byUser?.[u.id] ?? 0)}</td>`).join('')}<td style="text-align:right">${eur(extras)}</td></tr>` : ''}
+        ${buildRow('Achats exc.', dk.achats ?? {total:0,byUser:{}})}
+        ${buildRow('Imprévus', dk.imprevus ?? {total:0,byUser:{}})}
         ${(settings.customBudgets || []).map(b => {
           const spent = budgetOps.filter(o => o.category === b.id).reduce((s, o) => s + (Number(o.amount) || 0), 0);
-          if (spent === 0 && !isReel) return '';
           const label = `${b.icon || '📌'} ${b.name}`;
           return `<tr><td>${escHtml(label)}</td>${users.map(() => '<td></td>').join('')}<td style="text-align:right">${eur(spent)}</td></tr>`;
         }).join('')}
