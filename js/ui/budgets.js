@@ -162,14 +162,14 @@ function _buildCategorySection({ id, icon, title, budget, spent, ops, users, hin
   const color     = pctUsed >= 100 ? 'danger' : pctUsed >= 80 ? 'warning' : 'success';
   const sortedOps = [...ops].sort((a, b) => (b.day || 0) - (a.day || 0));
 
-  const editBtn = (id !== 'courses' && id !== 'extras') ? `
+  const editBtn = `
     <button class="btn-icon" data-edit-budget="${id}" title="Modifier ce budget"
       style="width:28px;height:28px;color:var(--text-3);margin-right:4px;">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13">
         <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
         <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4z"/>
       </svg>
-    </button>` : '';
+    </button>`;
 
   return `
     <div class="card" style="margin-bottom:12px;">
@@ -331,10 +331,7 @@ function _showEditBudgetModal(existing, customBudgets, onSave) {
     { name: 'Cinéma',     icon: '🎬' },
     { name: 'Voyage',     icon: '✈️' },
   ];
-  const existingNames = (customBudgets || []).map(b => b.name.toLowerCase());
-  const availablePresets = isNew
-    ? PRESET_BUDGETS.filter(p => !existingNames.includes(p.name.toLowerCase()))
-    : [];
+  const availablePresets = isNew ? PRESET_BUDGETS : [];
 
   const presetsPlaceholder = availablePresets.length > 0
     ? `<div style="margin-bottom:14px;">
@@ -421,7 +418,7 @@ function _showEditBudgetModal(existing, customBudgets, onSave) {
     await setSetting('customBudgets', updated);
     closeModal();
     showToast('Budget supprimé', 'success');
-    onSave();
+    await onSave();
   });
 
   // Sauvegarder
@@ -443,7 +440,7 @@ function _showEditBudgetModal(existing, customBudgets, onSave) {
     await setSetting('customBudgets', updated);
     closeModal();
     showToast(isNew ? `Budget "${name}" créé ✅` : 'Budget mis à jour ✅', 'success');
-    onSave();
+    await onSave();
   });
 }
 
@@ -498,7 +495,7 @@ function _showManageBudgetsModal(customBudgets, onSave) {
       await setSetting('customBudgets', updated);
       closeModal();
       showToast('Budget supprimé', 'success');
-      onSave();
+      await onSave();
     });
   });
 }
