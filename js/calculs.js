@@ -7,6 +7,27 @@
 // js/calculs.js – Logique de calcul budget (multi-utilisateurs)
 // ============================================================
 
+import { on } from './events.js';
+
+/* ── Mémoïsation ─────────────────────────────────────── */
+const _calcCache = new Map();
+const _MAX_CACHE = 120; // ~10 pages × 12 mois
+// Invalider à chaque écriture IDB
+on('db:write', () => _calcCache.clear());
+
+function _memoKey(monthData, charges, achats, repartCfg, users, budgetOps) {
+  try {
+    return JSON.stringify([
+      monthData?.users,
+      (charges ||[]).map(c => [c.id, c.amount, c.qui, c.perso, c.splitPcts]),
+      (achats  ||[]).map(a => [a.id, a.amount, a.qui, a.craquage_source]),
+      repartCfg?.mode, repartCfg?.pcts, repartCfg?.aidesRepartition,
+      (users   ||[]).map(u => u.id),
+      budgetOps ? (budgetOps||[]).map(b => [b.id, b.amount, b.category, b.userId]) : null,
+    ]);
+  } catch { return null; }
+}
+
 /* ── Utilitaires internes ── */
 const _sum  = obj => Object.values(obj).reduce((s, v) => s + (Number(v) || 0), 0);
 const _mk   = uids => Object.fromEntries(uids.map(uid => [uid, 0]));
@@ -37,6 +58,8 @@ const _uid  = id   => String(id);
  * ─────────────────────────────────────────────────────────────
  */
 export function calcMonth(monthData, charges, achats, repartCfg, users, budgetOps = null) {
+  const _key = _memoKey(monthData, charges, achats, repartCfg, users, budgetOps);
+  if (_key && _calcCache.has(_key)) return _calcCache.get(_key);
   const uids = (users || []).map(u => _uid(u.id));
   const N    = uids.length || 1;
   const mode = N <= 1 ? 'solo' : (repartCfg?.mode || 'separe');
@@ -234,7 +257,7 @@ export function calcMonth(monthData, charges, achats, repartCfg, users, budgetOp
 
   const mkKPI = map => ({ total: _sum(map), byUser: { ...map } });
 
-  return {
+  const _result = {
     revenus:      mkKPI(revU),
     primes:       mkKPI(priU),
     aides:        mkKPI(aidesU),
@@ -253,6 +276,12 @@ export function calcMonth(monthData, charges, achats, repartCfg, users, budgetOp
     txEcoPossible:{ total: txEcoTotal, byUser: { ...txEcoU } },
     _meta: { mode, N, totalSharedChg, totalSharedAch, totalCrs },
   };
+
+  if (_key) {
+    if (_calcCache.size >= _MAX_CACHE) _calcCache.delete(_calcCache.keys().next().value);
+    _calcCache.set(_key, _result);
+  }
+  return _result;
 }
 
 /**

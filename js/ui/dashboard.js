@@ -23,6 +23,35 @@ import { showEditBudgetModal }                            from './charges.js';
 let _activeTab = 'resume';
 let _detailMode = 'reel'; // 'reel' | 'previsionnel'
 
+// ── Phrase narrative contextuelle (1 ligne) ──
+function _buildNarrative(kpi, s, daysLeft, isCurrentMonth) {
+  const parts = [];
+  const tx = kpi.txEpargne?.total ?? 0;
+  const solde = kpi.solde.total;
+
+  if (isCurrentMonth && daysLeft > 0 && solde !== 0) {
+    const daily = solde / daysLeft;
+    if (daily >= 0) {
+      parts.push(`<strong style="color:var(--success);">${eur(daily)}/j</strong> à conserver sur ${daysLeft} j`);
+    } else {
+      parts.push(`<strong style="color:var(--danger);">Budget dépassé</strong> de ${eur(Math.abs(solde))}`);
+    }
+  }
+
+  const cibles = s.budgetCibles || {};
+  const budgC  = Number(cibles.courses) || 0;
+  if (budgC > 0 && kpi.courses.total > budgC * 0.8) {
+    const over = kpi.courses.total > budgC;
+    parts.push(`<span style="color:var(--${over ? 'danger' : 'warning'});">Courses à ${Math.round(kpi.courses.total / budgC * 100)} %</span>`);
+  }
+
+  if (tx >= 0.15)      parts.push(`<span style="color:var(--success);">\uD83D\uDFE2 Ép. ${pct(tx, 0)}</span>`);
+  else if (tx >= 0.05) parts.push(`<span style="color:var(--warning);">\uD83D\uDFE1 Ép. ${pct(tx, 0)}</span>`);
+  else if (tx < 0)     parts.push(`<span style="color:var(--danger);">\uD83D\uDD34 Déficit</span>`);
+
+  return parts.join(' · ');
+}
+
 export async function render(container) {
   const [s, users] = await Promise.all([getAllSettings(), getActiveUsers()]);
   const { year, month } = State;
@@ -268,13 +297,12 @@ async function _renderResume(container, s, users) {
             <span style="color:var(--text-3);"> · </span>
             <span style="color:var(--danger);">${eur(kpi.depenses.total)} dépensés</span>
           </div>
-          ${users.length > 1 ? `<div style="font-size:0.67rem;color:var(--text-3);margin-top:3px;">${users.map(u => `${escHtml(u.name)}: ${eur(kpi.solde.byUser?.[u.id] ?? 0)}`).join(' · ')}</div>` : ''}
-          <div style="margin-top:8px;padding:8px 10px;background:var(--bg-2);border-radius:8px;display:flex;justify-content:space-between;align-items:center;">
+          ${users.length > 1 ? `<div style="font-size:0.67rem;color:var(--text-3);margin-top:3px;">${users.map(u => `${escHtml(u.name)}: ${eur(kpi.solde.byUser?.[u.id] ?? 0)}`).join(' · ')}</div>` : ''}          ${(()=>{ const n = _buildNarrative(kpi, s, _daysLeft, _isCurrentMonth); return n ? `<div style="margin-top:7px;font-size:0.74rem;color:var(--text-2);line-height:1.5;">${n}</div>` : ''; })()}          <div style="margin-top:8px;padding:8px 10px;background:var(--bg-2);border-radius:8px;display:flex;justify-content:space-between;align-items:center;">
             <span style="font-size:0.68rem;color:var(--text-3);">${_dailyLabel} <span title="(Solde − Objectif mensuel) ÷ Jours restants. Vert ≥ 30 €/j, orange ≥ 0, rouge < 0." style="cursor:help;color:var(--primary);font-size:0.9em;">ⓘ</span></span>
             <span style="font-size:1.05rem;font-weight:800;color:${_dailyColor};">${eur(_dailyBudg)}<span style="font-size:0.62rem;font-weight:400;color:var(--text-3);">/j</span></span>
           </div>
         </div>
-        <div style="display:flex;flex-direction:column;align-items:center;gap:2px;flex-shrink:0;" title="Score budgétaire : Taux d'épargne (${_txPts}/40 pts) + Solde positif (${_soldePts}/20 pts) + Budget courses (${_cPts}/20 pts) + Budget loisirs (${_ePts}/20 pts)">
+        <div id="dash-score-area" style="display:flex;flex-direction:column;align-items:center;gap:2px;flex-shrink:0;cursor:pointer;" title="Score budgétaire (épargne, solde, courses, loisirs) — Cliquer pour le détail">
           <svg width="58" height="58" viewBox="0 0 56 56" style="overflow:visible;cursor:help;">
             <circle cx="28" cy="28" r="${sR}" stroke-width="5" fill="none" stroke="var(--bg-2)"/>
             <circle cx="28" cy="28" r="${sR}" stroke-width="5" fill="none"
@@ -292,12 +320,15 @@ async function _renderResume(container, s, users) {
       </div>
     </div>
 
-    <!-- ── Actions rapides ── -->
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:6px;margin-bottom:8px;">
-      <button class="btn btn-primary" id="btn-go-saisie" style="font-size:0.75rem;padding:10px 2px;">✏️ Saisir</button>
-      <button class="btn btn-outline" id="btn-go-budgets" style="font-size:0.75rem;padding:10px 2px;">📊 Budgets</button>
-      <button class="btn btn-secondary" id="btn-go-savings" style="font-size:0.75rem;padding:10px 2px;">💰 Épargne</button>
-      <button class="btn btn-danger" id="btn-go-craquage" style="font-size:0.75rem;padding:10px 2px;">💥 Craquage</button>
+    <!-- ── CTAs adaptatifs ── -->
+    <div id="dash-cta-area" style="margin-bottom:8px;">
+      ${status === 'empty'
+        ? `<button class="btn btn-primary btn-full" id="btn-go-saisie" style="font-size:0.88rem;padding:13px;border-radius:var(--radius);">✏️ Saisir les données de ${nomMois(month)}</button>`
+        : `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+            <button class="btn ${status === 'partial' ? 'btn-primary' : 'btn-outline'}" id="btn-go-saisie" style="font-size:0.82rem;padding:11px;">✏️ ${status === 'partial' ? 'Compléter' : 'Modifier'}</button>
+            <button class="btn btn-outline" id="btn-go-craquage" style="font-size:0.82rem;padding:11px;">💥 Craquage</button>
+          </div>`
+      }
     </div>
 
     <!-- ── Suivi budgets épinglés ── -->
@@ -407,6 +438,38 @@ async function _renderResume(container, s, users) {
     if (arc) arc.style.strokeDashoffset = sOffset.toFixed(2);
   }));
 
+  // ── Score : clic → modal de détail ──
+  el.querySelector('#dash-score-area')?.addEventListener('click', () => {
+    const rows = [
+      { label: 'Taux d\'épargne', pts: _txPts, max: 40, hint: _tx >= 0.15 ? 'Excellent !' : _tx >= 0.05 ? 'Bien — viser 15 %' : 'Mettre de côté au moins 5 % des revenus' },
+      { label: 'Solde positif',   pts: _soldePts, max: 20, hint: kpi.solde.total >= 0 ? 'Solde positif ✓' : 'Réduire les dépenses ou augmenter les revenus' },
+      { label: 'Budget courses',  pts: _cPts, max: 20, hint: _budgC > 0 ? (_cPts === 20 ? 'Dans le budget ✓' : `Dépasser de ${eur(kpi.courses.total - _budgC)} — définir un budget courses plus réaliste`) : 'Définir un budget courses dans Réglages' },
+      { label: 'Budget loisirs',  pts: _ePts, max: 20, hint: _budgE > 0 ? (_ePts === 20 ? 'Dans le budget ✓' : `Dépasser de ${eur(kpi.extras.total - _budgE)} — surveiller les extras`) : 'Définir un budget loisirs dans Réglages' },
+    ];
+    const worstRow = [...rows].sort((a, b) => (a.pts / a.max) - (b.pts / b.max))[0];
+    openModal(`🎯 Score budgétaire — ${score}/100`,
+      `<div style="font-size:0.85rem;line-height:1.6;margin-bottom:16px;">
+        <div style="display:flex;align-items:center;gap:10px;padding:12px;background:var(--bg-2);border-radius:var(--radius);margin-bottom:12px;">
+          <svg width="44" height="44" viewBox="0 0 56 56"><circle cx="28" cy="28" r="22" stroke-width="5" fill="none" stroke="var(--border)"/><circle cx="28" cy="28" r="22" stroke-width="5" fill="none" stroke="${scoreHex}" stroke-dasharray="${sCirc.toFixed(2)}" stroke-dashoffset="${(sCirc - (score / 100) * sCirc).toFixed(2)}" stroke-linecap="round" transform="rotate(-90 28 28)"/><text x="28" y="33" text-anchor="middle" fill="${scoreHex}" style="font-family:Inter,sans-serif;font-size:13px;font-weight:900;">${score}</text></svg>
+          <div><div style="font-weight:800;font-size:1.1rem;color:${scoreHex};">${score >= 75 ? 'Excellent' : score >= 50 ? 'Bien' : score >= 25 ? 'À améliorer' : 'Attention'}</div><div style="font-size:0.75rem;color:var(--text-3);">Score global du mois</div></div>
+        </div>
+        ${rows.map(r => `
+          <div style="margin-bottom:10px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+              <span style="font-size:0.82rem;font-weight:600;">${r.label}</span>
+              <span style="font-size:0.82rem;font-weight:800;color:${r.pts === r.max ? 'var(--success)' : r.pts > 0 ? 'var(--warning)' : 'var(--danger)'};">${r.pts}/${r.max}</span>
+            </div>
+            <div style="height:6px;background:var(--bg-2);border-radius:99px;overflow:hidden;">
+              <div style="height:100%;width:${Math.round(r.pts/r.max*100)}%;background:${r.pts === r.max ? 'var(--success)' : r.pts > 0 ? 'var(--warning)' : 'var(--danger)'};border-radius:99px;transition:width .4s;"></div>
+            </div>
+            <div style="font-size:0.72rem;color:var(--text-3);margin-top:3px;">${r.hint}</div>
+          </div>`).join('')}
+        ${score < 100 ? `<div style="background:var(--primary-bg);border-radius:var(--radius);padding:12px;margin-top:4px;font-size:0.8rem;"><strong>💡 Priorité :</strong> ${worstRow.hint}</div>` : ''}
+      </div>`,
+      `<button class="btn btn-primary" onclick="document.getElementById('modal-close').click()">OK</button>`
+    );
+  });
+
   // ── Toggle détail ──
   let _detailOpen = false;
   el.querySelector('#btn-toggle-detail')?.addEventListener('click', () => {
@@ -438,8 +501,6 @@ async function _renderResume(container, s, users) {
   });
 
   el.querySelector('#btn-go-saisie')?.addEventListener('click', () => navigateTo('argent', { tab: 'saisir' }));
-  el.querySelector('#btn-go-budgets')?.addEventListener('click', () => navigateTo('argent', { tab: 'budgets' }));
-  el.querySelector('#btn-go-savings')?.addEventListener('click', () => navigateTo('argent', { tab: 'epargne' }));
   el.querySelector('#btn-go-craquage')?.addEventListener('click', () => {
     showCraquageModal(null, month, year, users, async () => {
       await _renderResume(container, s, users);

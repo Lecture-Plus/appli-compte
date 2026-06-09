@@ -45,6 +45,14 @@
   --header-h:  56px;
   --nav-h:     70px;
   --transition: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* ─── Typography scale (use these tokens instead of raw rem values) ─── */
+  --text-xs:   0.72rem;   /* labels, hints, meta */
+  --text-sm:   0.82rem;   /* corps secondaire */
+  --text-base: 1rem;      /* corps principal */
+  --text-lg:   1.1rem;    /* titres cartes */
+  --text-xl:   1.75rem;   /* montants hero */
+  --text-2xl:  2.2rem;    /* hero amount principal */
 }
 
 @media (prefers-color-scheme: dark) {
@@ -53,6 +61,8 @@
     --bg-card:   #131320;
     --bg-2:      #1C1C2C;
     --bg-input:  #1C1C2C;
+    /* primary-light adapté au fond sombre (fond tinté, pas clair trop vif) */
+    --primary-light: rgba(124, 92, 252, 0.22);
     --bg-nav:    rgba(12, 12, 26, 0.90);
     --bg-header: rgba(12, 12, 26, 0.90);
     --text:   #F0EEF8;
@@ -70,6 +80,8 @@
   --bg-card:   #131320;
   --bg-2:      #1C1C2C;
   --bg-input:  #1C1C2C;
+  /* primary-light : tint au lieu du violet vif en fond sombre */
+  --primary-light: rgba(124, 92, 252, 0.22);
   --bg-nav:    rgba(12, 12, 26, 0.90);
   --bg-header: rgba(12, 12, 26, 0.90);
   --text:   #F0EEF8;
@@ -163,13 +175,13 @@ svg { display: block; }
 #bottom-nav.nav-hidden { transform: translateY(100%); }
 .nav-item {
   flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: 3px; padding: 10px 4px 12px;
+  gap: 3px; padding: 10px 2px 12px;
   color: var(--text-3);
   transition: color var(--transition);
   border-radius: var(--radius); position: relative;
 }
-.nav-item svg { width: 22px; height: 22px; transition: transform 0.28s cubic-bezier(0.34,1.56,0.64,1); }
-.nav-item span { font-size: 0.62rem; font-weight: 500; letter-spacing: 0.01em; transition: all var(--transition); }
+.nav-item svg { width: 20px; height: 20px; transition: transform 0.28s cubic-bezier(0.34,1.56,0.64,1); }
+.nav-item span { font-size: 0.58rem; font-weight: 500; letter-spacing: 0.01em; transition: all var(--transition); }
 .nav-item.active { color: var(--primary); }
 .nav-item.active svg { transform: scale(1.12) translateY(-1px); }
 .nav-item.active span { font-weight: 800; }
@@ -696,3 +708,21 @@ svg { display: block; }
 .insight-icon { font-size:1.2rem; line-height:1; flex-shrink:0; }
 .insight-text { font-size:0.82rem; font-weight:600; color:var(--text-2); line-height:1.45; }
 .insight-text strong { color:var(--text); }
+
+/* ─── Accessibilité : respect du mouvement réduit ─── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration:   0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration:  0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  #app-content { scroll-behavior: auto; }
+}
+
+/* ─── Impression ─── */
+@media print {
+  #bottom-nav, #app-header, #fab-quick, #toast, #modal-overlay { display:none !important; }
+  #app-content { overflow: visible !important; }
+  .hero-card { box-shadow: none !important; }
+}

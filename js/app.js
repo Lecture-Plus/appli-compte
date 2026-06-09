@@ -317,10 +317,12 @@ async function init() {
   if (fab) {
     fab.style.display = 'flex';
     fab.addEventListener('click', () => navigateTo('argent', { tab: 'saisir' }));
-    // Cacher sur la page argent (la saisie est déjà là)
+    // Cacher sur les pages où la saisie rapide est hors sujet
+    const _fabHiddenPages = new Set(['argent', 'settings']);
     const _updateFab = () => {
-      fab.style.opacity  = State.page === 'argent' ? '0' : '1';
-      fab.style.pointerEvents = State.page === 'argent' ? 'none' : '';
+      const hide = _fabHiddenPages.has(State.page);
+      fab.style.opacity  = hide ? '0' : '1';
+      fab.style.pointerEvents = hide ? 'none' : '';
     };
     // patch navigateTo pour mettre à jour le FAB
     const _origNav = navigateTo;
@@ -410,8 +412,11 @@ async function init() {
   // Auto-save Drive toutes les 2 minutes si actif
   startAutoSave();
 
-  // ── Drive warning banner ──
+  // ── Drive warning banner (seulement après le 3e lancement) ──
   State.settings = await getAllSettings(); // refresh after initDriveSync
+  const _lc = (Number(State.settings.appLaunchCount) || 0) + 1;
+  await setSetting('appLaunchCount', _lc);
+  State.settings.appLaunchCount = _lc;
   showDriveWarningBanner(State.settings);
 
   // ── First-run: "Qui utilise cet appareil ?" ──
@@ -494,6 +499,8 @@ let _driveBannerDismissed = false;
 function showDriveWarningBanner(s) {
   if (s[DRIVE_URL_KEY] && isValidDriveUrl(s[DRIVE_URL_KEY])) return;
   if (_driveBannerDismissed) return;
+  // N'afficher qu'à partir du 3e lancement pour ne pas surcharger les nouveaux
+  if ((Number(s.appLaunchCount) || 0) < 3) return;
 
   document.getElementById('drive-banner')?.remove();
 
