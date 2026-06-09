@@ -283,10 +283,7 @@ async function _renderResume(container, s, users) {
             <span style="color:var(--text-3);"> · </span>
             <span style="color:var(--danger);">${eur(kpi.depenses.total)} dépensés</span>
           </div>
-          ${users.length > 1 ? `<div style="font-size:0.67rem;color:var(--text-3);margin-top:3px;">${users.map(u => `${escHtml(u.name)}: ${eur(kpi.solde.byUser?.[u.id] ?? 0)}`).join(' · ')}</div>` : ''}          ${(()=>{ const n = _buildNarrative(kpi, s, _daysLeft, _isCurrentMonth); return n ? `<div style="margin-top:7px;font-size:0.74rem;color:var(--text-2);line-height:1.5;">${n}</div>` : ''; })()}          <div style="margin-top:8px;padding:8px 10px;background:var(--bg-2);border-radius:8px;display:flex;justify-content:space-between;align-items:center;">
-            <span style="font-size:0.68rem;color:var(--text-3);">${_dailyLabel} <span title="(Solde − Objectif mensuel) ÷ Jours restants. Vert ≥ 30 €/j, orange ≥ 0, rouge < 0." style="cursor:help;color:var(--primary);font-size:0.9em;">ⓘ</span></span>
-            <span style="font-size:1.05rem;font-weight:800;color:${_dailyColor};">${eur(_dailyBudg)}<span style="font-size:0.62rem;font-weight:400;color:var(--text-3);">/j</span></span>
-          </div>
+          ${users.length > 1 ? `<div style="font-size:0.67rem;color:var(--text-3);margin-top:3px;">${users.map(u => `${escHtml(u.name)}: ${eur(kpi.solde.byUser?.[u.id] ?? 0)}`).join(' · ')}</div>` : ''}          ${(()=>{ const n = _buildNarrative(kpi, s, _daysLeft, _isCurrentMonth); return n ? `<div style="margin-top:7px;font-size:0.74rem;color:var(--text-2);line-height:1.5;">${n}</div>` : ''; })()}
         </div>
         <div id="dash-score-area" style="display:flex;flex-direction:column;align-items:center;gap:2px;flex-shrink:0;cursor:pointer;" title="Score budgétaire (épargne, solde, courses, loisirs) — Cliquer pour le détail">
           <svg width="58" height="58" viewBox="0 0 56 56" style="overflow:visible;cursor:help;">
@@ -310,7 +307,7 @@ async function _renderResume(container, s, users) {
     <div id="dash-cta-area" style="margin-bottom:8px;">
       ${status === 'empty'
         ? `<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
-            <button class="btn btn-primary" id="btn-go-saisie" style="font-size:0.82rem;padding:11px;">✏️ Saisir ${nomMois(month)}</button>
+            <button class="btn btn-primary" id="btn-go-saisie" style="font-size:0.82rem;padding:11px;">✏️ Compléter la saisie mensuelle</button>
             <button class="btn btn-outline" id="btn-go-craquage" style="font-size:0.82rem;padding:11px;">💥 Craquage</button>
             <button class="btn btn-outline" id="btn-add-achat" style="font-size:0.82rem;padding:11px;">💳 Dépense</button>
           </div>`
@@ -329,7 +326,7 @@ async function _renderResume(container, s, users) {
 
     <!-- ── Suivi budgets épinglés ── -->
     ${(() => {
-      const availableToPinIds = ['courses','extras',...customBudgets.map(b=>b.id)].filter(id=>!pinnedBudgets.includes(id));
+      const availableToPinIds = customBudgets.map(b=>b.id).filter(id=>!pinnedBudgets.includes(id));
       const canAddMore = pinnedCards.length < 4 && availableToPinIds.length > 0;
       const allItems = [...pinnedCards, ...(canAddMore ? [{ type:'add' }] : [])];
       if (!allItems.length) return '<div style="margin-bottom:12px;"></div>';
@@ -360,31 +357,6 @@ async function _renderResume(container, s, users) {
         }).join('')}
       </div>`;
     })()}
-
-    <!-- ── Répartition du mois (multi-user) ── -->
-    ${users.length >= 2 ? `
-    <div class="card" style="margin-bottom:12px;">
-      <div class="card-header">
-        <span>⚖️ Répartition ${nomMois(month)}</span>
-        <span style="font-size:0.65rem;color:var(--text-3);">Prévisionnel</span>
-      </div>
-      <div style="display:grid;gap:8px;margin-bottom:10px;">
-        ${users.map(u => {
-          const aPayer = kpiPrev.aPayer.byUser?.[u.id] ?? 0;
-          return `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:var(--bg-2);border-radius:var(--radius-sm);">
-            <div style="display:flex;align-items:center;gap:8px;">
-              <span style="width:9px;height:9px;border-radius:50%;background:${escHtml(u.color||'#6C63FF')};display:inline-block;"></span>
-              <span style="font-size:0.88rem;font-weight:600;">${escHtml(u.name)}</span>
-            </div>
-            <div style="text-align:right;">
-              <div style="font-size:1rem;font-weight:800;color:var(--primary);">${eur(aPayer)}</div>
-              <div style="font-size:0.62rem;color:var(--text-3);">à envoyer ce mois</div>
-            </div>
-          </div>`;
-        }).join('')}
-      </div>
-      <button class="btn btn-outline btn-full" style="font-size:0.78rem;" id="btn-go-analyse-detail">Voir le détail dans Historique →</button>
-    </div>` : ''}
 
     <!-- ── Détail mensuel (accordéon) ── -->
     ${(() => {
@@ -591,14 +563,27 @@ async function _renderResume(container, s, users) {
 }
 // ── Modal : épingler un budget ──
 function _showPinBudgetModal(currentPinned, customBudgets, onPin) {
-  const available = [
-    { id: 'courses', icon: '🛒', label: 'Courses' },
-    { id: 'extras',  icon: '🎉', label: 'Loisirs' },
-    ...(customBudgets || []).map(b => ({ id: b.id, icon: b.icon || '📌', label: b.name })),
-  ].filter(b => !currentPinned.includes(b.id));
+  const available = (customBudgets || [])
+    .map(b => ({ id: b.id, icon: b.icon || '📌', label: b.name }))
+    .filter(b => !currentPinned.includes(b.id));
+
+  if (!customBudgets || customBudgets.length === 0) {
+    openModal('📌 Épingler un budget',
+      `<div style="text-align:center;padding:20px 0;">
+        <div style="font-size:2rem;margin-bottom:8px;">📌</div>
+        <p style="font-size:0.84rem;color:var(--text-3);margin-bottom:4px;">Aucun budget créé pour le moment.</p>
+        <p style="font-size:0.78rem;color:var(--text-3);">Créez un budget dans <strong>Ce mois → Budgets</strong> pour pouvoir l'épingler ici.</p>
+        <button class="btn btn-primary" style="margin-top:16px;width:100%;" id="pin-go-budgets">⭐ Créer un budget</button>
+      </div>`,
+      `<button class="btn btn-outline" id="pin-modal-cancel">Fermer</button>`
+    );
+    document.getElementById('pin-modal-cancel')?.addEventListener('click', closeModal);
+    document.getElementById('pin-go-budgets')?.addEventListener('click', () => { closeModal(); navigateTo('argent', { tab: 'budgets' }); });
+    return;
+  }
 
   if (!available.length) {
-    showToast('Tous les budgets disponibles sont déjà épinglés', 'warning');
+    showToast('Tous les budgets sont déjà épinglés', 'warning');
     return;
   }
   openModal('📌 Épingler un budget',

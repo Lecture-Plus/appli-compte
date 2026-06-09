@@ -1258,10 +1258,11 @@ function _showManageBudgetsModal(customBudgets, onSave, users = []) {
   });
 }
 
-export function showAchatModal(achat, onSave) {
+export async function showAchatModal(achat, onSave) {
+  if (!_users.length) _users = await getActiveUsers();
   const now = new Date();
   const isNew = !achat;
-  const a = achat ?? { year: State.year, month: State.month, day: now.getDate(), label: '', category: 'loisirs', amount: 0, qui: 'shared' };
+  const a = achat ?? { year: State.year, month: State.month, day: now.getDate(), label: '', category: 'loisirs', amount: 0 };
 
   const catOptions = CATEGORIES.map(cat =>
     `<option value="${cat.id}" ${a.category === cat.id ? 'selected' : ''}>${cat.emoji} ${cat.label}</option>`
@@ -1292,8 +1293,11 @@ export function showAchatModal(achat, onSave) {
     <div class="form-group" style="margin-bottom:10px;">
       <label class="form-label">Qui paie ?</label>
       <select class="form-select" id="a-qui">
-        ${_users.length > 1 ? `<option value="shared" ${a.qui === 'shared' ? 'selected' : ''}>🤝 Partagé (tous)</option>` : ''}
-        ${_users.map(u => `<option value="${u.id}" ${_users.length === 1 ? 'selected' : String(a.qui) === String(u.id) ? 'selected' : ''}>${escHtml(u.name)}</option>`).join('')}
+        ${_users.length > 1 ? `
+          ${isNew ? `<option value="" disabled selected>— Sélectionner qui paie —</option>` : ''}
+          <option value="shared" ${!isNew && a.qui === 'shared' ? 'selected' : ''}>🤝 Partagé (tous)</option>
+          ${_users.map(u => `<option value="${u.id}" ${!isNew && String(a.qui) === String(u.id) ? 'selected' : ''}>${escHtml(u.name)}</option>`).join('')}
+        ` : _users.map(u => `<option value="${u.id}" selected>${escHtml(u.name)}</option>`).join('')}
       </select>
     </div>
     ${_users.length > 1 ? `
@@ -1365,6 +1369,7 @@ export function showAchatModal(achat, onSave) {
     const label = document.getElementById('a-label')?.value.trim();
     if (!label) { showToast('Le libellé est requis', 'error'); return; }
     const quiRaw = document.getElementById('a-qui')?.value;
+    if (!quiRaw) { showToast('Veuillez sélectionner qui paie', 'error'); return; }
     const qui    = quiRaw === 'shared' ? 'shared' : Number(quiRaw);
     const splitInputs = document.querySelectorAll('.a-split-pct');
     const splitPcts = (qui === 'shared' && splitInputs.length > 0 && aSplitSec?.style.display !== 'none')
