@@ -441,8 +441,11 @@ export function showChargeModal(charge, onSave) {
   document.getElementById('c-delete')?.addEventListener('click', async () => {
     const toDelete = { ...charge };
     closeModal();
+    const li = document.querySelector(`.list-item[data-id="${toDelete.id}"]`);
+    if (li) li.style.display = 'none';
     showToastWithUndo(`Charge « ${toDelete.label || 'sans nom'} » supprimée`,
-      async () => { await deleteCharge(toDelete.id); onSave(); }, 6000, 'warning');
+      async () => { await deleteCharge(toDelete.id); onSave(); }, 6000, 'warning',
+      () => { if (li) li.style.display = ''; });
   });
 
   document.getElementById('c-save')?.addEventListener('click', async () => {
@@ -812,8 +815,11 @@ async function renderBudgets(container) {
   tc.querySelectorAll('[data-bgt-del-op]').forEach(btn => {
     btn.addEventListener('click', async () => {
       const opId = Number(btn.dataset.bgtDelOp);
+      const li = btn.closest('.list-item');
+      if (li) li.style.display = 'none';
       showToastWithUndo('Opération supprimée',
-        async () => { await deleteBudgetOp(opId); renderBudgets(container); }, 6000, 'warning');
+        async () => { await deleteBudgetOp(opId); renderBudgets(container); }, 6000, 'warning',
+        () => { if (li) li.style.display = ''; });
     });
   });
   tc.querySelectorAll('[data-bgt-peruser]').forEach(btn => {
@@ -886,8 +892,11 @@ async function renderBudgets(container) {
   tc.querySelectorAll('[data-del-achat]').forEach(btn => {
     btn.addEventListener('click', async () => {
       const id = Number(btn.dataset.delAchat);
+      const li = btn.closest('.list-item');
+      if (li) li.style.display = 'none';
       showToastWithUndo('Achat exceptionnel supprimé',
-        async () => { await deleteAchat(id); renderBudgets(container); }, 6000, 'warning');
+        async () => { await deleteAchat(id); renderBudgets(container); }, 6000, 'warning',
+        () => { if (li) li.style.display = ''; });
     });
   });
   tc.querySelector('#bgt-ops-toggle-achats')?.addEventListener('click', () => {
@@ -930,7 +939,7 @@ function _buildBudCatSection({ id, icon, title, budget, spent, ops, users, hint,
       </div>`
     : '';
 
-  return `<div class="card" style="margin-bottom:12px;">
+  return `<div class="card" data-budget-id="${id}" style="margin-bottom:12px;">
     <div class="card-header">
       <span class="card-title">${icon} ${escHtml(title)}</span>
       <div style="display:flex;align-items:center;gap:4px;">
@@ -1251,9 +1260,12 @@ function _showManageBudgetsModal(customBudgets, onSave, users = []) {
       const b = customBudgets.find(b=>b.id===btn.dataset.id);
       if (!b) return;
       closeModal();
+      const budgetSection = document.querySelector(`[data-budget-id="${b.id}"]`);
+      if (budgetSection) budgetSection.style.display = 'none';
       showToastWithUndo(`Budget « ${b.name} » supprimé`,
         async () => { await setSetting('customBudgets',customBudgets.filter(x=>x.id!==b.id)); onSave(); },
-        6000, 'warning');
+        6000, 'warning',
+        () => { if (budgetSection) budgetSection.style.display = ''; });
     });
   });
 }
@@ -1361,8 +1373,11 @@ export async function showAchatModal(achat, onSave) {
   document.getElementById('a-delete')?.addEventListener('click', async () => {
     const toDelete = { ...achat };
     closeModal();
+    const li = document.querySelector(`.list-item[data-aid="${toDelete.id}"]`);
+    if (li) li.style.display = 'none';
     showToastWithUndo(`Achat « ${toDelete.label || 'sans nom'} » supprimé`,
-      async () => { await deleteAchat(toDelete.id); onSave(); }, 6000, 'warning');
+      async () => { await deleteAchat(toDelete.id); onSave(); }, 6000, 'warning',
+      () => { if (li) li.style.display = ''; });
   });
 
   document.getElementById('a-save')?.addEventListener('click', async () => {

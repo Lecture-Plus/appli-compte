@@ -372,7 +372,7 @@ async function _renderResume(container, s, users) {
           return `<tr><td>${label}</td>${uc}<td style="text-align:right">${eur(cat.total)}</td></tr>`;
         };
         const sTotal = dk.solde?.total ?? 0;
-        return `<div style="overflow-x:auto;padding:0 12px 4px;"><table class="data-table">
+        return `<table class="data-table" style="width:100%;">
           <thead><tr><th>Catégorie</th>${hdr}<th style="text-align:right">Total</th></tr></thead>
           <tbody>
             ${bRow('Revenus &amp; Aides', { total:(dk.revenus?.total||0)+(dk.aides?.total||0), byUser: uCols?Object.fromEntries(users.map(u=>[u.id,(dk.revenus?.byUser?.[u.id]??0)+(dk.aides?.byUser?.[u.id]??0)])):{}  })}
@@ -383,15 +383,17 @@ async function _renderResume(container, s, users) {
             ${bRow('Dép. ponctuelles', dk.achats ?? {total:0,byUser:{}})}
             ${bRow('Imprévus', dk.imprevus ?? {total:0,byUser:{}})}
             ${customBudgets.map(b => {
-              const spent = allBudgetOps.filter(o=>o.category===b.id).reduce((s,o)=>s+(Number(o.amount)||0),0);
-              return `<tr><td>${b.icon||'📌'} ${escHtml(b.name)}</td>${uCols?users.map(()=>'<td></td>').join(''):''}<td style="text-align:right">${eur(spent)}</td></tr>`;
+              const bOps = allBudgetOps.filter(o=>o.category===b.id);
+              const spent = bOps.reduce((s,o)=>s+(Number(o.amount)||0),0);
+              const bByUser = uCols ? (() => { const acc={}; for(const o of bOps){if(o.userId){const k=String(o.userId);acc[k]=(acc[k]||0)+(Number(o.amount)||0);}else{const share=(Number(o.amount)||0)/users.length;for(const u of users){const k=String(u.id);acc[k]=(acc[k]||0)+share;}}} return acc; })() : {};
+              return `<tr><td>${b.icon||'📌'} ${escHtml(b.name)}</td>${uCols?users.map(u=>`<td style="text-align:right">${eur(bByUser[String(u.id)]??0)}</td>`).join(''):''}<td style="text-align:right">${eur(spent)}</td></tr>`;
             }).join('')}
           </tbody>
           <tfoot>
             ${uCols ? `<tr class="row-total"><td>${isReel?'À payer':'À envoyer (prév.)'}</td>${users.map(u=>`<td style="text-align:right">${eur(dk.aPayer?.byUser?.[u.id]??0)}</td>`).join('')}<td style="text-align:right">${eur(dk.aPayer?.total||0)}</td></tr>` : ''}
             <tr class="row-total"><td>Solde ${isReel?'net':'prévisionnel'}</td>${uCols?users.map(u=>{const v=dk.solde?.byUser?.[u.id]??0;return`<td style="text-align:right;color:${v>=0?'var(--success)':'var(--danger)'}">${eur(v)}</td>`;}).join(''):''}<td style="text-align:right;color:${sTotal>=0?'var(--success)':'var(--danger)'}">${eur(sTotal)}</td></tr>
           </tfoot>
-        </table></div>${!isReel?'<p style="font-size:0.72rem;color:var(--text-3);margin:0 12px 4px;">💡 Ce calcul utilise les plafonds de budget et la répartition configurée.</p>':''}`;
+        </table>${!isReel?'<p style="font-size:0.72rem;color:var(--text-3);margin:8px 12px 4px;">💡 Ce calcul utilise les plafonds de budget et la répartition configurée.</p>':''}`;
       };
       return `<details class="settings-group" id="dash-detail-accord" style="margin-bottom:12px;">
         <summary class="settings-group-title">
@@ -506,7 +508,7 @@ async function _renderResume(container, s, users) {
     _showPinBudgetModal(pinnedBudgets, customBudgets, async () => {
       const freshS = await getAllSettings();
       await _renderResume(container, freshS, users);
-    });
+    }, users);
   });
 
   // ── Toggle détail prévisionnel/réel ──
@@ -537,7 +539,7 @@ async function _renderResume(container, s, users) {
           return `<tr><td>${label}</td>${uc}<td style="text-align:right">${eur(cat.total)}</td></tr>`;
         };
         const sTotal = dk.solde?.total ?? 0;
-        table.innerHTML = `<div style="overflow-x:auto;padding:0 12px 4px;"><table class="data-table">
+        table.innerHTML = `<table class="data-table" style="width:100%;">
           <thead><tr><th>Catégorie</th>${hdr}<th style="text-align:right">Total</th></tr></thead>
           <tbody>
             ${bRow('Revenus &amp; Aides', { total:(dk.revenus?.total||0)+(dk.aides?.total||0), byUser: uCols?Object.fromEntries(users.map(u=>[u.id,(dk.revenus?.byUser?.[u.id]??0)+(dk.aides?.byUser?.[u.id]??0)])):{}  })}
@@ -548,21 +550,23 @@ async function _renderResume(container, s, users) {
             ${bRow('Dép. ponctuelles', dk.achats ?? {total:0,byUser:{}})}
             ${bRow('Imprévus', dk.imprevus ?? {total:0,byUser:{}})}
             ${customBudgets.map(b => {
-              const spent = allBudgetOps.filter(o=>o.category===b.id).reduce((s,o)=>s+(Number(o.amount)||0),0);
-              return `<tr><td>${b.icon||'📌'} ${escHtml(b.name)}</td>${uCols?users.map(()=>'<td></td>').join(''):''}<td style="text-align:right">${eur(spent)}</td></tr>`;
+              const bOps2 = allBudgetOps.filter(o=>o.category===b.id);
+              const spent = bOps2.reduce((s,o)=>s+(Number(o.amount)||0),0);
+              const bByUser2 = uCols ? (() => { const acc={}; for(const o of bOps2){if(o.userId){const k=String(o.userId);acc[k]=(acc[k]||0)+(Number(o.amount)||0);}else{const share=(Number(o.amount)||0)/users.length;for(const u of users){const k=String(u.id);acc[k]=(acc[k]||0)+share;}}} return acc; })() : {};
+              return `<tr><td>${b.icon||'📌'} ${escHtml(b.name)}</td>${uCols?users.map(u=>`<td style="text-align:right">${eur(bByUser2[String(u.id)]??0)}</td>`).join(''):''}<td style="text-align:right">${eur(spent)}</td></tr>`;
             }).join('')}
           </tbody>
           <tfoot>
             ${uCols ? `<tr class="row-total"><td>${isReel?'À payer':'À envoyer (prév.)'}</td>${users.map(u=>`<td style="text-align:right">${eur(dk.aPayer?.byUser?.[u.id]??0)}</td>`).join('')}<td style="text-align:right">${eur(dk.aPayer?.total||0)}</td></tr>` : ''}
             <tr class="row-total"><td>Solde ${isReel?'net':'prévisionnel'}</td>${uCols?users.map(u=>{const v=dk.solde?.byUser?.[u.id]??0;return`<td style="text-align:right;color:${v>=0?'var(--success)':'var(--danger)'}">${eur(v)}</td>`;}).join(''):''}<td style="text-align:right;color:${sTotal>=0?'var(--success)':'var(--danger)'}">${eur(sTotal)}</td></tr>
           </tfoot>
-        </table></div>${!isReel?'<p style="font-size:0.72rem;color:var(--text-3);margin:0 12px 4px;">💡 Ce calcul utilise les plafonds de budget et la répartition configurée.</p>':''}`;
+        </table>${!isReel?'<p style="font-size:0.72rem;color:var(--text-3);margin:8px 0 4px;">💡 Ce calcul utilise les plafonds de budget et la répartition configurée.</p>':''}`;
       }
     });
   });
 }
 // ── Modal : épingler un budget ──
-function _showPinBudgetModal(currentPinned, customBudgets, onPin) {
+function _showPinBudgetModal(currentPinned, customBudgets, onPin, users = []) {
   const available = (customBudgets || [])
     .map(b => ({ id: b.id, icon: b.icon || '📌', label: b.name }))
     .filter(b => !currentPinned.includes(b.id));
@@ -578,7 +582,11 @@ function _showPinBudgetModal(currentPinned, customBudgets, onPin) {
       `<button class="btn btn-outline" id="pin-modal-cancel">Fermer</button>`
     );
     document.getElementById('pin-modal-cancel')?.addEventListener('click', closeModal);
-    document.getElementById('pin-go-budgets')?.addEventListener('click', () => { closeModal(); navigateTo('argent', { tab: 'budgets' }); });
+    document.getElementById('pin-go-budgets')?.addEventListener('click', async () => {
+      closeModal();
+      const freshS = await getAllSettings();
+      showEditBudgetModal(null, freshS.customBudgets || [], async () => { await onPin(); }, users);
+    });
     return;
   }
 
@@ -695,7 +703,12 @@ async function _renderPrevisionnel(container, s, users) {
       const customBudgets = s.customBudgets || [];
       const spentCustom = id => budgetOps.filter(o => o.category === id).reduce((sum, o) => sum + (Number(o.amount)||0), 0);
       const customCards = customBudgets.length > 0
-        ? customBudgets.map(b => _buildBudgetCard(`${b.icon||'📌'} ${b.name}`, Number(b.amount)||0, spentCustom(b.id), 'Budget'))
+        ? customBudgets.map(b => {
+            const bgt = b.allocation === 'equal' ? (Number(b.amount)||0) * users.length
+                      : b.allocation === 'custom' ? Object.values(b.amountByUser||{}).reduce((s,v)=>s+(Number(v)||0),0)
+                      : Number(b.amount)||0;
+            return _buildBudgetCard(`${b.icon||'📌'} ${b.name}`, bgt, spentCustom(b.id), 'Budget');
+          })
         : [`<div class="card" id="btn-prev-add-budget" style="padding:12px;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;cursor:pointer;min-height:80px;">
              <div style="width:30px;height:30px;border-radius:50%;background:var(--primary-bg);display:flex;align-items:center;justify-content:center;font-size:1.2rem;color:var(--primary);font-weight:700;">+</div>
              <div style="font-size:0.72rem;color:var(--text-3);text-align:center;">Ajouter un budget</div>

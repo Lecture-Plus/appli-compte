@@ -224,7 +224,7 @@ export function showToast(message, type = '', duration = 3000) {
  * @param {number}  delay    — délai avant exécution réelle (ms)
  * @param {string}  type     — classe CSS ('warning', 'error', 'success', '')
  */
-export function showToastWithUndo(message, action, delay = 6000, type = 'warning') {
+export function showToastWithUndo(message, action, delay = 6000, type = 'warning', onCancel = null) {
   const toast = document.getElementById('toast');
   if (!toast) { action(); return; }
 
@@ -255,6 +255,7 @@ export function showToastWithUndo(message, action, delay = 6000, type = 'warning
     toast.classList.add('hidden');
     toast.innerHTML = '';
     toast.style.display = '';
+    if (onCancel) onCancel();
   });
   toast.appendChild(btn);
 

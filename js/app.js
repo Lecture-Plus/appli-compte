@@ -320,24 +320,6 @@ async function init() {
     if (e.target === document.getElementById('modal-overlay')) closeModal();
   });
 
-  // ── FAB Saisie rapide ──
-  const fab = document.getElementById('fab-quick');
-  if (fab) {
-    fab.style.display = 'flex';
-    fab.addEventListener('click', () => navigateTo('argent', { tab: 'saisir' }));
-    // Cacher sur les pages où la saisie rapide est hors sujet
-    const _fabHiddenPages = new Set(['argent', 'settings']);
-    const _updateFab = () => {
-      const hide = _fabHiddenPages.has(State.page);
-      fab.style.opacity  = hide ? '0' : '1';
-      fab.style.pointerEvents = hide ? 'none' : '';
-    };
-    // patch navigateTo pour mettre à jour le FAB
-    const _origNav = navigateTo;
-    window._fabUpdater = _updateFab; // accessible depuis navigateTo hook ci-dessous
-    _updateFab();
-  }
-
   // ── Raccourcis clavier (desktop) ──
   document.addEventListener('keydown', e => {
     // Escape → fermer modal
@@ -382,7 +364,17 @@ async function init() {
 
   // ── Swipe horizontal pour navigation entre mois (dashboard) ──
   let _swipeX = null;
+  // Prevent swipe from firing when the user is scrolling a horizontally-scrollable element
+  function _hasHorizScroll(el) {
+    while (el && el !== document.body) {
+      const ov = window.getComputedStyle(el).overflowX;
+      if ((ov === 'auto' || ov === 'scroll') && el.scrollWidth > el.clientWidth + 2) return true;
+      el = el.parentElement;
+    }
+    return false;
+  }
   document.getElementById('app-content')?.addEventListener('touchstart', e => {
+    if (_hasHorizScroll(e.target)) { _swipeX = null; return; }
     _swipeX = e.touches[0].clientX;
   }, { passive: true });
   document.getElementById('app-content')?.addEventListener('touchend', e => {

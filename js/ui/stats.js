@@ -55,7 +55,6 @@ export async function render(container) {
       <button class="tab-btn ${_statsTab === 'epargne'    ? 'active' : ''}" data-stab="epargne">💰 Épargne</button>
       <button class="tab-btn ${_statsTab === 'depenses'   ? 'active' : ''}" data-stab="depenses">💸 Dépenses</button>
       <button class="tab-btn ${_statsTab === 'evolution'  ? 'active' : ''}" data-stab="evolution">📈 Évolution</button>
-      <button class="tab-btn ${_statsTab === 'detail'     ? 'active' : ''}" data-stab="detail">🗂 Ce mois</button>
     </div>
 
     <!-- Onglet Revenus -->
@@ -143,13 +142,7 @@ export async function render(container) {
       <div id="evolution-content"><div class="loading"><div class="spinner"></div></div></div>
     </div>
 
-    <div id="stab-detail" style="${_statsTab !== 'detail' ? 'display:none;' : ''}">
-      <div id="detail-month-content">
-        ${_statsMonth === 0
-          ? `<div style="padding:32px 0;text-align:center;"><div style="font-size:2rem;margin-bottom:8px;">🗓️</div><div style="font-weight:700;font-size:0.92rem;margin-bottom:6px;">Sélectionnez un mois</div><div style="font-size:0.78rem;color:var(--text-3);">Choisissez un mois dans le sélecteur ci-dessus pour voir le détail.</div></div>`
-          : `<div class="loading" style="padding:32px;text-align:center;"><div class="spinner"></div></div>`}
-      </div>
-    </div>
+
 
     <div style="height:16px;"></div>
   `;
@@ -186,15 +179,12 @@ export async function render(container) {
       container.querySelectorAll('#stats-tabs .tab-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       _statsTab = btn.dataset.stab;
-      ['revenus', 'epargne', 'depenses', 'evolution', 'detail'].forEach(t => {
+      ['revenus', 'epargne', 'depenses', 'evolution'].forEach(t => {
         const el = container.querySelector(`#stab-${t}`);
         if (el) el.style.display = t === _statsTab ? '' : 'none';
       });
       if (_statsTab === 'evolution') {
         _renderEvolution(container, State.year, users);
-      }
-      if (_statsTab === 'detail') {
-        _renderDetailTab(container, State.year, _statsMonth, users);
       }
     });
   });
@@ -283,9 +273,6 @@ async function loadAndRender(container, year, month, users, s) {
   await renderMonthCompare(container, year, month > 0 ? month : curMonth, users, s, allChargesRaw, allAchats, allRepartitions, monthMap);
   renderScoreBudgetaire(container, singleMonth ? results[month - 1] : results[curMonth - 1], s);
   renderInsights(container, results, singleMonth ? month : curMonth, year, s);
-  if (_statsTab === 'detail') {
-    _renderDetailTab(container, year, month, users).catch(e => console.error(e));
-  }
 }
 
 async function _renderDetailTab(container, year, month, users) {

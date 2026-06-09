@@ -347,7 +347,10 @@ async function _renderEconomies(el, container) {
     goalsEl.querySelectorAll('.goal-del').forEach(btn => {
       btn.addEventListener('click', () => {
         const id = Number(btn.dataset.id);
-        showToastWithUndo('Objectif supprimé', async () => { await deleteSavingsGoal(id); _renderGoalsList(); }, 6000, 'warning');
+        const item = btn.closest('.list-item');
+        if (item) item.style.display = 'none';
+        showToastWithUndo('Objectif supprimé', async () => { await deleteSavingsGoal(id); _renderGoalsList(); }, 6000, 'warning',
+          () => { if (item) item.style.display = ''; });
       });
     });
     goalsEl.querySelectorAll('.goal-edit').forEach(btn => {
@@ -400,9 +403,12 @@ async function _renderEconomies(el, container) {
     btn.addEventListener('click', async (e) => {
       e.stopPropagation();
       const id = Number(btn.dataset.id);
+      const item = btn.closest('.list-item');
+      if (item) item.style.display = 'none';
       showToastWithUndo('Opération supprimée',
         async () => { await deleteSavingsOperation(id); _renderPage(container); },
-        6000, 'warning');
+        6000, 'warning',
+        () => { if (item) item.style.display = ''; });
     });
   });
 }
@@ -873,7 +879,7 @@ async function _renderSalariale(el, container) {
           <div style="font-size:0.62rem;color:var(--text-3);">${monthlyOps.length} versement(s)</div>
         </div>
       </div>
-      <div style="margin-top:10px;font-size:0.72rem;color:var(--text-3);padding:8px 10px;background:var(--bg-secondary);border-radius:var(--radius-sm);">
+      <div style="margin-top:10px;font-size:0.72rem;color:var(--text-3);padding:8px 10px;background:var(--bg-secondary);border-radius:var(--radius-sm);word-break:break-word;">
         <strong>Règle :</strong> taux d'abondement <strong>${(ABON_RATIO * 100).toFixed(2)}%</strong>
         (${eur(22.58)} pour ${eur(50)} versés) — plafond <strong>${eur(ABON_MAX_YEAR)}/an</strong> sur 2 périodes (28 mai · 28 novembre).
         Pour maximiser les 1 000€ sur l'année, il faut verser ${eur(ABON_CONTRIB_FOR_YEAR_MAX)} au total.
@@ -912,11 +918,9 @@ async function _renderSalariale(el, container) {
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="15" height="15"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
         Ajouter un versement
       </button>
-      <div style="display:flex;flex-wrap:wrap;gap:8px;">
-        <button class="btn btn-success" id="sal-btn-abon" style="flex:1;min-width:140px;">🏦 Valider un abondement</button>
-        <button class="btn btn-secondary" id="sal-btn-transfer" style="flex:1;min-width:140px;">💸 Transférer vers économies</button>
-      </div>
-      <button class="btn btn-outline btn-full" id="sal-btn-abon-recu" style="margin-top:8px;">✅ Abondement déjà perçu</button>
+      <button class="btn btn-success" id="sal-btn-abon">🏦 Valider un abondement</button>
+      <button class="btn btn-secondary" id="sal-btn-transfer">💸 Transférer vers économies</button>
+      <button class="btn btn-outline btn-full" id="sal-btn-abon-recu">✅ Abondement déjà perçu</button>
     </div>
 
     <!-- Historique versements -->
@@ -952,18 +956,24 @@ async function _renderSalariale(el, container) {
   el.querySelectorAll('.sal-op-delete').forEach(btn => {
     btn.addEventListener('click', async () => {
       const id = Number(btn.dataset.id);
+      const item = btn.closest('.list-item');
+      if (item) item.style.display = 'none';
       showToastWithUndo('Versement supprimé',
         async () => { await deleteSalarySaving(id); _renderPage(container); },
-        6000, 'warning');
+        6000, 'warning',
+        () => { if (item) item.style.display = ''; });
     });
   });
 
   el.querySelectorAll('.abon-delete').forEach(btn => {
     btn.addEventListener('click', async () => {
       const id = Number(btn.dataset.id);
+      const item = btn.closest('.list-item');
+      if (item) item.style.display = 'none';
       showToastWithUndo('Abondement supprimé',
         async () => { await deleteSalaryAbondement(id); _renderPage(container); },
-        6000, 'warning');
+        6000, 'warning',
+        () => { if (item) item.style.display = ''; });
     });
   });
 }

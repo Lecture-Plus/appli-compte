@@ -476,9 +476,9 @@ svg { display: block; }
 .chip.warning { background: var(--warning-bg); color: var(--warning); }
 
 /* ─── 22. Tableau ─── */
-.data-table { width: max-content; min-width: 100%; border-collapse: collapse; font-size: 0.8rem; }
-.data-table th { text-align: left; padding: 6px 8px; font-size: 0.64rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-3); border-bottom: 1px solid var(--border); }
-.data-table td { padding: 8px 8px; border-bottom: 1px solid var(--border); color: var(--text-2); }
+.data-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; table-layout: auto; word-break: break-word; }
+.data-table th { text-align: left; padding: 6px 6px; font-size: 0.64rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-3); border-bottom: 1px solid var(--border); white-space: nowrap; }
+.data-table td { padding: 7px 6px; border-bottom: 1px solid var(--border); color: var(--text-2); }
 .data-table td:last-child { text-align: right; font-weight: 700; color: var(--text); }
 .data-table tr:last-child td { border-bottom: none; }
 .data-table .row-total td { font-weight: 800; color: var(--text); background: var(--bg-2); }
@@ -758,6 +758,9 @@ svg { display: block; }
   #modal-footer .btn { flex: 1 1 calc(50% - 5px); min-width: 0; }
   .hero-mini-value { font-size: 0.78rem; }
   .kpi-value { font-size: 1.05rem; }
+  .data-table { font-size: 0.68rem; }
+  .data-table th { font-size: 0.56rem; padding: 4px 3px; }
+  .data-table td { padding: 5px 3px; }
 }
 
 /* ─── Saisie sticky footer ─── */
