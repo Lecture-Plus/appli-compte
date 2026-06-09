@@ -433,7 +433,7 @@ async function _renderResume(container, s, users) {
             <div id="dash-detail-table">${buildDashDetailTable(false)}</div>
           </div>
         </div>
-      </details>``;
+      </details>`;
     })()}
 
     <div style="height:16px;"></div>
