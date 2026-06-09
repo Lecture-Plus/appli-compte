@@ -719,30 +719,19 @@ function buildAchatItem(a) {
 
 async function renderBudgets(container) {
   const { year, month } = State;
-  const [md, achats, budgetOps, settings] = await Promise.all([
-    getMonthlyData(year, month),
+  const [achats, budgetOps, settings] = await Promise.all([
     getAchatsForMonth(year, month),
     getBudgetOpsForMonth(year, month),
     getAllSettings(),
   ]);
   const users = _users;
   const customBudgets  = settings.customBudgets  || [];
-  const pinnedBudgets  = settings.pinnedBudgets   || ['courses', 'extras'];
+  const pinnedBudgets  = settings.pinnedBudgets   || [];
   const tc = container.querySelector('#tab-content');
-
-  const budgetCourses = users.reduce((s, u) => s + (Number(md?.users?.[String(u.id)]?.courses) || 0), 0);
-  const budgetExtras  = users.reduce((s, u) => s + (Number(md?.users?.[String(u.id)]?.extras)  || 0), 0);
 
   const opsByCategory = {};
   for (const op of budgetOps) { (opsByCategory[op.category] ??= []).push(op); }
   const spent = cat => (opsByCategory[cat] || []).reduce((s, op) => s + (Number(op.amount) || 0), 0);
-
-  // Per-user extras for foyer/individuel toggle
-  const extrasPerUser = users.length > 1 ? users.map(u => ({
-    id: u.id, name: u.name, color: u.color,
-    budget: Number(md?.users?.[String(u.id)]?.extras) || 0,
-    spent:  (opsByCategory['extras'] || []).filter(op => String(op.userId) === String(u.id)).reduce((s, op) => s + (Number(op.amount)||0), 0),
-  })) : null;
 
   const pendingCraquages = achats.filter(a => a.category === 'craquage' && a.craquage_source === 'pending');
   const regularAchats    = achats.filter(a => !(a.category === 'craquage' && a.craquage_source === 'pending'));
@@ -766,9 +755,7 @@ async function renderBudgets(container) {
       <p style="font-size:0.78rem;color:var(--text-3);margin-bottom:8px;">Ces dépassements de budget n'ont pas encore de source de financement.</p>
       <div class="item-list">${pendingCraquages.map(a => `<div class="list-item"><div class="list-item-icon" style="background:var(--warning-bg);">⏳</div><div class="list-item-body"><div class="list-item-title">${escHtml(a.label)}</div></div><div class="list-item-right"><div class="list-item-amount" style="color:var(--warning);">−${eur(a.amount)}</div><button class="btn btn-sm btn-primary" style="margin-top:4px;" data-attrib-crq="${a.id}">Attribuer</button></div></div>`).join('')}</div>
     </div>` : ''}
-    ${_buildBudCatSection({ id:'courses', icon:'🛒', title:'Courses', budget:budgetCourses, spent:spent('courses'), ops:opsByCategory['courses']||[], users, hint:budgetCourses===0?'⚠️ Aucun budget courses dans la saisie mensuelle.':null, isPinned:pinnedBudgets.includes('courses') })}
-    ${_buildBudCatSection({ id:'extras',  icon:'🎉', title:'Loisirs', budget:budgetExtras,  spent:spent('extras'),  ops:opsByCategory['extras'] ||[], users, hint:budgetExtras ===0?'⚠️ Aucun budget loisirs dans la saisie mensuelle.' :null, isPinned:pinnedBudgets.includes('extras') })}
-    ${customBudgets.map(b => _buildBudCatSection({ id:b.id, icon:b.icon||'📌', title:b.name, budget:Number(b.amount)||0, spent:spent(b.id), ops:opsByCategory[b.id]||[], users })).join('')}
+    ${customBudgets.map(b => _buildBudCatSection({ id:b.id, icon:b.icon||'📌', title:b.name, budget:Number(b.amount)||0, spent:spent(b.id), ops:opsByCategory[b.id]||[], users, isPinned:pinnedBudgets.includes(b.id) })).join('')}
     <div class="card" style="margin-bottom:12px;">
       <div class="card-header">
         <span class="card-title">💥 Achats exceptionnels</span>
@@ -902,7 +889,7 @@ function _buildBudCatSection({ id, icon, title, budget, spent, ops, users, hint,
   const pct = budget > 0 ? Math.min(100, Math.round((spent / budget) * 100)) : (spent > 0 ? 100 : 0);
   const color = pct >= 100 ? 'danger' : pct >= 80 ? 'warning' : 'success';
   const sorted = [...ops].sort((a,b) => (b.day||0)-(a.day||0));
-  const editBtn = (id !== 'courses' && id !== 'extras') ? `<button class="btn-icon" data-bgt-edit="${id}" title="Modifier" style="width:28px;height:28px;color:var(--text-3);">✏️</button>` : '';
+  const editBtn = `<button class="btn-icon" data-bgt-edit="${id}" title="Modifier" style="width:28px;height:28px;color:var(--text-3);">✏️</button>`;
   const pinBtn  = `<button class="btn-icon" data-bgt-pin="${id}" title="${isPinned ? 'Désépingler de l\'accueil' : 'Épingler en accueil'}" style="width:28px;height:28px;color:${isPinned ? 'var(--primary)' : 'var(--text-3)'};background:${isPinned ? 'var(--primary-bg)' : 'transparent'};border-radius:6px;border:${isPinned ? '1.5px solid var(--primary)' : '1.5px solid var(--border)'};">${isPinned ? '📌' : '📍'}</button>`;
 
   // Per-user view toggle (only for extras when N>1)
@@ -1088,26 +1075,65 @@ async function _showAddBudgetOpModal({ catId, catLabel }, users, year, month, on
 
 export function showEditBudgetModal(existing, customBudgets, onSave) {
   const isNew = !existing;
+  const PRESET_BUDGETS = [
+    { name: 'Restaurant', icon: '🍽️' },
+    { name: 'Loisirs',    icon: '🎉' },
+    { name: 'Courses',    icon: '🛒' },
+    { name: 'Vêtements',  icon: '👗' },
+    { name: 'Gaming',     icon: '🎮' },
+    { name: 'Cinéma',     icon: '🎬' },
+    { name: 'Voyage',     icon: '✈️' },
+  ];
+  const availablePresets = isNew ? PRESET_BUDGETS : [];
+  const presetsPlaceholder = availablePresets.length > 0
+    ? `<div style="margin-bottom:14px;">
+        <div style="font-size:0.72rem;font-weight:700;color:var(--text-3);text-transform:uppercase;margin-bottom:6px;">Démarrer depuis un modèle</div>
+        <div id="bgt-presets-container" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
+      </div><hr style="margin-bottom:14px;border-color:var(--border);">`
+    : '';
+
   const selIcon = existing?.icon || '📌';
-  openModal(isNew ? '📌 Nouveau budget' : `✏️ Modifier "${existing.name}"`, `
+  openModal(isNew ? '📌 Nouveau budget' : `✏️ Modifier "${existing.name}"`, `${presetsPlaceholder}
     <div class="form-group" style="margin-bottom:12px;"><label class="form-label">Nom *</label><input type="text" class="form-input" id="bgt-name" placeholder="Ex: Restaurant, Sport…" value="${escHtml(existing?.name||'')}" autocomplete="off"></div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
       <div class="form-group"><label class="form-label">Montant mensuel (€)</label><div class="input-wrap"><input type="number" class="form-input input-euro" id="bgt-amount" min="0" step="5" placeholder="0" value="${existing?.amount||''}"><span class="input-suffix">€</span></div><p class="form-hint">0 = suivi libre</p></div>
-      <div class="form-group"><label class="form-label">Icône</label><input type="text" class="form-input" id="bgt-icon" maxlength="2" value="${escHtml(selIcon)}" style="font-size:1.4rem;text-align:center;" readonly></div>
+      <div class="form-group"><label class="form-label">Icône</label><input type="text" class="form-input" id="bgt-icon" maxlength="4" value="${escHtml(selIcon)}" style="font-size:1.4rem;text-align:center;" readonly></div>
     </div>
     <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px;">${PRESET_ICONS.map(ic=>`<button type="button" class="btn-icon icon-pick" data-icon="${ic}" style="width:36px;height:36px;font-size:1.2rem;border:2px solid ${ic===selIcon?'var(--primary)':'transparent'};border-radius:8px;background:var(--bg-card);">${ic}</button>`).join('')}</div>
     ${!isNew ? `<hr style="margin-bottom:12px;"><button class="btn btn-outline btn-full" id="bgt-delete" style="color:var(--danger);border-color:var(--danger);">🗑️ Supprimer ce budget</button>` : ''}
   `, `<button class="btn btn-primary btn-full" id="bgt-save">${isNew ? 'Créer' : 'Enregistrer'}</button>`);
+
   document.getElementById('bgt-name')?.focus();
+
+  // Presets via createElement (emoji-safe)
+  const presetsContainer = document.getElementById('bgt-presets-container');
+  if (presetsContainer) {
+    availablePresets.forEach(p => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'btn btn-sm btn-outline';
+      btn.style.cssText = 'font-size:0.78rem;padding:4px 10px;';
+      btn.textContent = p.icon + ' ' + p.name;
+      btn.addEventListener('click', () => {
+        const nameEl = document.getElementById('bgt-name');
+        const iconEl = document.getElementById('bgt-icon');
+        if (nameEl) nameEl.value = p.name;
+        if (iconEl) iconEl.value = p.icon;
+        document.querySelectorAll('.icon-pick').forEach(b => {
+          b.style.borderColor = b.dataset.icon === p.icon ? 'var(--primary)' : 'transparent';
+        });
+      });
+      presetsContainer.appendChild(btn);
+    });
+  }
+
   document.querySelectorAll('.icon-pick').forEach(btn => {
     btn.addEventListener('click', () => { document.querySelectorAll('.icon-pick').forEach(b=>b.style.borderColor='transparent'); btn.style.borderColor='var(--primary)'; document.getElementById('bgt-icon').value=btn.dataset.icon; });
   });
   document.getElementById('bgt-delete')?.addEventListener('click', async () => {
-    const toDelete = { ...existing };
-    closeModal();
-    showToastWithUndo(`Budget « ${toDelete.name} » supprimé`,
-      async () => { await setSetting('customBudgets', customBudgets.filter(b=>b.id!==toDelete.id)); onSave(); },
-      6000, 'warning');
+    if (!confirm(`Supprimer le budget "${existing.name}" ?`)) return;
+    await setSetting('customBudgets', customBudgets.filter(b=>b.id!==existing.id));
+    closeModal(); showToast('Budget supprimé', 'success'); await onSave();
   });
   document.getElementById('bgt-save')?.addEventListener('click', async () => {
     const name   = document.getElementById('bgt-name')?.value.trim();
@@ -1117,7 +1143,7 @@ export function showEditBudgetModal(existing, customBudgets, onSave) {
     const updated = isNew ? [...customBudgets, {id:'custom_'+Date.now(), name, icon, amount}]
       : customBudgets.map(b => b.id===existing.id ? {...b, name, icon, amount} : b);
     await setSetting('customBudgets', updated);
-    closeModal(); showToast(isNew ? `Budget "${name}" créé ✅` : 'Mis à jour ✅', 'success'); onSave();
+    closeModal(); showToast(isNew ? `Budget "${name}" créé ✅` : 'Mis à jour ✅', 'success'); await onSave();
   });
 }
 
