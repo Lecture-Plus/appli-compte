@@ -563,32 +563,10 @@ async function showConfirmModal(users, onSave) {
         showToast('Saisissez au moins un montant', 'error'); return;
       }
       totalAmount = userAmts.reduce((s, x) => s + x.amt, 0);
-      // Ajustements par user si le montant saisi dépasse le solde calculé
-      for (const { uid, amt } of userAmts) {
-        if (amt === 0) continue;
-        const ub = userBalances.find(x => String(x.user.id) === String(uid));
-        const calcBal = ub?.balance ?? 0;
-        if (amt > calcBal + 0.01) {
-          const diff = Math.round((amt - calcBal) * 100) / 100;
-          await saveSavingsOperation({
-            amount: diff, label: `Ajustement ${moisLabel} ${year}`,
-            type: 'add', userId: uid, year, month,
-            day: lastDayOfMonth, createdAt: now.toISOString(),
-          });
-        }
-      }
     } else {
       const amountStr = document.getElementById('conf-amount')?.value?.trim();
       totalAmount = amountStr ? Number(amountStr) : balance;
       if (isNaN(totalAmount) || totalAmount < 0) { showToast('Montant invalide', 'error'); return; }
-      if (totalAmount > balance + 0.01) {
-        const diff = Math.round((totalAmount - balance) * 100) / 100;
-        await saveSavingsOperation({
-          amount: diff, label: `Ajustement ${moisLabel} ${year}`,
-          type: 'add', year, month,
-          day: lastDayOfMonth, createdAt: now.toISOString(),
-        });
-      }
     }
 
     await saveSavingsConfirmed({ year, month, amount: totalAmount,

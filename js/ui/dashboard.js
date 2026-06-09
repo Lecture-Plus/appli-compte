@@ -612,7 +612,31 @@ function _showPinBudgetModal(currentPinned, customBudgets, onPin, users = []) {
   }
 
   if (!available.length) {
-    showToast('Tous les budgets sont déjà épinglés', 'warning');
+    // Tous les budgets existants sont déjà épinglés → proposer d'en créer un nouveau
+    openModal('📌 Épingler un budget',
+      `<div style="text-align:center;padding:20px 0;">
+        <div style="font-size:2rem;margin-bottom:8px;">✅</div>
+        <p style="font-size:0.84rem;color:var(--text-3);margin-bottom:4px;">Tous vos budgets sont déjà épinglés.</p>
+        <p style="font-size:0.78rem;color:var(--text-3);">Créez un nouveau budget pour l'épingler ici.</p>
+        <button class="btn btn-primary" style="margin-top:16px;width:100%;" id="pin-go-budgets2">⭐ Créer un budget</button>
+      </div>`,
+      `<button class="btn btn-outline" id="pin-modal-cancel2">Fermer</button>`
+    );
+    document.getElementById('pin-modal-cancel2')?.addEventListener('click', closeModal);
+    document.getElementById('pin-go-budgets2')?.addEventListener('click', async () => {
+      closeModal();
+      const freshS = await getAllSettings();
+      const beforeIds = new Set((freshS.customBudgets || []).map(b => b.id));
+      showEditBudgetModal(null, freshS.customBudgets || [], async () => {
+        const afterS = await getAllSettings();
+        const newBudget = (afterS.customBudgets || []).find(b => !beforeIds.has(b.id));
+        if (newBudget) {
+          const pinned = [...(afterS.pinnedBudgets || []), newBudget.id].slice(0, 4);
+          await setSetting('pinnedBudgets', pinned);
+        }
+        await onPin();
+      }, users);
+    });
     return;
   }
   openModal('📌 Épingler un budget',

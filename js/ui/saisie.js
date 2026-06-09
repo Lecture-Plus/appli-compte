@@ -451,11 +451,11 @@ function _showImportChargesOptions(container) {
   const { year, month } = State;
   openModal('📥 Importer des charges',
     `<div style="display:flex;flex-direction:column;gap:10px;">
-      <button class="btn btn-outline" id="imp-prev-month" style="text-align:left;padding:14px;">
+      <button class="btn btn-outline" id="imp-prev-month" style="text-align:left;padding:14px;white-space:normal;width:100%;">
         <strong>📅 Du mois précédent</strong><br>
         <span style="font-size:0.78rem;color:var(--text-3);">Copie toutes les charges du mois passé</span>
       </button>
-      <button class="btn btn-outline" id="imp-templates" style="text-align:left;padding:14px;">
+      <button class="btn btn-outline" id="imp-templates" style="text-align:left;padding:14px;white-space:normal;width:100%;">
         <strong>📋 Charges types</strong><br>
         <span style="font-size:0.78rem;color:var(--text-3);">Sélectionnez des charges prédéfinies</span>
       </button>
