@@ -1,5 +1,5 @@
 // ============================================================
-// js/ui/dashboard.js – Tableau de bord : Résumé + Prévisionnel
+// js/ui/dashboard.js – Tableau de bord
 // ============================================================
 
 import { State, navigateTo }                              from '../app.js';
@@ -71,12 +71,7 @@ export async function render(container) {
       </button>
     </div>
 
-    <!-- Onglets -->
-    <div class="tabs" id="dash-tabs" style="margin-bottom:12px;">
-      <button class="tab-btn ${_activeTab === 'resume'       ? 'active' : ''}" data-tab="resume">📊 Résumé</button>
-      <button class="tab-btn ${_activeTab === 'previsionnel' ? 'active' : ''}" data-tab="previsionnel">📅 Prévisionnel</button>
-    </div>
-
+    <!-- Onglets supprimés en V2 – le prévisionnel vit dans Historique -->
     <div id="dash-content"></div>
   `;
 
@@ -128,21 +123,12 @@ export async function render(container) {
     });
   });
 
-  container.querySelectorAll('#dash-tabs .tab-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      container.querySelectorAll('#dash-tabs .tab-btn').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      _activeTab = btn.dataset.tab;
-      _renderContent(container, s, users);
-    });
-  });
 
-  await _renderContent(container, s, users);
+  await _renderResume(container, s, users);
 }
 
 async function _renderContent(container, s, users) {
-  if (_activeTab === 'resume') await _renderResume(container, s, users);
-  else                         await _renderPrevisionnel(container, s, users);
+  await _renderResume(container, s, users);
 }
 
 // ══════════════════════════════════════════════════
@@ -380,7 +366,7 @@ async function _renderResume(container, s, users) {
           </div>`;
         }).join('')}
       </div>
-      <button class="btn btn-outline btn-full" style="font-size:0.78rem;" id="btn-go-analyse-detail">Voir le détail dans Analyse →</button>
+      <button class="btn btn-outline btn-full" style="font-size:0.78rem;" id="btn-go-analyse-detail">Voir le détail dans Historique →</button>
     </div>` : ''}
 
     <div style="height:16px;"></div>

@@ -35,7 +35,7 @@ const PAGE_TITLES = {
   argent:    'Ce mois',
   charges:   'Charges & Budgets',
   savings:   'Épargne',
-  stats:     'Analyse',
+  stats:     'Historique',
   settings:  'Réglages',
 };
 

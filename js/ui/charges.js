@@ -365,7 +365,7 @@ function _renderLineRow(line, idx, container) {
   container.appendChild(wrapper);
 }
 
-function showChargeModal(charge, onSave) {
+export function showChargeModal(charge, onSave) {
   const isNew = !charge;
   const c = charge ?? {
     label: '', category: 'logement', months: 'all', active: true, perso: false, notes: '',

@@ -12,10 +12,10 @@ import { getAllSettings, getSetting, setSetting,
          getAchatsForMonth, getRepartition, saveArchive,
          getAllArchives, getAllUsers, getActiveUsers,
          saveUser, softDeleteUser, restoreUser, USER_COLORS,
-         saveCharge }                                            from '../db.js';
+         saveCharge, getAllCharges, deleteCharge }            from '../db.js';
 import { calcMonth, calcYear }                                    from '../calculs.js';
 import { eur, escHtml, showToast, downloadJSON, pickJSONFile,
-         openModal, closeModal, today }                           from '../utils.js';
+         openModal, closeModal, today, getCategoryInfo }          from '../utils.js';
 
 export async function render(container) {
   const [s, allUsers] = await Promise.all([getAllSettings(), getAllUsers()]);
@@ -100,6 +100,100 @@ function buildHTML(s, users, archived, N) {
           <p style="font-size:0.75rem;color:var(--text-3);">Pré-sélectionné pour les nouveaux mois.</p>
         </div>` : ''}
 
+      </div>
+    </details>
+
+    <!-- ══ CHARGES FIXES ══ -->
+    <details class="settings-group">
+      <summary class="settings-group-title">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+        Charges fixes
+      </summary>
+      <div class="settings-group-body">
+        <div class="card" style="margin-bottom:10px;">
+          <div class="card-header">
+            <span class="card-title">📋 Liste des charges</span>
+            <button class="btn btn-sm btn-primary" id="btn-add-charge-settings">+ Ajouter</button>
+          </div>
+          <p style="font-size:0.78rem;color:var(--text-3);margin-bottom:10px;">Loyer, EDF, abonnements… Toutes les charges mensuelles récurrentes.</p>
+          <div id="charges-list-settings"><div class="loading" style="padding:10px;"><div class="spinner" style="width:18px;height:18px;"></div></div></div>
+        </div>
+        <div class="card">
+          <div class="card-header"><span class="card-title">📋 Charges types</span></div>
+          <p style="font-size:0.78rem;color:var(--text-3);margin-bottom:10px;">Importez des charges prédéfinies (loyer, EDF, internet…) pour démarrer rapidement.</p>
+          <button class="btn btn-outline btn-full" id="btn-import-templates-charges">Importer des charges types</button>
+        </div>
+      </div>
+    </details>
+
+    <!-- ══ BUDGETS ══ -->
+    <details class="settings-group">
+      <summary class="settings-group-title">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
+        Budgets
+      </summary>
+      <div class="settings-group-body">
+        <div class="card" style="margin-bottom:10px;">
+          <div class="card-header"><span class="card-title">🎯 Cibles budgétaires</span></div>
+          <p style="font-size:0.78rem;color:var(--text-3);margin-bottom:10px;">Définissez vos objectifs mensuels pour le score budgétaire.</p>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:4px;">
+            <div class="form-group">
+              <label class="form-label">🛒 Courses (€/mois)</label>
+              <div class="input-wrap">
+                <input type="number" class="form-input" id="s-cible-courses" min="0" step="10"
+                  value="${Number(s.budgetCibles?.courses) || ''}" placeholder="Ex: 400">
+                <span class="input-suffix">€</span>
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">🎮 Loisirs (€/mois)</label>
+              <div class="input-wrap">
+                <input type="number" class="form-input" id="s-cible-extras" min="0" step="10"
+                  value="${Number(s.budgetCibles?.extras) || ''}" placeholder="Ex: 200">
+                <span class="input-suffix">€</span>
+              </div>
+            </div>
+          </div>
+          <button class="btn btn-secondary btn-full btn-sm" id="btn-save-cibles">Enregistrer les cibles</button>
+        </div>
+        <div class="card" style="margin-bottom:10px;">
+          <div class="card-header">
+            <span class="card-title">📌 Budgets personnalisés</span>
+            <button class="btn btn-sm btn-primary" id="btn-add-custom-budget-settings">+ Ajouter</button>
+          </div>
+          <p style="font-size:0.78rem;color:var(--text-3);margin-bottom:10px;">Créez des budgets supplémentaires (restau, sport, vêtements…).</p>
+          <div id="custom-budgets-settings-list">
+            ${(s.customBudgets || []).length === 0
+              ? `<p style="font-size:0.78rem;color:var(--text-3);">Aucun budget personnalisé.</p>`
+              : (s.customBudgets || []).map(b => `
+                <div class="list-item" style="margin-bottom:6px;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius-sm);">
+                  <div class="list-item-body">
+                    <div class="list-item-title">${escHtml(b.icon || '📌')} ${escHtml(b.name)}</div>
+                    <div class="list-item-sub">${eur(Number(b.amount) || 0)} / mois</div>
+                  </div>
+                  <div style="display:flex;gap:6px;">
+                    <button class="btn btn-sm btn-outline btn-edit-custom-budget" data-bid="${escHtml(b.id)}" style="padding:3px 8px;">✎</button>
+                    <button class="btn btn-sm btn-danger btn-del-custom-budget" data-bid="${escHtml(b.id)}" style="padding:3px 8px;">✕</button>
+                  </div>
+                </div>`).join('')}
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><span class="card-title">📌 Budgets épinglés (accueil)</span></div>
+          <p style="font-size:0.78rem;color:var(--text-3);margin-bottom:10px;">Choisissez quels budgets apparaissent en carte sur le tableau de bord.</p>
+          <div id="pinned-budgets-settings">
+            ${['courses', 'extras', ...(s.customBudgets || []).map(b => b.id)].map(pid => {
+              const isPinned = (s.pinnedBudgets || ['courses', 'extras']).includes(pid);
+              const label = pid === 'courses' ? '🛒 Courses' : pid === 'extras' ? '🎮 Loisirs'
+                : (() => { const b = (s.customBudgets || []).find(b => b.id === pid); return b ? `${b.icon || '📌'} ${b.name}` : pid; })();
+              return `<label style="display:flex;align-items:center;gap:8px;padding:6px 0;cursor:pointer;font-size:0.85rem;">
+                <input type="checkbox" class="pin-budget-chk" data-pid="${escHtml(pid)}" ${isPinned ? 'checked' : ''}>
+                ${escHtml(label)}
+              </label>`;
+            }).join('')}
+          </div>
+          <button class="btn btn-secondary btn-full btn-sm" style="margin-top:8px;" id="btn-save-pinned">Enregistrer</button>
+        </div>
       </div>
     </details>
 
@@ -447,8 +541,8 @@ function bindEvents(container, s, users, archived, N) {
     });
   });
 
-  // ── Templates de charges ──
-  container.querySelector('#btn-import-templates')?.addEventListener('click', () => {
+  // ── Templates de charges (Sauvegarde accordion) ──
+  const _showTemplatesModal = () => {
     const TEMPLATES = [
       { label: 'Loyer',              category: 'logement',   amount: 800,  qui: 'shared' },
       { label: 'Électricité (EDF)',  category: 'logement',   amount: 80,   qui: 'shared' },
@@ -510,6 +604,116 @@ function bindEvents(container, s, users, archived, N) {
       closeModal();
       showToast(`${count} charge${count > 1 ? 's' : ''} importée${count > 1 ? 's' : ''} ✅`, 'success');
     });
+  };
+  container.querySelector('#btn-import-templates')?.addEventListener('click', _showTemplatesModal);
+  container.querySelector('#btn-import-templates-charges')?.addEventListener('click', _showTemplatesModal);
+
+  // ── Charges fixes accordion: liste + ajout ──
+  const _reloadChargesList = async () => {
+    const charges = await getAllCharges();
+    const listEl = container.querySelector('#charges-list-settings');
+    if (!listEl) return;
+    if (!charges.length) {
+      listEl.innerHTML = `<p style="font-size:0.78rem;color:var(--text-3);">Aucune charge r\u00e9currente. Cliquez sur + Ajouter.</p>`;
+      return;
+    }
+    const byCat = {};
+    for (const c of charges) { (byCat[c.category || 'autre'] ??= []).push(c); }
+    listEl.innerHTML = Object.entries(byCat).map(([catId, items]) => {
+      const info = getCategoryInfo(catId);
+      const total = items.reduce((s, c) => s + (c.lines?.reduce((ss, l) => ss + (Number(l.amount)||0), 0) || Number(c.amount)||0), 0);
+      return `<div style="margin-bottom:8px;">
+        <div style="font-size:0.72rem;font-weight:700;color:var(--text-3);text-transform:uppercase;padding:4px 0;border-bottom:1px solid var(--border);margin-bottom:4px;">${info.icon} ${escHtml(info.label)} \u2014 ${eur(total)}</div>
+        ${items.map(c => `<div class="list-item" style="padding:8px 0;">
+          <div class="list-item-body">
+            <div class="list-item-title" style="font-size:0.85rem;">${escHtml(c.label)}</div>
+            <div class="list-item-sub">${c.active !== false ? '\u2713 Active' : '\u2715 Inactive'} \u00b7 ${c.months === 'all' ? 'Tous les mois' : (c.months || []).length + ' mois'}</div>
+          </div>
+          <div style="display:flex;gap:6px;align-items:center;">
+            <button class="btn btn-sm btn-outline btn-edit-charge-settings" data-cid="${c.id}" style="padding:3px 8px;">\u270e</button>
+            <button class="btn btn-sm btn-danger btn-del-charge-settings" data-cid="${c.id}" style="padding:3px 8px;">\u2715</button>
+          </div>
+        </div>`).join('')}
+      </div>`;
+    }).join('');
+    listEl.querySelectorAll('.btn-del-charge-settings').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        await deleteCharge(Number(btn.dataset.cid));
+        showToast('Charge supprim\u00e9e', 'success');
+        _reloadChargesList();
+      });
+    });
+    listEl.querySelectorAll('.btn-edit-charge-settings').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const cid = Number(btn.dataset.cid);
+        const charges2 = await getAllCharges();
+        const charge = charges2.find(c => c.id === cid);
+        if (charge) {
+          const { showChargeModal: _showChargeModal } = await import('./charges.js');
+          _showChargeModal(charge, _reloadChargesList);
+        }
+      });
+    });
+  };
+  _reloadChargesList();
+  container.querySelector('#btn-add-charge-settings')?.addEventListener('click', async () => {
+    const { showChargeModal: _showChargeModal } = await import('./charges.js');
+    _showChargeModal(null, _reloadChargesList);
+  });
+
+  // ── Budgets accordion: cibles ──
+  container.querySelector('#btn-save-cibles')?.addEventListener('click', async () => {
+    const courses = Number(container.querySelector('#s-cible-courses')?.value) || 0;
+    const extras  = Number(container.querySelector('#s-cible-extras')?.value)  || 0;
+    await setSetting('budgetCibles', { courses, extras });
+    showToast('Cibles enregistr\u00e9es \u2705', 'success');
+  });
+
+  // ── Budgets personnalis\u00e9s ──
+  container.querySelector('#btn-add-custom-budget-settings')?.addEventListener('click', async () => {
+    const currentSettings = await getAllSettings();
+    const cBudgets = currentSettings.customBudgets || [];
+    const ICONS = ['\ud83d\udecd\ufe0f','\ud83c\udf7d\ufe0f','\ud83c\udfc3','\ud83d\udc57','\ud83d\udc88','\ud83d\udc36','\ud83c\udf93','\ud83d\udc8a','\u2708\ufe0f','\ud83c\udfa5','\ud83c\udfa7'];
+    openModal('+ Budget personnalis\u00e9',
+      `<div class="form-group" style="margin-bottom:10px;"><label class="form-label">Ic\u00f4ne</label>
+       <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;">${ICONS.map(ic => `<button class="btn btn-sm btn-outline icon-pick" data-ic="${ic}" style="padding:6px 8px;font-size:1.1rem;">${ic}</button>`).join('')}</div>
+       <input type="text" class="form-input" id="cb-icon" value="\ud83d\udcc8" style="width:70px;" maxlength="4"></div>
+       <div class="form-group" style="margin-bottom:10px;"><label class="form-label">Nom *</label><input type="text" class="form-input" id="cb-name" placeholder="Ex: Restaurant, Sport\u2026" autofocus></div>
+       <div class="form-group"><label class="form-label">Budget mensuel (\u20ac)</label><div class="input-wrap"><input type="number" class="form-input" id="cb-amount" min="0" step="10" placeholder="0"><span class="input-suffix">\u20ac</span></div></div>`,
+      `<button class="btn btn-outline" id="cb-cancel">Annuler</button><button class="btn btn-primary" id="cb-save">Ajouter</button>`
+    );
+    document.querySelectorAll('.icon-pick').forEach(b => b.addEventListener('click', () => { document.getElementById('cb-icon').value = b.dataset.ic; }));
+    document.getElementById('cb-cancel')?.addEventListener('click', closeModal);
+    document.getElementById('cb-save')?.addEventListener('click', async () => {
+      const name = document.getElementById('cb-name')?.value.trim();
+      if (!name) { showToast('Nom requis', 'error'); return; }
+      const icon   = document.getElementById('cb-icon')?.value || '\ud83d\udcc8';
+      const amount = Number(document.getElementById('cb-amount')?.value) || 0;
+      const id     = `custom-${Date.now()}`;
+      cBudgets.push({ id, name, icon, amount });
+      await setSetting('customBudgets', cBudgets);
+      closeModal();
+      showToast('Budget ajout\u00e9 \u2705', 'success');
+      render(container);
+    });
+  });
+
+  container.querySelectorAll('.btn-del-custom-budget').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const bid = btn.dataset.bid;
+      const currentSettings2 = await getAllSettings();
+      const updated = (currentSettings2.customBudgets || []).filter(b => b.id !== bid);
+      await setSetting('customBudgets', updated);
+      showToast('Budget supprim\u00e9', 'success');
+      render(container);
+    });
+  });
+
+  // ── Budgets \u00e9pingl\u00e9s ──
+  container.querySelector('#btn-save-pinned')?.addEventListener('click', async () => {
+    const pinned = [...container.querySelectorAll('.pin-budget-chk:checked')].map(c => c.dataset.pid);
+    await setSetting('pinnedBudgets', pinned);
+    showToast('\u00c9pingl\u00e9s enregistr\u00e9s \u2705', 'success');
   });
 
   // ── Export JSON ──
