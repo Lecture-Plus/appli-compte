@@ -1,7 +1,7 @@
 // Service Worker – Compta+
 // Stratégie : Network First pour l'app shell (auto-update), Cache pour CDN
 
-const CACHE_NAME = 'compta-plus-v58';
+const CACHE_NAME = 'compta-plus-v59';
 
 const APP_SHELL = [
   './index.html',
@@ -83,6 +83,9 @@ self.addEventListener('fetch', event => {
   if (event.request.method !== 'GET') return;
 
   const url = new URL(event.request.url);
+  // Ignore non-http(s) schemes (chrome-extension, data, blob, etc.)
+  if (!url.protocol.startsWith('http')) return;
+
   const isCDN = CDN_ORIGINS.some(o => url.hostname.includes(o));
 
   event.respondWith(
