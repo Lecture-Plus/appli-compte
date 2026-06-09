@@ -14,7 +14,7 @@ import { getMonthlyData, getChargesForMonth,
          getActiveUsers, setSetting }                                  from '../db.js';
 import { calcMonth, calcPrevisionnel }                    from '../calculs.js';
 import { eur, pct, nomMois, addMonth, signClass,
-         txEparClass, completenessStatus,
+         txEparClass, completenessStatus, MOIS,
          progressColor, escHtml, showToast, showToastWithUndo,
          openModal, closeModal }                          from '../utils.js';
 import { showCraquageModal }                              from './saisie.js';
