@@ -196,6 +196,11 @@ function buildHTML(s, users, archived, N) {
       <button class="btn btn-outline btn-full btn-sm" id="s-save-drive-url" style="margin-bottom:10px;">Enregistrer l'URL</button>
       <div style="display:flex;gap:8px;margin-bottom:8px;">
         <button class="btn btn-sm btn-secondary" style="flex:1;" id="btn-drive-test">🔍 Tester la connexion</button>
+        <button class="btn btn-sm btn-outline" style="flex:1;" id="btn-drive-qr">📲 QR Code</button>
+      </div>
+      <div id="drive-qr-wrap" style="display:none;text-align:center;margin-bottom:10px;padding:12px;background:var(--bg-2);border-radius:10px;">
+        <canvas id="drive-qr-canvas" style="border-radius:6px;"></canvas>
+        <p style="font-size:0.72rem;color:var(--text-3);margin-top:6px;">Scannez ce QR code pour configurer l'URL sur un autre appareil.</p>
       </div>
       <div id="drive-test-result" style="display:none;font-size:0.75rem;padding:8px 10px;border-radius:8px;margin-bottom:10px;"></div>
       <div style="display:flex;gap:8px;">
@@ -614,6 +619,52 @@ function bindEvents(container, s, users, archived, N) {
     container.querySelector('#drive-status').textContent = url ? '● Configuré' : '○ Non configuré';
     container.querySelector('#drive-status').className   = `chip ${url ? 'success' : ''}`;
     showToast(url ? 'URL Drive enregistrée ✅' : 'URL supprimée', 'success');
+  });
+
+  // ── Drive : QR code ──
+  container.querySelector('#btn-drive-qr')?.addEventListener('click', async () => {
+    const url = (container.querySelector('#s-drive-url')?.value.trim()) ||
+                (await getSetting(DRIVE_URL_KEY) || '').trim();
+    const wrap = container.querySelector('#drive-qr-wrap');
+    if (!url) { showToast('Saisissez d\'abord une URL Drive.', 'error'); return; }
+    wrap.style.display = wrap.style.display === 'none' ? 'block' : 'none';
+    if (wrap.style.display === 'none') return;
+    const canvas = container.querySelector('#drive-qr-canvas');
+    // Chargement lazy du générateur QR (bibliothèque UMD ~10KB)
+    if (!window.qrcode) {
+      await new Promise((res, rej) => {
+        const s = document.createElement('script');
+        s.src = 'https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js';
+        s.onload = res; s.onerror = rej;
+        document.head.appendChild(s);
+      }).catch(() => null);
+    }
+    try {
+      const qr = window.qrcode(0, 'M');
+      qr.addData(url);
+      qr.make();
+      const moduleCount = qr.getModuleCount();
+      const size = 180;
+      const cellSize = Math.floor(size / moduleCount);
+      const ctx = canvas.getContext('2d');
+      canvas.width  = moduleCount * cellSize;
+      canvas.height = moduleCount * cellSize;
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = '#1a1a2e';
+      for (let row = 0; row < moduleCount; row++) {
+        for (let col = 0; col < moduleCount; col++) {
+          if (qr.isDark(row, col)) ctx.fillRect(col * cellSize, row * cellSize, cellSize, cellSize);
+        }
+      }
+    } catch (_) {
+      // Fallback offline : afficher l'URL sous forme copiable
+      canvas.style.display = 'none';
+      const p = document.createElement('p');
+      p.style.cssText = 'font-size:0.72rem;word-break:break-all;color:var(--text-2);background:var(--bg-1);padding:8px;border-radius:6px;';
+      p.textContent = url;
+      wrap.insertBefore(p, wrap.querySelector('p'));
+    }
   });
 
   // ── Drive : pousser ──

@@ -2,15 +2,17 @@
 // js/db.js – Couche d'accès à la base de données IndexedDB
 // ============================================================
 
+import { emit, on } from './events.js';
+
 const DB_NAME    = 'budgetFoyer';
 const DB_VERSION = 5;  // v5 : salary_savings + salary_abondements stores
 
 let _db = null;
 
-// ── Dirty flag callback (évite la dépendance circulaire avec sync.js) ──
-let _onWriteCallback = null;
-/** Enregistre une fonction à appeler à chaque écriture IDB (ex: markDirty de sync.js) */
-export function onWrite(fn) { _onWriteCallback = fn; }
+// ── Dirty flag : on émet 'db:write' via EventBus (remplace l'ancien callback) ──
+/** Alias de compatibilité : enregistre un listener sur 'db:write' */
+export function onWrite(fn) { on('db:write', fn); }
+export { on as onDbEvent };
 
 // ── Cache mémoire (évite les lectures IDB répétées) ──
 let _settingsCache = null; // invalidé par setSetting / importAllData / resetAllData
@@ -127,7 +129,7 @@ async function _put(store, value) {
   return new Promise((resolve, reject) => {
     const tx  = db.transaction(store, 'readwrite');
     const req = tx.objectStore(store).put(value);
-    req.onsuccess = () => { if (_onWriteCallback) _onWriteCallback(); resolve(req.result); };
+    req.onsuccess = () => { emit('db:write', { store }); resolve(req.result); };
     req.onerror   = () => reject(req.error);
   });
 }
@@ -137,7 +139,7 @@ async function _delete(store, key) {
   return new Promise((resolve, reject) => {
     const tx  = db.transaction(store, 'readwrite');
     const req = tx.objectStore(store).delete(key);
-    req.onsuccess = () => { if (_onWriteCallback) _onWriteCallback(); resolve(); };
+    req.onsuccess = () => { emit('db:write', { store }); resolve(); };
     req.onerror   = () => reject(req.error);
   });
 }
@@ -455,15 +457,54 @@ export async function exportAllData() {
   };
 }
 
-export async function importAllData(data) {
-  if (!data || !data.appName) {
-    throw new Error('Format de sauvegarde invalide.');
+// ── Validation avancée d'un fichier de sauvegarde ─────────────────────────────
+const _ARRAY_STORES = ['users','monthlyData','charges','achats','repartition',
+  'archives','savings_operations','savings_confirmed','budget_ops',
+  'salary_savings','salary_abondements'];
+
+/**
+ * Valide un objet de sauvegarde avant import.
+ * @param {unknown} data
+ * @returns {{ ok: boolean, errors: string[] }}
+ */
+export function validateImportData(data) {
+  const errors = [];
+  if (!data || typeof data !== 'object') { return { ok: false, errors: ['Données nulles ou non-objet.'] }; }
+  if (data.appName !== 'ComptaPlus')     errors.push(`appName inattendu : "${data.appName}" (attendu: "ComptaPlus")`);
+  if (data.version !== undefined && typeof data.version !== 'number') errors.push('version doit être un nombre.');
+  for (const store of _ARRAY_STORES) {
+    if (data[store] !== undefined && !Array.isArray(data[store]))
+      errors.push(`"${store}" doit être un tableau.`);
   }
-  // Validation basique de la structure
-  if (data.version && data.version < 1) throw new Error('Version de sauvegarde trop ancienne.');
-  if (data.users !== undefined && !Array.isArray(data.users)) throw new Error('Champ users invalide.');
-  if (data.monthlyData !== undefined && !Array.isArray(data.monthlyData)) throw new Error('Champ monthlyData invalide.');
-  if (data.charges !== undefined && !Array.isArray(data.charges)) throw new Error('Champ charges invalide.');
+  // Vérification des users : id + name requis
+  if (Array.isArray(data.users)) {
+    data.users.forEach((u, i) => {
+      if (!u.id)   errors.push(`users[${i}] : champ "id" manquant.`);
+      if (!u.name) errors.push(`users[${i}] : champ "name" manquant.`);
+    });
+  }
+  // Vérification des monthlyData : year + month requis
+  if (Array.isArray(data.monthlyData)) {
+    data.monthlyData.forEach((m, i) => {
+      if (typeof m.year  !== 'number') errors.push(`monthlyData[${i}] : "year" doit être un nombre.`);
+      if (typeof m.month !== 'number') errors.push(`monthlyData[${i}] : "month" doit être un nombre.`);
+    });
+  }
+  // Vérification des charges : name + amount requis
+  if (Array.isArray(data.charges)) {
+    data.charges.forEach((c, i) => {
+      if (!c.name) errors.push(`charges[${i}] : "name" manquant.`);
+      if (c.amount === undefined) errors.push(`charges[${i}] : "amount" manquant.`);
+    });
+  }
+  return { ok: errors.length === 0, errors };
+}
+
+export async function importAllData(data) {
+  const { ok, errors } = validateImportData(data);
+  if (!ok) throw new Error('Import invalide : ' + errors.join(' | '));
+
+
 
   // Backup automatique des données actuelles avant détruction
   let _rollbackData = null;
