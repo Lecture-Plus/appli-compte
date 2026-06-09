@@ -306,14 +306,14 @@ async function _renderResume(container, s, users) {
     <!-- ── CTAs adaptatifs ── -->
     <div id="dash-cta-area" style="margin-bottom:8px;">
       ${status === 'empty'
-        ? `<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
-            <button class="btn btn-primary" id="btn-go-saisie" style="font-size:0.82rem;padding:11px;">✏️ Compléter la saisie mensuelle</button>
+        ? `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+            <button class="btn btn-primary" id="btn-go-saisie" style="grid-column:1/-1;font-size:0.82rem;padding:11px;white-space:normal;text-align:center;">✏️ Compléter la saisie mensuelle</button>
             <button class="btn btn-outline" id="btn-go-craquage" style="font-size:0.82rem;padding:11px;">💥 Craquage</button>
             <button class="btn btn-outline" id="btn-add-achat" style="font-size:0.82rem;padding:11px;">💳 Dépense</button>
           </div>`
         : status === 'partial'
-          ? `<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
-              <button class="btn btn-primary" id="btn-go-saisie" style="font-size:0.82rem;padding:11px;">✏️ Compléter la saisie mensuelle</button>
+          ? `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+              <button class="btn btn-primary" id="btn-go-saisie" style="grid-column:1/-1;font-size:0.82rem;padding:11px;white-space:normal;text-align:center;">✏️ Compléter la saisie mensuelle</button>
               <button class="btn btn-outline" id="btn-go-craquage" style="font-size:0.82rem;padding:11px;">💥 Craquage</button>
               <button class="btn btn-outline" id="btn-add-achat" style="font-size:0.82rem;padding:11px;">💳 Dépense</button>
             </div>`
@@ -327,10 +327,10 @@ async function _renderResume(container, s, users) {
     <!-- ── Suivi budgets épinglés ── -->
     ${(() => {
       const availableToPinIds = customBudgets.map(b=>b.id).filter(id=>!pinnedBudgets.includes(id));
-      const canAddMore = pinnedCards.length < 4 && availableToPinIds.length > 0;
+      const canAddMore = pinnedCards.length < 4;
       const allItems = [...pinnedCards, ...(canAddMore ? [{ type:'add' }] : [])];
       if (!allItems.length) return '<div style="margin-bottom:12px;"></div>';
-      const gridCols = Math.min(allItems.length, 4);
+      const gridCols = Math.min(allItems.length, 2);
       return `<div style="display:grid;grid-template-columns:repeat(${gridCols},1fr);gap:8px;margin-top:12px;margin-bottom:12px;align-items:stretch;">
         ${allItems.map(c => {
           if (c.type === 'add') return `<div class="card dash-pin-add" style="padding:12px;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;cursor:pointer;min-height:80px;border:1.5px dashed var(--border);">
