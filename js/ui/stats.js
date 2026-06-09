@@ -4,7 +4,8 @@
 
 import { State }                                          from '../app.js';
 import { getMonthsByYear, getAllCharges,
-         getAchatsForMonth, getRepartition,
+         getMonthlyData, getChargesForMonth,
+         getAchatsForMonth, getRepartition, getBudgetOpsForMonth,
          getAllSettings, getAvailableYears,
          getActiveUsers, getAllUsers,
          getAllSavingsOperations, getAllRepartitions,
@@ -54,6 +55,7 @@ export async function render(container) {
       <button class="tab-btn ${_statsTab === 'epargne'    ? 'active' : ''}" data-stab="epargne">💰 Épargne</button>
       <button class="tab-btn ${_statsTab === 'depenses'   ? 'active' : ''}" data-stab="depenses">💸 Dépenses</button>
       <button class="tab-btn ${_statsTab === 'evolution'  ? 'active' : ''}" data-stab="evolution">📈 Évolution</button>
+      <button class="tab-btn ${_statsTab === 'detail'     ? 'active' : ''}" data-stab="detail">🗂 Ce mois</button>
     </div>
 
     <!-- Onglet Revenus -->
@@ -141,6 +143,14 @@ export async function render(container) {
       <div id="evolution-content"><div class="loading"><div class="spinner"></div></div></div>
     </div>
 
+    <div id="stab-detail" style="${_statsTab !== 'detail' ? 'display:none;' : ''}">
+      <div id="detail-month-content">
+        ${_statsMonth === 0
+          ? `<div style="padding:32px 0;text-align:center;"><div style="font-size:2rem;margin-bottom:8px;">🗓️</div><div style="font-weight:700;font-size:0.92rem;margin-bottom:6px;">Sélectionnez un mois</div><div style="font-size:0.78rem;color:var(--text-3);">Choisissez un mois dans le sélecteur ci-dessus pour voir le détail.</div></div>`
+          : `<div class="loading" style="padding:32px;text-align:center;"><div class="spinner"></div></div>`}
+      </div>
+    </div>
+
     <div style="height:16px;"></div>
   `;
 
@@ -176,12 +186,15 @@ export async function render(container) {
       container.querySelectorAll('#stats-tabs .tab-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       _statsTab = btn.dataset.stab;
-      ['revenus', 'epargne', 'depenses', 'evolution'].forEach(t => {
+      ['revenus', 'epargne', 'depenses', 'evolution', 'detail'].forEach(t => {
         const el = container.querySelector(`#stab-${t}`);
         if (el) el.style.display = t === _statsTab ? '' : 'none';
       });
       if (_statsTab === 'evolution') {
         _renderEvolution(container, State.year, users);
+      }
+      if (_statsTab === 'detail') {
+        _renderDetailTab(container, State.year, _statsMonth, users);
       }
     });
   });
@@ -270,6 +283,107 @@ async function loadAndRender(container, year, month, users, s) {
   await renderMonthCompare(container, year, month > 0 ? month : curMonth, users, s, allChargesRaw, allAchats, allRepartitions, monthMap);
   renderScoreBudgetaire(container, singleMonth ? results[month - 1] : results[curMonth - 1], s);
   renderInsights(container, results, singleMonth ? month : curMonth, year, s);
+  if (_statsTab === 'detail') {
+    _renderDetailTab(container, year, month, users).catch(e => console.error(e));
+  }
+}
+
+async function _renderDetailTab(container, year, month, users) {
+  const wrap = container.querySelector('#detail-month-content');
+  if (!wrap) return;
+  if (month === 0) {
+    wrap.innerHTML = `<div style="padding:32px 0;text-align:center;"><div style="font-size:2rem;margin-bottom:8px;">🗓️</div><div style="font-weight:700;font-size:0.92rem;margin-bottom:6px;">Sélectionnez un mois</div><div style="font-size:0.78rem;color:var(--text-3);">Choisissez un mois dans le sélecteur ci-dessus pour voir le détail.</div></div>`;
+    return;
+  }
+  wrap.innerHTML = `<div class="loading" style="padding:32px;text-align:center;"><div class="spinner"></div></div>`;
+  const [md, charges, achats, repCfg, budgetOps] = await Promise.all([
+    getMonthlyData(year, month),
+    getChargesForMonth(month, year),
+    getAchatsForMonth(year, month),
+    getRepartition(year, month),
+    getBudgetOpsForMonth(year, month),
+  ]);
+  if (!md) {
+    wrap.innerHTML = `<div style="padding:24px;text-align:center;color:var(--text-3);font-size:0.85rem;">Aucune donnée pour ${MOIS[month - 1]} ${year}.</div>`;
+    return;
+  }
+  const kpiPrev = calcMonth(md, charges, achats, repCfg, users);
+  const today = new Date();
+  const isCurrentMonth = year === today.getFullYear() && month === today.getMonth() + 1;
+  const chargesReel = isCurrentMonth ? charges.filter(c => (c.day || 1) <= today.getDate()) : charges;
+  const kpiReel = calcMonth(md, chargesReel, achats, repCfg, users, budgetOps);
+  const realCourses = budgetOps.filter(o => o.category === 'courses').reduce((s, o) => s + (Number(o.amount) || 0), 0);
+  const realExtras  = budgetOps.filter(o => o.category === 'extras').reduce((s, o) => s + (Number(o.amount) || 0), 0);
+  let detailMode = 'previsionnel';
+
+  function buildRow(label, cat) {
+    if (!cat) return '';
+    return `<tr><td>${escHtml(label)}</td>${users.map(u => `<td style="text-align:right">${eur(cat.byUser?.[u.id] ?? 0)}</td>`).join('')}<td style="text-align:right">${eur(cat.total)}</td></tr>`;
+  }
+
+  function renderTable() {
+    const isReel = detailMode === 'reel';
+    const dk = isReel ? kpiReel : kpiPrev;
+    const courses = isReel ? realCourses : kpiPrev.courses.total;
+    const extras  = isReel ? realExtras  : kpiPrev.extras.total;
+    return `<div style="overflow-x:auto;"><table class="data-table">
+      <thead><tr>
+        <th>Catégorie</th>
+        ${users.map(u => `<th style="text-align:right"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${escHtml(u.color || '#7C5CFC')};margin-right:3px;"></span>${escHtml(u.name)}</th>`).join('')}
+        <th style="text-align:right">Total</th>
+      </tr></thead>
+      <tbody>
+        ${buildRow('Revenus & Aides', dk.revenus)}
+        ${(dk.aides?.total ?? 0) > 0 ? buildRow('Aides', dk.aides) : ''}
+        ${buildRow('Primes', dk.primes)}
+        ${buildRow('Charges', dk.charges)}
+        <tr><td>${isReel ? 'Courses (confirmé)' : 'Budget courses'}</td>${users.map(u => `<td style="text-align:right">${eur(dk.courses.byUser?.[u.id] ?? 0)}</td>`).join('')}<td style="text-align:right">${eur(courses)}</td></tr>
+        <tr><td>${isReel ? 'Loisirs (confirmé)' : 'Budget loisirs'}</td>${users.map(u => `<td style="text-align:right">${eur(dk.extras.byUser?.[u.id] ?? 0)}</td>`).join('')}<td style="text-align:right">${eur(extras)}</td></tr>
+        ${buildRow('Achats exc.', dk.achats)}
+        ${buildRow('Imprévus', dk.imprevus)}
+      </tbody>
+      <tfoot>
+        <tr class="row-total"><td>${isReel ? 'À payer' : 'À envoyer (prév.)'}</td>${users.map(u => `<td style="text-align:right">${eur(dk.aPayer.byUser?.[u.id] ?? 0)}</td>`).join('')}<td style="text-align:right">${eur(dk.aPayer.total)}</td></tr>
+        <tr class="row-total"><td>Solde ${isReel ? 'net' : 'prévisionnel'}</td>${users.map(u => { const v = dk.solde.byUser?.[u.id] ?? 0; return `<td style="text-align:right;color:${v >= 0 ? 'var(--success)' : 'var(--danger)'}">${eur(v)}</td>`; }).join('')}<td style="text-align:right;color:${dk.solde.total >= 0 ? 'var(--success)' : 'var(--danger)'}">${eur(dk.solde.total)}</td></tr>
+      </tfoot>
+    </table></div>
+    ${!isReel ? `<p style="font-size:0.72rem;color:var(--text-3);margin-top:8px;padding:0 2px;">💡 Ce calcul utilise les plafonds de budget et la répartition configurée. Il représente le maximum à envoyer sur le compte joint.</p>` : ''}`;
+  }
+
+  wrap.innerHTML = `
+    <div class="card" style="margin-bottom:12px;">
+      <div class="card-header" style="flex-wrap:wrap;gap:6px;">
+        <span class="card-title">📋 Détail ${escHtml(MOIS[month - 1])} ${year}</span>
+        <div style="margin-left:auto;display:flex;gap:4px;">
+          <button class="btn btn-sm detail-dmode ${detailMode === 'reel' ? 'btn-primary' : 'btn-outline'}" data-dmode="reel" style="font-size:0.68rem;padding:2px 8px;">✅ Réel</button>
+          <button class="btn btn-sm detail-dmode ${detailMode === 'previsionnel' ? 'btn-primary' : 'btn-outline'}" data-dmode="previsionnel" style="font-size:0.68rem;padding:2px 8px;">📅 Prévisionnel</button>
+        </div>
+      </div>
+      <p id="detail-hint" style="font-size:0.72rem;color:var(--text-3);margin-bottom:8px;">📅 Simulation avec tous les budgets et charges du mois configurés</p>
+      <div id="stats-detail-table">${renderTable()}</div>
+    </div>
+    ${users.length >= 2 ? `<div class="card" style="margin-bottom:12px;">
+      <div class="card-header"><span class="card-title">⚖️ Répartition prévue</span></div>
+      <div style="display:grid;gap:8px;margin-top:4px;">
+        ${users.map(u => `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:var(--bg-2);border-radius:var(--radius-sm);"><div style="display:flex;align-items:center;gap:8px;"><span style="width:9px;height:9px;border-radius:50%;background:${escHtml(u.color || '#6C63FF')};display:inline-block;"></span><span style="font-size:0.88rem;font-weight:600;">${escHtml(u.name)}</span></div><div style="text-align:right;"><div style="font-size:1rem;font-weight:800;color:var(--primary);">${eur(kpiPrev.aPayer.byUser?.[u.id] ?? 0)}</div><div style="font-size:0.62rem;color:var(--text-3);">\u00e0 envoyer</div></div></div>`).join('')}
+      </div>
+    </div>` : ''}
+  `;
+
+  wrap.onclick = e => {
+    const btn = e.target.closest('.detail-dmode');
+    if (!btn) return;
+    detailMode = btn.dataset.dmode;
+    wrap.querySelectorAll('.detail-dmode').forEach(b => {
+      b.classList.toggle('btn-primary', b.dataset.dmode === detailMode);
+      b.classList.toggle('btn-outline',  b.dataset.dmode !== detailMode);
+    });
+    const hint = wrap.querySelector('#detail-hint');
+    if (hint) hint.textContent = detailMode === 'reel'
+      ? '✅ Opérations confirmées + charges dont la date de prélèvement est passée'
+      : '📅 Simulation avec tous les budgets et charges du mois configurés';
+    wrap.querySelector('#stats-detail-table').innerHTML = renderTable();
+  };
 }
 
 function renderKPIAnnuel(container, kpi, monthLabel = null) {

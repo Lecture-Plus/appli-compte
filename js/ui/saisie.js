@@ -39,6 +39,12 @@ export async function render(container) {
     getBudgetOpsForMonth(year, month),
   ]);
 
+  // Pré-remplissage depuis le mois précédent
+  const prevM = addMonth(year, month, -1);
+  const prevMd = await getMonthlyData(prevM.year, prevM.month);
+  const _isEmptyMonth = _users.every(u => (_md.users?.[String(u.id)]?.revenus || 0) === 0);
+  const _hasPrevData  = !!prevMd && _users.some(u => (prevMd.users?.[String(u.id)]?.revenus || 0) > 0);
+
   // Assurer que chaque user a ses données initialisées
   _users.forEach(u => getUserMonthData(_md, u.id));
   // Initialiser la liste des imprévus si absente
@@ -85,6 +91,8 @@ export async function render(container) {
         <div class="empty-state-text">Allez dans <strong>Réglages → Utilisateurs du foyer</strong> pour ajouter des personnes.</div>
       </div>
     ` : `
+
+    ${_isEmptyMonth && _hasPrevData ? `<div id="prefill-banner" style="background:var(--primary-bg);border-left:3px solid var(--primary);border-radius:var(--radius);padding:10px 14px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;gap:8px;"><div><div style="font-weight:600;font-size:0.82rem;color:var(--primary);">Pré-remplir depuis ${nomMois(prevM.month)} ${prevM.year} ?</div><div style="font-size:0.72rem;color:var(--text-3);margin-top:2px;">Revenus et budgets copiés — modifiez si besoin.</div></div><button class="btn btn-primary btn-sm" id="btn-prefill" style="flex-shrink:0;">Copier</button></div>` : ''}
 
     <!-- ── Zone 1 : Revenus ── -->
     <div class="form-section" style="margin-bottom:10px;">
@@ -199,34 +207,37 @@ export async function render(container) {
       <div id="imprevu-list"></div>
     </div>
 
-    <!-- ── Options avancées ── -->
-    <button id="btn-toggle-adv-saisie" class="btn btn-outline btn-full" style="margin-bottom:10px;font-size:0.8rem;display:flex;align-items:center;justify-content:space-between;">
-      <span>⚙️ Notes, Récapitulatif, Craquage &amp; What-if</span>
-      <svg id="chevron-adv-saisie" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14"><path d="M6 9l6 6 6-6"/></svg>
-    </button>
-    <div id="adv-saisie-section" style="display:none;">
-      <div class="form-section" style="margin-bottom:10px;">
-        <div class="form-section-title"><span class="section-icon">📝</span>Notes du mois</div>
-        <textarea id="notes-field" class="form-input" rows="3"
-          placeholder="Remarques, événements du mois…" style="resize:vertical;">${escHtml(_md.notes || '')}</textarea>
-      </div>
-      <div class="calc-preview" id="calc-preview" style="margin-bottom:10px;">
-        <div class="calc-preview-title">📊 Récapitulatif du mois</div>
-        <div id="calc-rows">Calcul en cours…</div>
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
-        <button class="btn btn-danger" id="btn-craquage">💥 Craquage</button>
-        <button class="btn btn-outline" id="btn-whatif">🧮 What-if</button>
-      </div>
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;gap:8px;">
-        <div style="font-size:0.72rem;color:var(--text-3);">« Marquer complet » valide que le mois est entièrement saisi → badge ✅ sur l'accueil</div>
-        <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
-          <span id="save-indicator" class="save-indicator hidden">✓ Sauvegardé</span>
-          <button class="btn btn-outline btn-sm" id="btn-complete" style="display:flex;align-items:center;gap:5px;">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14"><path d="M20 6L9 17l-5-5"/></svg>
-            Marquer complet
-          </button>
+    <!-- ── Outils secondaires ── -->
+    <details class="tools-details">
+      <summary>📊 Récapitulatif, Notes &amp; Outils</summary>
+      <div class="tools-details-body">
+        <div class="calc-preview" id="calc-preview" style="margin-bottom:10px;">
+          <div class="calc-preview-title">📊 Récapitulatif du mois</div>
+          <div id="calc-rows">Calcul en cours…</div>
         </div>
+        <div class="form-section" style="margin-bottom:10px;">
+          <div class="form-section-title"><span class="section-icon">📝</span>Notes du mois</div>
+          <textarea id="notes-field" class="form-input" rows="3"
+            placeholder="Remarques, événements du mois…" style="resize:vertical;">${escHtml(_md.notes || '')}</textarea>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+          <button class="btn btn-danger" id="btn-craquage">💥 Craquage</button>
+          <button class="btn btn-outline" id="btn-whatif">🧮 What-if</button>
+        </div>
+      </div>
+    </details>
+    <!-- ── Footer sticky ── -->
+    <div class="saisie-footer" id="saisie-footer">
+      <div>
+        <div class="saisie-footer-label">Solde du mois</div>
+        <div id="footer-solde" class="saisie-footer-amount">…</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
+        <span id="save-indicator" class="save-indicator hidden">✓ Sauvegardé</span>
+        <button class="btn btn-outline btn-sm" id="btn-complete" style="display:flex;align-items:center;gap:5px;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14"><path d="M20 6L9 17l-5-5"/></svg>
+          <span id="btn-complete-text">${_md.isComplete ? '✅ Complet' : 'Marquer complet'}</span>
+        </button>
       </div>
     </div>
     `}
@@ -248,17 +259,6 @@ export async function render(container) {
     const open = sec.style.display !== 'none';
     sec.style.display = open ? 'none' : '';
     btn.textContent = open ? '⬇ Aides & primes' : '⬆ Masquer';
-  });
-
-  // ── Toggle : Options avancées ──
-  container.querySelector('#btn-toggle-adv-saisie')?.addEventListener('click', () => {
-    const sec = container.querySelector('#adv-saisie-section');
-    const chv = container.querySelector('#chevron-adv-saisie');
-    if (!sec) return;
-    const open = sec.style.display !== 'none';
-    sec.style.display = open ? 'none' : '';
-    if (chv) chv.style.transform = open ? '' : 'rotate(180deg)';
-    if (!open) updatePreview(container);
   });
 
   // ── Navigation mois ──
@@ -368,19 +368,43 @@ export async function render(container) {
     showImprévuModal(container, month, year);
   });
 
+  // ── Pré-remplissage ──
+  container.querySelector('#btn-prefill')?.addEventListener('click', async () => {
+    _users.forEach(u => {
+      const uid = String(u.id);
+      const prevU = prevMd?.users?.[uid];
+      if (!prevU) return;
+      if (!_md.users[uid]) _md.users[uid] = {};
+      _md.users[uid].revenus = prevU.revenus ?? 0;
+      _md.users[uid].courses = prevU.courses ?? 0;
+      _md.users[uid].extras  = prevU.extras  ?? 0;
+      _md.users[uid].aides   = prevU.aides   ?? 0;
+      _md.users[uid].primes  = prevU.primes  ?? 0;
+    });
+    await saveMonthlyData(_md);
+    render(container);
+    showToast(`Données de ${nomMois(prevM.month)} ${prevM.year} copiées ✅`, 'success');
+  });
+
   // ── Marquer complet ──
   container.querySelector('#btn-complete')?.addEventListener('click', async () => {
     syncFormToState(container);
     if (_md.isComplete) {
-      // Démarquer directement
       _md.isComplete = false;
       await saveMonthlyData(_md);
       showToast('Mois marqué comme en cours', 'success');
       const btn = container.querySelector('#btn-complete');
+      const txt = container.querySelector('#btn-complete-text');
       if (btn) btn.style.color = '';
+      if (txt) txt.textContent = 'Marquer complet';
     } else {
-      // Wizard de fin de mois
       await _showEndOfMonthWizard(container, month, year);
+      if (_md.isComplete) {
+        const btn = container.querySelector('#btn-complete');
+        const txt = container.querySelector('#btn-complete-text');
+        if (btn) btn.style.color = 'var(--success)';
+        if (txt) txt.textContent = '✅ Complet';
+      }
     }
   });
 
@@ -558,6 +582,11 @@ function updatePreview(container) {
       <span>${pct(kpi.txEpargne.total, 1)}</span>
     </div>
   `;
+  const footerSolde = container.querySelector('#footer-solde');
+  if (footerSolde) {
+    footerSolde.textContent = eur(kpi.solde.total);
+    footerSolde.className = 'saisie-footer-amount ' + signClass(kpi.solde.total);
+  }
 }
 
 // ── Auto-save ──

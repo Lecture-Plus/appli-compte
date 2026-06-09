@@ -358,76 +358,30 @@ async function _renderResume(container, s, users) {
       </div>`).join('')}
     </div>` : '<div style="margin-bottom:12px;"></div>'}
 
-    <!-- ── Détail collapsible ── -->
-    <button id="btn-toggle-detail" style="display:flex;align-items:center;justify-content:space-between;width:100%;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:11px 14px;margin-bottom:12px;font-size:0.82rem;font-weight:600;color:var(--text-2);cursor:pointer;transition:all var(--transition);">
-      <span id="detail-toggle-label">Voir le détail du mois</span>
-      <svg id="chevron-detail" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="16" height="16" style="transition:transform 0.22s;flex-shrink:0;"><path d="M6 9l6 6 6-6"/></svg>
-    </button>
-
-    <div id="detail-section" style="display:none;">
-      <div class="card" style="margin-bottom:12px;">
-        <div class="card-header">
-          <span class="card-title">💰 Économies disponibles</span>
-        </div>
-        <div style="font-size:1.3rem;font-weight:800;color:${savInfo.balance >= 0 ? 'var(--success)' : 'var(--danger)'};">${eur(savInfo.balance)}</div>
-        <div style="font-size:0.73rem;color:var(--text-3);margin-top:4px;">
-          ${savInfo.latest
-            ? `Confirmé le ${new Date(savInfo.latest.confirmedAt).toLocaleDateString('fr-FR')}${savInfo.delta !== 0 ? ` · ${savInfo.delta >= 0 ? '+' : ''}${eur(savInfo.delta)} depuis` : ''}`
-            : 'Aucune confirmation enregistrée'}
-        </div>
+    <!-- ── Répartition du mois (multi-user) ── -->
+    ${users.length >= 2 ? `
+    <div class="card" style="margin-bottom:12px;">
+      <div class="card-header">
+        <span class="card-title">⚖️ Répartition ${nomMois(month)}</span>
+        <span style="font-size:0.65rem;color:var(--text-3);">Prévisionnel</span>
       </div>
-
-      ${goal > 0 ? `
-      <div class="card" style="margin-bottom:12px;">
-        <div class="card-header">
-          <span class="card-title">🎯 ${escHtml(s.savingsGoalLabel || 'Objectif')} ${goalYear}</span>
-          <span class="chip ${pBarColor === 'success' ? 'success' : pBarColor === 'danger' ? 'danger' : 'primary'}">${goalPct}%</span>
-        </div>
-        <div class="progress-wrap">
-          <div class="progress-labels">
-            <span>${eur(epargneYTD)} épargnés</span>
-            <span style="color:var(--text-3)">/ ${eur(goal)}</span>
-          </div>
-          <div class="progress-track"><div class="progress-bar ${pBarColor}" style="width:${Math.min(100, goalPct)}%"></div></div>
-        </div>
-        <div id="projection-objectif" style="margin-top:8px;font-size:0.75rem;color:var(--text-3);">Calcul…</div>
-      </div>` : ''}
-
-            <div class="card" style="margin-bottom:12px;" id="detail-table-card">
-        <div class="card-header" style="flex-wrap:wrap;gap:6px;">
-          <span class="card-title">📋 Détail du mois</span>
-          <div style="margin-left:auto;display:flex;gap:4px;">
-            <button class="btn btn-sm btn-dmode ${_detailMode === 'reel' ? 'btn-primary' : 'btn-outline'}" data-dmode="reel" style="font-size:0.68rem;padding:2px 8px;">✅ Réel</button>
-            <button class="btn btn-sm btn-dmode ${_detailMode === 'previsionnel' ? 'btn-primary' : 'btn-outline'}" data-dmode="previsionnel" style="font-size:0.68rem;padding:2px 8px;">📅 Prévisionnel</button>
-          </div>
-        </div>
-        <p id="detail-mode-hint" style="font-size:0.72rem;color:var(--text-3);margin-bottom:8px;"></p>
-        <div style="overflow-x:auto;" id="detail-table-wrap"></div>
+      <div style="display:grid;gap:8px;margin-bottom:10px;">
+        ${users.map(u => {
+          const aPayer = kpiPrev.aPayer.byUser?.[u.id] ?? 0;
+          return `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:var(--bg-2);border-radius:var(--radius-sm);">
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span style="width:9px;height:9px;border-radius:50%;background:${escHtml(u.color||'#6C63FF')};display:inline-block;"></span>
+              <span style="font-size:0.88rem;font-weight:600;">${escHtml(u.name)}</span>
+            </div>
+            <div style="text-align:right;">
+              <div style="font-size:1rem;font-weight:800;color:var(--primary);">${eur(aPayer)}</div>
+              <div style="font-size:0.62rem;color:var(--text-3);">\u00e0 envoyer ce mois</div>
+            </div>
+          </div>`;
+        }).join('')}
       </div>
-
-      <div class="card" style="margin-bottom:12px;">
-        <div class="card-header"><span class="card-title">💚 Bilan épargne <span title="Possible = solde prévisionnel si vous mettez tout de côté. Mise de côté = opérations épargne réellement enregistrées ce mois." style="cursor:help;color:var(--primary);font-size:0.85em;">ⓘ</span></span></div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-          <div style="background:var(--success-bg);border-radius:var(--radius-sm);padding:12px;">
-            <div style="font-size:0.62rem;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Possible</div>
-            <div style="font-size:1.1rem;font-weight:800;color:var(--success);">${eur(Math.max(0, kpiPrev.solde.total))}</div>
-            <div style="font-size:0.68rem;color:var(--text-3);margin-top:2px;">${pct(kpiPrev.txEpargne?.total ?? 0, 0)} du revenu · prévisionnel</div>
-          </div>
-          <div style="background:${realSavings >= 0 ? 'var(--primary-bg)' : 'var(--danger-bg)'};border-radius:var(--radius-sm);padding:12px;">
-            <div style="font-size:0.62rem;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Mise de côté</div>
-            <div style="font-size:1.1rem;font-weight:800;color:${realSavings >= 0 ? 'var(--primary)' : 'var(--danger)'};">${eur(realSavings)}</div>
-            <div style="font-size:0.68rem;color:var(--text-3);margin-top:2px;">${monthlySavOps.length} opération(s)</div>
-          </div>
-        </div>
-      </div>
-
-      ${md?.notes ? `<div class="card" style="margin-bottom:12px;"><div class="card-title" style="margin-bottom:6px;">📝 Notes</div><p style="font-size:0.875rem;color:var(--text-2);white-space:pre-wrap;">${escHtml(md.notes)}</p></div>` : ''}
-
-      <div class="card" style="margin-bottom:12px;">
-        <div class="card-header"><span class="card-title">🗓️ ${year} en un coup d'œil</span></div>
-        <div id="annual-quick-view"><div class="loading" style="padding:10px;"><div class="spinner" style="width:20px;height:20px;"></div></div></div>
-      </div>
-    </div><!-- /detail-section -->
+      <button class="btn btn-outline btn-full" style="font-size:0.78rem;" id="btn-go-analyse-detail">Voir le détail dans Analyse →</button>
+    </div>` : ''}
 
     <div style="height:16px;"></div>
   `;
@@ -470,37 +424,8 @@ async function _renderResume(container, s, users) {
     );
   });
 
-  // ── Toggle détail ──
-  let _detailOpen = false;
-  el.querySelector('#btn-toggle-detail')?.addEventListener('click', () => {
-    const det = el.querySelector('#detail-section');
-    const chv = el.querySelector('#chevron-detail');
-    const lbl = el.querySelector('#detail-toggle-label');
-    _detailOpen = !_detailOpen;
-    det.style.display = _detailOpen ? '' : 'none';
-    chv.style.transform = _detailOpen ? 'rotate(180deg)' : '';
-    lbl.textContent = _detailOpen ? 'Masquer le détail' : 'Voir le détail du mois';
-    if (_detailOpen) {
-      _fillDetailTable(el, { kpi: kpiReel, kpiPrev, realCourses, realExtras }, users);
-      _renderAnnualQuickView(el.querySelector('#annual-quick-view'), year, users);
-      const projEl = el.querySelector('#projection-objectif');
-      if (projEl && goal > 0) _renderProjection(projEl, year, month, goal, savInfo.balance, users);
-    }
-  });
-
-  // Toggle Réel / Prévisionnel dans le détail du mois
-  el.querySelector('#detail-section')?.addEventListener('click', e => {
-    const btn = e.target.closest('.btn-dmode');
-    if (!btn) return;
-    _detailMode = btn.dataset.dmode;
-    el.querySelectorAll('.btn-dmode').forEach(b => {
-      b.classList.toggle('btn-primary', b.dataset.dmode === _detailMode);
-      b.classList.toggle('btn-outline',  b.dataset.dmode !== _detailMode);
-    });
-    _fillDetailTable(el, { kpi: kpiReel, kpiPrev, realCourses, realExtras }, users);
-  });
-
   el.querySelector('#btn-go-saisie')?.addEventListener('click', () => navigateTo('argent', { tab: 'saisir' }));
+  el.querySelector('#btn-go-analyse-detail')?.addEventListener('click', () => navigateTo('stats'));
   el.querySelector('#btn-go-craquage')?.addEventListener('click', () => {
     showCraquageModal(null, month, year, users, async () => {
       await _renderResume(container, s, users);
