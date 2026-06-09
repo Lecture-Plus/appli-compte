@@ -420,15 +420,20 @@ async function _renderResume(container, s, users) {
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
           📋 Détail ${nomMois(month)} ${year}
         </summary>
-        <div class="settings-group-body" style="padding:8px 0 4px;">
-          <div style="display:flex;gap:4px;padding:0 12px 8px;">
-            <button class="btn btn-sm dash-dmode btn-primary" data-dmode="previsionnel" style="font-size:0.68rem;padding:2px 8px;">📅 Prévisionnel</button>
-            <button class="btn btn-sm dash-dmode btn-outline" data-dmode="reel" style="font-size:0.68rem;padding:2px 8px;">✅ Réel</button>
+        <div class="settings-group-body" style="padding:0;">
+          <div class="card" style="margin:0;border-radius:0 0 var(--radius) var(--radius);">
+            <div class="card-header" style="flex-wrap:wrap;gap:6px;">
+              <span class="card-title">📋 Détail ${escHtml(MOIS[month-1])} ${year}</span>
+              <div style="margin-left:auto;display:flex;gap:4px;">
+                <button class="btn btn-sm dash-dmode btn-outline" data-dmode="reel" style="font-size:0.68rem;padding:2px 8px;">✅ Réel</button>
+                <button class="btn btn-sm dash-dmode btn-primary" data-dmode="previsionnel" style="font-size:0.68rem;padding:2px 8px;">📅 Prévisionnel</button>
+              </div>
+            </div>
+            <p id="dash-detail-hint" style="font-size:0.72rem;color:var(--text-3);margin-bottom:8px;">📅 Simulation avec tous les budgets et charges du mois configurés</p>
+            <div id="dash-detail-table">${buildDashDetailTable(false)}</div>
           </div>
-          <p id="dash-detail-hint" style="font-size:0.72rem;color:var(--text-3);margin:0 12px 8px;">📅 Simulation avec tous les budgets et charges du mois configurés</p>
-          <div id="dash-detail-table">${buildDashDetailTable(false)}</div>
         </div>
-      </details>`;
+      </details>``;
     })()}
 
     <div style="height:16px;"></div>

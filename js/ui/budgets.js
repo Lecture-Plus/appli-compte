@@ -59,7 +59,7 @@ async function _renderPage(container) {
     </div>
 
     <!-- ── Courses ── -->
-    ${_buildCategorySection({
+    ${(budgetCourses > 0 || spent('courses') > 0) ? _buildCategorySection({
       id:     'courses',
       icon:   '🛒',
       title:  'Courses',
@@ -68,11 +68,10 @@ async function _renderPage(container) {
       ops:    opsByCategory['courses'] || [],
       users,
       pinned: pinnedBudgets.includes('courses'),
-      hint:   budgetCourses === 0 ? '⚠️ Aucun budget courses dans la saisie mensuelle.' : null,
-    })}
+    }) : ''}
 
     <!-- ── Extras ── -->
-    ${_buildCategorySection({
+    ${(budgetExtras > 0 || spent('extras') > 0) ? _buildCategorySection({
       id:     'extras',
       icon:   '🎉',
       title:  'Extras & loisirs',
@@ -81,8 +80,7 @@ async function _renderPage(container) {
       ops:    opsByCategory['extras'] || [],
       users,
       pinned: pinnedBudgets.includes('extras'),
-      hint:   budgetExtras === 0 ? '⚠️ Aucun budget extras dans la saisie mensuelle.' : null,
-    })}
+    }) : ''}
 
     <!-- ── Budgets personnalisés ── -->
     ${customBudgets.map(b => _buildCategorySection({
@@ -354,9 +352,9 @@ function _showEditBudgetModal(existing, customBudgets, onSave) {
 
   // Modèles prédéfinis (filtrés pour ceux non encore créés)
   const PRESET_BUDGETS = [
+    { name: 'Restaurant', icon: '🍽️' },
     { name: 'Loisirs',    icon: '🎉' },
     { name: 'Courses',    icon: '🛒' },
-    { name: 'Restaurant', icon: '🍽️' },
     { name: 'Vêtements',  icon: '👗' },
     { name: 'Gaming',     icon: '🎮' },
     { name: 'Cinéma',     icon: '🎬' },
@@ -367,18 +365,18 @@ function _showEditBudgetModal(existing, customBudgets, onSave) {
     ? PRESET_BUDGETS.filter(p => !existingNames.includes(p.name.toLowerCase()))
     : [];
 
-  openModal(title, `
-    ${availablePresets.length > 0 ? `
-    <div style="margin-bottom:14px;">
-      <div style="font-size:0.72rem;font-weight:700;color:var(--text-3);text-transform:uppercase;margin-bottom:6px;">Démarrer depuis un modèle</div>
-      <div style="display:flex;flex-wrap:wrap;gap:6px;">
-        ${availablePresets.map(p => `
-          <button type="button" class="btn btn-sm btn-outline preset-pick" data-name="${escHtml(p.name)}" data-icon="${p.icon}" style="font-size:0.78rem;padding:4px 10px;">
-            ${p.icon} ${escHtml(p.name)}
-          </button>`).join('')}
-      </div>
-    </div>
-    <hr style="margin-bottom:14px;border-color:var(--border);">` : ''}
+  const presetsHtml = availablePresets.length > 0
+    ? `<div style="margin-bottom:14px;">
+        <div style="font-size:0.72rem;font-weight:700;color:var(--text-3);text-transform:uppercase;margin-bottom:6px;">Démarrer depuis un modèle</div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;">${
+          availablePresets.map(p =>
+            `<button type="button" class="btn btn-sm btn-outline preset-pick" data-pname="${escHtml(p.name)}" data-picon="${p.icon}" style="font-size:0.78rem;padding:4px 10px;">${p.icon} ${escHtml(p.name)}</button>`
+          ).join('')
+        }</div>
+      </div><hr style="margin-bottom:14px;border-color:var(--border);">`
+    : '';
+
+  openModal(title, `${presetsHtml}
     <div class="form-group" style="margin-bottom:12px;">
       <label class="form-label">Nom du budget *</label>
       <input type="text" class="form-input" id="bgt-name" placeholder="Ex: Restaurant, Sport, Vêtements…"
@@ -396,7 +394,7 @@ function _showEditBudgetModal(existing, customBudgets, onSave) {
       </div>
       <div class="form-group">
         <label class="form-label">Icône</label>
-        <input type="text" class="form-input" id="bgt-icon" maxlength="2"
+        <input type="text" class="form-input" id="bgt-icon" maxlength="4"
           value="${escHtml(selIcon)}" placeholder="📌"
           style="font-size:1.4rem;text-align:center;cursor:pointer;" readonly>
       </div>
@@ -421,12 +419,11 @@ function _showEditBudgetModal(existing, customBudgets, onSave) {
   // Modèles prédéfinis : remplir le formulaire
   document.querySelectorAll('.preset-pick').forEach(btn => {
     btn.addEventListener('click', () => {
-      document.getElementById('bgt-name').value = btn.dataset.name;
+      document.getElementById('bgt-name').value = btn.dataset.pname;
       const iconEl = document.getElementById('bgt-icon');
-      if (iconEl) iconEl.value = btn.dataset.icon;
-      // Mettre à jour la sélection visuelle des icônes
+      if (iconEl) iconEl.value = btn.dataset.picon;
       document.querySelectorAll('.icon-pick').forEach(b => {
-        b.style.borderColor = b.dataset.icon === btn.dataset.icon ? 'var(--primary)' : 'transparent';
+        b.style.borderColor = b.dataset.icon === btn.dataset.picon ? 'var(--primary)' : 'transparent';
       });
     });
   });

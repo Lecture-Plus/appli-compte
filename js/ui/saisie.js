@@ -587,7 +587,6 @@ function _renderImprévusList(container) {
 function updatePreview(container) {
   syncFormToState(container);
 
-  // Injecter les budgetCibles comme fallback si md.users n'a pas de courses/extras
   const budgCibles = _settings?.budgetCibles || {};
   const N = _users.length || 1;
   const prevUsers = {};
@@ -601,68 +600,106 @@ function updatePreview(container) {
     };
   }
   const mdPrev = { ..._md, users: prevUsers };
-  const kpi = calcMonth(mdPrev, _chargesCache, _achatsCache, _repCfg, _users);
+  const kpiPrev = calcMonth(mdPrev, _chargesCache, _achatsCache, _repCfg, _users);
+
+  // kpiReel = avec budgetOps réels + charges dont le jour est passé (si mois courant)
+  const { year, month } = State;
+  const now = new Date();
+  const isCurrentMonth = year === now.getFullYear() && month === now.getMonth() + 1;
+  const todayDay = now.getDate();
+  const chargesReel = isCurrentMonth
+    ? _chargesCache.filter(c => !c.dayOfMonth || Number(c.dayOfMonth) <= todayDay)
+    : _chargesCache;
+  const kpiReel = calcMonth(mdPrev, chargesReel, _achatsCache, _repCfg, _users, _budgetOpsCache);
 
   const footerSolde = container.querySelector('#footer-solde');
   if (footerSolde) {
-    footerSolde.textContent = eur(kpi.solde.total);
-    footerSolde.className = 'saisie-footer-amount ' + signClass(kpi.solde.total);
+    footerSolde.textContent = eur(kpiPrev.solde.total);
+    footerSolde.className = 'saisie-footer-amount ' + signClass(kpiPrev.solde.total);
   }
-  _renderPrevTable(container, kpi);
+  _renderPrevTable(container, kpiPrev, kpiReel);
 }
 
-// ── Table récapitulatif prévisionnel (identique Historique → Détail) ──
-function _renderPrevTable(container, kpi) {
+// ── Table récapitulatif — identique à Historique → Détail ──
+function _renderPrevTable(container, kpiPrev, kpiReel) {
   const el = container.querySelector('#saisie-prev-table');
-  if (!el || !kpi) return;
+  if (!el) return;
+  const { year, month } = State;
   const N = _users.length;
   const customBudgets = _settings?.customBudgets || [];
+  let detailMode = 'previsionnel';
 
-  const uHeaders = N > 1 ? _users.map(u =>
-    `<th style="text-align:right"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${escHtml(u.color||'#7C5CFC')};margin-right:3px;"></span>${escHtml(u.name)}</th>`
-  ).join('') : '';
+  const realCourses = _budgetOpsCache.filter(o => o.category === 'courses').reduce((s, o) => s + (Number(o.amount)||0), 0);
+  const realExtras  = _budgetOpsCache.filter(o => o.category === 'extras').reduce((s, o) => s + (Number(o.amount)||0), 0);
 
-  const buildRow = (label, total, byUser = {}) => {
-    const uCols = N > 1 ? _users.map(u => `<td style="text-align:right">${eur(byUser?.[u.id] ?? 0)}</td>`).join('') : '';
-    return `<tr><td>${label}</td>${uCols}<td style="text-align:right">${eur(total)}</td></tr>`;
+  function buildTable() {
+    const isReel = detailMode === 'reel';
+    const dk = isReel ? kpiReel : kpiPrev;
+    const courses = isReel ? realCourses : (kpiPrev.courses?.total || 0);
+    const extras  = isReel ? realExtras  : (kpiPrev.extras?.total  || 0);
+    const uCols   = N > 1;
+    const hdr = uCols ? _users.map(u =>
+      `<th style="text-align:right"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${escHtml(u.color||'#7C5CFC')};margin-right:3px;"></span>${escHtml(u.name)}</th>`
+    ).join('') : '';
+    const buildRow = (label, cat) => {
+      if (!cat) return '';
+      const uc = uCols ? _users.map(u => `<td style="text-align:right">${eur(cat.byUser?.[u.id]??0)}</td>`).join('') : '';
+      return `<tr><td>${label}</td>${uc}<td style="text-align:right">${eur(cat.total)}</td></tr>`;
+    };
+    const sTotal = dk.solde?.total ?? 0;
+    const revenusAides = { total: (dk.revenus?.total||0)+(dk.aides?.total||0), byUser: uCols ? Object.fromEntries(_users.map(u=>[u.id,(dk.revenus?.byUser?.[u.id]??0)+(dk.aides?.byUser?.[u.id]??0)])) : {} };
+    return `<div style="overflow-x:auto;"><table class="data-table">
+      <thead><tr><th>Catégorie</th>${hdr}<th style="text-align:right">Total</th></tr></thead>
+      <tbody>
+        ${buildRow('Revenus &amp; Aides', revenusAides)}
+        ${(dk.primes?.total??0)>0 ? buildRow('Primes', dk.primes) : ''}
+        ${buildRow('Charges', dk.charges)}
+        <tr><td>${isReel?'Courses (confirmé)':'Budget courses'}</td>${uCols?_users.map(u=>`<td style="text-align:right">${eur(dk.courses?.byUser?.[u.id]??0)}</td>`).join(''):''}<td style="text-align:right">${eur(courses)}</td></tr>
+        <tr><td>${isReel?'Loisirs (confirmé)':'Budget loisirs'}</td>${uCols?_users.map(u=>`<td style="text-align:right">${eur(dk.extras?.byUser?.[u.id]??0)}</td>`).join(''):''}<td style="text-align:right">${eur(extras)}</td></tr>
+        ${(dk.achats?.total??0)>0 ? buildRow('Achats exc.', dk.achats) : ''}
+        ${(dk.imprevus?.total??0)>0 ? buildRow('Imprévus', dk.imprevus) : ''}
+        ${customBudgets.map(b => {
+          const spent = _budgetOpsCache.filter(o=>o.category===b.id).reduce((s,o)=>s+(Number(o.amount)||0),0);
+          if (spent===0 && !isReel) return '';
+          const uc = uCols ? _users.map(()=>'<td></td>').join('') : '';
+          return `<tr><td>${b.icon||'📌'} ${escHtml(b.name)}</td>${uc}<td style="text-align:right">${eur(spent)}</td></tr>`;
+        }).join('')}
+      </tbody>
+      <tfoot>
+        ${uCols ? `<tr class="row-total"><td>${isReel?'À payer':'À envoyer (prév.)'}</td>${_users.map(u=>`<td style="text-align:right">${eur(dk.aPayer?.byUser?.[u.id]??0)}</td>`).join('')}<td style="text-align:right">${eur(dk.aPayer?.total||0)}</td></tr>` : ''}
+        <tr class="row-total"><td>Solde ${isReel?'net':'prévisionnel'}</td>${uCols?_users.map(u=>{const v=dk.solde?.byUser?.[u.id]??0;return`<td style="text-align:right;color:${v>=0?'var(--success)':'var(--danger)'}">${eur(v)}</td>`;}).join(''):''}<td style="text-align:right;color:${sTotal>=0?'var(--success)':'var(--danger)'}">${eur(sTotal)}</td></tr>
+      </tfoot>
+    </table></div>${!isReel ? '<p style="font-size:0.72rem;color:var(--text-3);margin-top:8px;padding:0 2px;">💡 Ce calcul utilise les plafonds de budget et la répartition configurée. Il représente le maximum à envoyer sur le compte joint.</p>' : ''}`;
+  }
+
+  el.innerHTML = `<div class="card" style="margin-bottom:0;">
+    <div class="card-header" style="flex-wrap:wrap;gap:6px;">
+      <span class="card-title">📋 Détail ${escHtml(MOIS[month-1])} ${year}</span>
+      <div style="margin-left:auto;display:flex;gap:4px;">
+        <button class="btn btn-sm saisie-dmode btn-outline" data-dmode="reel" style="font-size:0.68rem;padding:2px 8px;">✅ Réel</button>
+        <button class="btn btn-sm saisie-dmode btn-primary" data-dmode="previsionnel" style="font-size:0.68rem;padding:2px 8px;">📅 Prévisionnel</button>
+      </div>
+    </div>
+    <p class="saisie-detail-hint" style="font-size:0.72rem;color:var(--text-3);margin-bottom:8px;">📅 Simulation avec tous les budgets et charges du mois configurés</p>
+    <div class="saisie-detail-table">${buildTable()}</div>
+  </div>`;
+
+  el.onclick = e => {
+    const btn = e.target.closest('.saisie-dmode');
+    if (!btn) return;
+    detailMode = btn.dataset.dmode;
+    el.querySelectorAll('.saisie-dmode').forEach(b => {
+      b.classList.toggle('btn-primary', b.dataset.dmode === detailMode);
+      b.classList.toggle('btn-outline',  b.dataset.dmode !== detailMode);
+    });
+    const hint = el.querySelector('.saisie-detail-hint');
+    if (hint) hint.textContent = detailMode === 'reel'
+      ? '✅ Opérations confirmées + charges dont la date de prélèvement est passée'
+      : '📅 Simulation avec tous les budgets et charges du mois configurés';
+    const tableDiv = el.querySelector('.saisie-detail-table');
+    if (tableDiv) tableDiv.innerHTML = buildTable();
   };
-
-  const revenusAides = (kpi.revenus?.total || 0) + (kpi.aides?.total || 0);
-  const revenusAidesU = N > 1 ? Object.fromEntries(_users.map(u => [
-    u.id, (kpi.revenus?.byUser?.[u.id] ?? 0) + (kpi.aides?.byUser?.[u.id] ?? 0)
-  ])) : {};
-
-  const uPayerCols = N > 1 ? _users.map(u => `<td style="text-align:right">${eur(kpi.aPayer?.byUser?.[u.id]??0)}</td>`).join('') : '';
-  const uSoldeCols = N > 1 ? _users.map(u => {
-    const v = kpi.solde?.byUser?.[u.id] ?? 0;
-    return `<td style="text-align:right;color:${v>=0?'var(--success)':'var(--danger)'}">${eur(v)}</td>`;
-  }).join('') : '';
-  const soldeColor = (kpi.solde?.total ?? 0) >= 0 ? 'var(--success)' : 'var(--danger)';
-
-  el.innerHTML = `<div style="overflow-x:auto;"><table class="data-table">
-    <thead><tr><th>Catégorie</th>${uHeaders}<th style="text-align:right">Total</th></tr></thead>
-    <tbody>
-      ${buildRow('Revenus &amp; Aides', revenusAides, revenusAidesU)}
-      ${(kpi.primes?.total ?? 0) > 0 ? buildRow('Primes', kpi.primes.total, kpi.primes.byUser) : ''}
-      ${buildRow('Charges', kpi.charges?.total || 0, kpi.charges?.byUser)}
-      ${(kpi.courses?.total ?? 0) > 0 ? buildRow('Budget courses', kpi.courses.total, kpi.courses.byUser) : ''}
-      ${(kpi.extras?.total ?? 0) > 0 ? buildRow('Budget loisirs', kpi.extras.total, kpi.extras.byUser) : ''}
-      ${(kpi.achats?.total ?? 0) > 0 ? buildRow('Achats exc.', kpi.achats.total, kpi.achats.byUser) : ''}
-      ${(kpi.imprevus?.total ?? 0) > 0 ? buildRow('Imprévus', kpi.imprevus.total, {}) : ''}
-      ${customBudgets.map(b => {
-        const spent = _budgetOpsCache.filter(o => o.category === b.id).reduce((s, o) => s + (Number(o.amount)||0), 0);
-        return (spent > 0 || Number(b.amount) > 0) ? buildRow(`${b.icon||'📌'} ${escHtml(b.name)}`, spent, {}) : '';
-      }).join('')}
-    </tbody>
-    <tfoot>
-      <tr class="row-total"><td>À payer (prév.)</td>${uPayerCols}<td style="text-align:right">${eur(kpi.aPayer?.total || 0)}</td></tr>
-      <tr class="row-total"><td>Solde prévisionnel</td>${uSoldeCols}<td style="text-align:right;color:${soldeColor}">${eur(kpi.solde?.total || 0)}</td></tr>
-    </tfoot>
-  </table></div>
-  <p style="font-size:0.72rem;color:var(--text-3);margin-top:8px;padding:0 2px;">💡 Ce calcul utilise les plafonds de budget et la répartition configurée. Il représente le maximum à envoyer sur le compte joint.</p>`;
 }
-
-
 
 // ── Auto-save ──
 async function doSave(container) {

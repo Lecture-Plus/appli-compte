@@ -278,7 +278,6 @@ function _renderLineRow(line, idx, container) {
       <input type="number" class="form-input cl-day" min="1" max="31" placeholder="Jour" value="${line.dayOfMonth || ''}" style="padding-right:22px;">
       <span class="input-suffix">j.</span>
     </div>
-    <button type="button" class="btn btn-outline btn-sm cl-hist" title="Historique des tarifs" style="flex-shrink:0;padding:4px 8px;">📅</button>
     <button type="button" class="btn btn-danger btn-sm cl-remove" style="flex-shrink:0;padding:4px 8px;" aria-label="Supprimer la ligne">✕</button>
   `;
 
@@ -341,12 +340,6 @@ function _renderLineRow(line, idx, container) {
   const refresh = () => _renderHistorySection(histSection, lineHistory, refresh);
   _renderHistorySection(histSection, lineHistory, refresh);
 
-  // Toggle historique
-  row.querySelector('.cl-hist').addEventListener('click', () => {
-    const shown = histSection.style.display !== 'none';
-    histSection.style.display = shown ? 'none' : '';
-  });
-
   // Supprimer ligne + section
   row.querySelector('.cl-remove').addEventListener('click', () => {
     const wrappers = container.querySelectorAll('.charge-line-wrapper');
@@ -359,7 +352,7 @@ function _renderLineRow(line, idx, container) {
 
   wrapper.appendChild(row);
   wrapper.appendChild(splitSection);
-  wrapper.appendChild(histSection);
+  // histSection no longer shown (historique des tarifs removed)
   container.appendChild(wrapper);
 }
 
