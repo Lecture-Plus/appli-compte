@@ -438,6 +438,8 @@ function buildOpItem(op, users = []) {
     craquage_cover:  '💥 Craquage couvert',
     monthly_savings: '📅 Épargne mensuelle',
     confirm:         '✅ Confirmation',
+    adjustment:      '🔧 Ajustement',
+    initial_balance: '🏦 Solde initial',
   }[op.type] || '📌 Opération';
 
   const dateStr = `${nomMois(op.month)} ${op.year}`;
@@ -603,6 +605,9 @@ async function showConfirmModal(users, onSave) {
       confirmedAt: nowIso, confirmedDay: now.getDate(), note, perUserAmounts });
 
     // Créer des opérations d'ajustement si montant confirmé ≠ solde calculé
+    // Si c'est la toute première confirmation (aucune op ni confirmation précédente),
+    // on marque l'ajustement comme "solde initial" pour ne pas le comptabiliser dans les stats.
+    const isInitialConfirm = allOps.length === 0 && !latest;
     if (N > 1) {
       for (const ub of userBalances) {
         const uid = String(ub.user.id);
@@ -610,9 +615,11 @@ async function showConfirmModal(users, onSave) {
         const diff = confirmed_u - ub.balance;
         if (Math.abs(diff) >= 0.01) {
           await saveSavingsOperation({
-            type: 'adjustment', label: `Ajustement de solde (${ub.user.name})`,
+            type: isInitialConfirm ? 'initial_balance' : 'adjustment',
+            label: isInitialConfirm ? `Solde initial (${ub.user.name})` : `Ajustement de solde (${ub.user.name})`,
             amount: diff, year, month, day: now.getDate(),
-            createdAt: nowIso, userId: uid, note: 'Ajustement lors de la confirmation',
+            createdAt: nowIso, userId: uid,
+            note: isInitialConfirm ? 'Solde de départ (première confirmation)' : 'Ajustement lors de la confirmation',
           });
         }
       }
@@ -620,9 +627,11 @@ async function showConfirmModal(users, onSave) {
       const diff = totalAmount - balance;
       if (Math.abs(diff) >= 0.01) {
         await saveSavingsOperation({
-          type: 'adjustment', label: 'Ajustement de solde',
+          type: isInitialConfirm ? 'initial_balance' : 'adjustment',
+          label: isInitialConfirm ? 'Solde initial' : 'Ajustement de solde',
           amount: diff, year, month, day: now.getDate(),
-          createdAt: nowIso, note: 'Ajustement lors de la confirmation',
+          createdAt: nowIso,
+          note: isInitialConfirm ? 'Solde de départ (première confirmation)' : 'Ajustement lors de la confirmation',
         });
       }
     }

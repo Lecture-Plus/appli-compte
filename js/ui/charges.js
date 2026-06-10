@@ -161,7 +161,11 @@ function buildChargeItem(c) {
   const info   = getCategoryInfo(c.category);
   const lines  = c.lines?.length ? c.lines : [{ amount: c.amount, qui: c.qui, dayOfMonth: c.dayOfMonth }];
   const total  = lines.reduce((s, l) => s + (Number(l.amount) || 0), 0);
-  const persoTag = c.perso ? `<span class="chip" style="font-size:0.62rem;padding:1px 5px;background:var(--warning-bg);color:var(--warning);">Perso</span>` : '';
+  const persoTag = c.perso
+    ? `<span class="chip" style="font-size:0.62rem;padding:1px 5px;background:var(--warning-bg);color:var(--warning);">Perso</span>`
+    : c.payerViaPerso
+      ? `<span class="chip" style="font-size:0.62rem;padding:1px 5px;background:var(--primary-bg);color:var(--primary);">💳 ${escHtml(getQuiLabel(c.payerViaPerso))}</span>`
+      : '';
   const activeIcon = c.active
     ? `<svg viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2.5" width="14" height="14"><path d="M20 6L9 17l-5-5"/></svg>`
     : `<svg viewBox="0 0 24 24" fill="none" stroke="var(--danger)" stroke-width="2" width="14" height="14"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`;
@@ -408,6 +412,15 @@ export async function showChargeModal(charge, onSave) {
         <span class="toggle-slider"></span>
       </label>
     </div>
+    ${_users.length > 1 ? `
+    <div class="form-group" style="padding:8px 0;border-top:1px solid var(--border);margin-top:4px;">
+      <label class="form-label">Prélevée via</label>
+      <p class="form-hint">Charge partagée mais prélevée sur le compte personnel d'une personne. Sa part sera déduite de son "à payer" ce mois.</p>
+      <select class="form-select" id="c-payer-perso" style="margin-top:6px;">
+        <option value="" ${!c.payerViaPerso ? 'selected' : ''}>Compte joint (défaut)</option>
+        ${_users.map(u => `<option value="${u.id}" ${String(c.payerViaPerso) === String(u.id) ? 'selected' : ''}>${escHtml(u.name)}</option>`).join('')}
+      </select>
+    </div>` : ''}
     <div class="toggle-wrap" style="padding:10px 0;">
       <div class="toggle-info">
         <label for="c-active">Charge active</label>
@@ -497,6 +510,11 @@ export async function showChargeModal(charge, onSave) {
       month:    State.month,
       active:   document.getElementById('c-active')?.checked ?? true,
       perso:    document.getElementById('c-perso')?.checked ?? false,
+      payerViaPerso: (() => {
+        const v = document.getElementById('c-payer-perso')?.value;
+        if (!v) return undefined;
+        return isNaN(Number(v)) ? v : Number(v);
+      })(),
       notes:    '',
     });
     closeModal();

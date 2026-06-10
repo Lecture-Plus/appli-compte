@@ -19,7 +19,7 @@ function _memoKey(monthData, charges, achats, repartCfg, users, budgetOps) {
   try {
     return JSON.stringify([
       monthData?.users,
-      (charges ||[]).map(c => [c.id, c.amount, c.qui, c.perso, c.splitPcts]),
+      (charges ||[]).map(c => [c.id, c.amount, c.qui, c.perso, c.splitPcts, c.payerViaPerso]),
       (achats  ||[]).map(a => [a.id, a.amount, a.qui, a.craquage_source]),
       repartCfg?.mode, repartCfg?.pcts, repartCfg?.aidesRepartition,
       (users   ||[]).map(u => u.id),
@@ -215,13 +215,59 @@ export function calcMonth(monthData, charges, achats, repartCfg, users, budgetOp
   const aPayerU = _mk(uids);
   for (const uid of uids) aPayerU[uid] = partU[uid] + impU[uid];
 
+  // ── Correction : charges payées via compte personnel d'un utilisateur ──
+  // La charge est incluse dans la répartition (autres users paient leur part normalement),
+  // mais le payeur ne verse pas sa part au compte joint (il l'a déjà payée directement).
+  const chgViaPersoU = _mk(uids); // part propre du payeur (pour tracking depenses)
+  for (const c of (charges ?? [])) {
+    if (!c.payerViaPerso || c.perso) continue;
+    const amt = Number(c.amount) || 0;
+    if (!amt) continue;
+    const payerUid = _uid(c.payerViaPerso);
+    if (!uids.includes(payerUid)) continue;
+
+    // Calculer la part du payeur selon le mode de répartition
+    let payerShare = 0;
+    const qui = _uid(c.qui);
+    if (c.splitPcts && typeof c.splitPcts === 'object') {
+      const sumPcts = uids.reduce((s, uid) => s + (Number(c.splitPcts[uid]) || 0), 0) || 100;
+      payerShare = amt * ((Number(c.splitPcts[payerUid]) || 0) / sumPcts);
+    } else if (qui !== 'shared' && uids.includes(qui)) {
+      // Charge déjà assignée à un user spécifique
+      payerShare = qui === payerUid ? amt : 0;
+    } else {
+      // Charge partagée : part selon le mode
+      if (mode === 'solo') {
+        payerShare = payerUid === uids[0] ? amt : 0;
+      } else if (mode === 'fixe') {
+        const pcts = repartCfg?.pcts ?? {};
+        const sumPcts = uids.reduce((s, uid) => s + (Number(pcts[uid]) || 0), 0) || 100;
+        payerShare = amt * ((Number(pcts[payerUid]) || 0) / sumPcts);
+      } else if (mode === 'equitable') {
+        const aidesRep = repartCfg?.aidesRepartition || {};
+        const revForDistVP = _mk(uids);
+        for (const uid of uids) revForDistVP[uid] = revU[uid] + (aidesRep[uid] ? aidesU[uid] : 0);
+        const baseVP = _sum(revForDistVP) || 1;
+        payerShare = amt * (revForDistVP[payerUid] / baseVP);
+      } else {
+        // separe : part égale
+        payerShare = amt / N;
+      }
+    }
+
+    // Réduire l'aPayer du payeur de sa part (il l'a déjà payée de sa poche)
+    aPayerU[payerUid] -= payerShare;
+    // Garder la trace pour le calcul des dépenses (sa part reste dans ses dépenses)
+    chgViaPersoU[payerUid] += payerShare;
+  }
+
   // ── Solde = (revenus + primes + aides) − aPayer ──
   const soldeU = _mk(uids);
   for (const uid of uids) soldeU[uid] = revU[uid] + priU[uid] + aidesU[uid] - aPayerU[uid];
 
-  // ── Dépenses = aPayer + charges perso (tracking complet) ──
+  // ── Dépenses = aPayer + charges perso + part via-perso (tracking complet) ──
   const depU = _mk(uids);
-  for (const uid of uids) depU[uid] = aPayerU[uid] + chgPersoU[uid];
+  for (const uid of uids) depU[uid] = aPayerU[uid] + chgPersoU[uid] + chgViaPersoU[uid];
 
   // ── Économie possible (sans imprévus ni achats exc.) ──
   // La part d'achats partagés est recalculée selon le mode (identique à partSharedU mais sans les charges)

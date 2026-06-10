@@ -262,8 +262,13 @@ async function loadAndRender(container, year, month, users, s) {
   const yearKPI     = calcYear(kpiMonths);
   const nMonths     = kpiMonths.length || 1;
 
-  // Épargne réelle = somme signée des savings_operations (versements + ajustements − retraits − craquages)
-  const yearSavingsOps   = allSavingsOps.filter(op => op.year === year && (!singleMonth || op.month === month));
+  // Épargne réelle = somme signée des savings_operations de l'année
+  // On exclut les 'initial_balance' (solde de départ, pas une épargne de la période)
+  const yearSavingsOps   = allSavingsOps.filter(op =>
+    op.year === year &&
+    (!singleMonth || op.month === month) &&
+    op.type !== 'initial_balance'
+  );
   const realSavingsTotal = yearSavingsOps.reduce((s, op) => s + (Number(op.amount) || 0), 0);
 
   renderKPIAnnuel(container, yearKPI, singleMonth ? MOIS[month - 1] : null, nMonths, realSavingsTotal);
