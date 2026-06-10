@@ -356,7 +356,8 @@ function _renderLineRow(line, idx, container) {
   container.appendChild(wrapper);
 }
 
-export function showChargeModal(charge, onSave) {
+export async function showChargeModal(charge, onSave) {
+  if (!_users.length) _users = await getActiveUsers();
   const isNew = !charge;
   const c = charge ?? {
     label: '', category: 'logement', months: 'all', active: true, perso: false, notes: '',
@@ -481,12 +482,17 @@ export function showChargeModal(charge, onSave) {
 
     const totalAmount = lines.reduce((s, l) => s + l.amount, 0);
 
+    // Top-level qui: single-user → that user; multi-line with same qui → that qui; otherwise 'shared'
+    const allSame = lines.every(l => String(l.qui) === String(lines[0].qui));
+    const topQui  = (allSame && lines[0].qui != null) ? lines[0].qui : 'shared';
+
     await saveCharge({
       ...(isNew ? {} : { id: charge.id }),
       label,
       category: document.getElementById('c-cat')?.value || 'autre',
       lines,
       amount:   totalAmount,
+      qui:      topQui,
       year:     State.year,
       month:    State.month,
       active:   document.getElementById('c-active')?.checked ?? true,

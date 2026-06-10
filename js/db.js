@@ -393,7 +393,7 @@ export async function getChargesForMonth(month, year = null) {
       }
     } else {
       const amt = year ? resolveChargeAmount(c, year, month) : (Number(c.amount) || 0);
-      result.push({ ...c, amount: amt });
+      result.push({ ...c, amount: amt, qui: c.qui ?? 'shared' });
     }
   }
   return result;

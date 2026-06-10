@@ -479,9 +479,16 @@ function _showImportChargesOptions(container) {
       closeModal();
       return;
     }
+    const defaultQui = _users.length === 1 ? String(_users[0]?.id ?? 'shared') : 'shared';
     for (const c of prevCharges) {
       const { id: _id, ...rest } = c;
-      await saveCharge({ ...rest, year, month });
+      const lines = rest.lines?.map(l => ({ ...l, qui: l.qui ?? defaultQui }));
+      await saveCharge({
+        ...rest,
+        qui: rest.qui ?? defaultQui,
+        ...(lines ? { lines } : {}),
+        year, month,
+      });
     }
     _chargesCache = await getChargesForMonth(month, year);
     _renderSaisieChargesList(container);
