@@ -481,9 +481,9 @@ async function renderChartEpargne(displayResults, year, allOpsParam = null) {
   const canvas = document.getElementById('chart-epargne');
   if (!canvas) return;
 
-  // Versements réels depuis savings_operations (vrais montants épargnés)
+  // Versements réels depuis savings_operations — on exclut initial_balance (solde de départ)
   const allOps = allOpsParam ?? await getAllSavingsOperations();
-  const yearOps = allOps.filter(op => op.year === year);
+  const yearOps = allOps.filter(op => op.year === year && op.type !== 'initial_balance');
 
   // Épargne mensuelle réelle : somme des versements du mois
   const mensuelle = Array.from({ length: 12 }, (_, i) => {

@@ -208,7 +208,7 @@ export async function render(container) {
     </details>
 
     <!-- ── Footer sticky ── -->
-    <!-- ── Footer sticky ── -->
+    <div style="height:14px;"></div>
     <div class="saisie-footer" id="saisie-footer">
       <div>
         <div class="saisie-footer-label">Solde du mois</div>

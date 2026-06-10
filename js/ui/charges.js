@@ -383,14 +383,18 @@ export async function showChargeModal(charge, onSave) {
     </label>`;
   }).join('');
 
+  const hasNonDefaultOptions = c.perso || c.payerViaPerso || !c.active;
+
   const body = `
-    <div class="form-group" style="margin-bottom:10px;">
-      <label class="form-label">Libellé</label>
-      <input type="text" class="form-input" id="c-label" placeholder="Ex: Loyer, EDF, Netflix…" value="${escHtml(c.label)}">
-    </div>
-    <div class="form-group" style="margin-bottom:10px;">
-      <label class="form-label">Catégorie</label>
-      <select class="form-select" id="c-cat">${catOptions}</select>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
+      <div class="form-group" style="grid-column:1/-1;">
+        <label class="form-label">Libellé</label>
+        <input type="text" class="form-input" id="c-label" placeholder="Ex: Loyer, EDF, Netflix…" value="${escHtml(c.label)}">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Catégorie</label>
+        <select class="form-select" id="c-cat">${catOptions}</select>
+      </div>
     </div>
 
     <div class="form-group" style="margin-bottom:10px;">
@@ -402,35 +406,40 @@ export async function showChargeModal(charge, onSave) {
       </button>
     </div>
 
-    <div class="toggle-wrap" style="padding:8px 0;">
-      <div class="toggle-info">
-        <label for="c-perso">Charge personnelle</label>
-        <p>Exclue du calcul de répartition (reste dans les dépenses)</p>
+    <details class="settings-group" style="margin-bottom:4px;" ${hasNonDefaultOptions ? 'open' : ''}>
+      <summary class="settings-group-title" style="font-size:0.82rem;">⚙️ Options</summary>
+      <div class="settings-group-body">
+        <div class="toggle-wrap" style="padding:6px 0;">
+          <div class="toggle-info">
+            <label for="c-perso">Charge personnelle</label>
+            <p>Exclue du calcul de répartition (reste dans les dépenses)</p>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="c-perso" ${c.perso ? 'checked' : ''}>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        ${_users.length > 1 ? `
+        <div class="form-group" style="padding:6px 0;border-top:1px solid var(--border);">
+          <label class="form-label">Prélevée via</label>
+          <p class="form-hint" style="margin-bottom:4px;">Charge partagée mais payée depuis le compte personnel d’une personne. Sa part est déduite de son "à payer".</p>
+          <select class="form-select" id="c-payer-perso">
+            <option value="" ${!c.payerViaPerso ? 'selected' : ''}>Compte joint (défaut)</option>
+            ${_users.map(u => `<option value="${u.id}" ${String(c.payerViaPerso) === String(u.id) ? 'selected' : ''}>${escHtml(u.name)}</option>`).join('')}
+          </select>
+        </div>` : ''}
+        <div class="toggle-wrap" style="padding:6px 0;border-top:1px solid var(--border);">
+          <div class="toggle-info">
+            <label for="c-active">Charge active</label>
+            <p>Désactiver pour la suspendre temporairement</p>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="c-active" ${c.active ? 'checked' : ''}>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
       </div>
-      <label class="toggle">
-        <input type="checkbox" id="c-perso" ${c.perso ? 'checked' : ''}>
-        <span class="toggle-slider"></span>
-      </label>
-    </div>
-    ${_users.length > 1 ? `
-    <div class="form-group" style="padding:8px 0;border-top:1px solid var(--border);margin-top:4px;">
-      <label class="form-label">Prélevée via</label>
-      <p class="form-hint">Charge partagée mais prélevée sur le compte personnel d'une personne. Sa part sera déduite de son "à payer" ce mois.</p>
-      <select class="form-select" id="c-payer-perso" style="margin-top:6px;">
-        <option value="" ${!c.payerViaPerso ? 'selected' : ''}>Compte joint (défaut)</option>
-        ${_users.map(u => `<option value="${u.id}" ${String(c.payerViaPerso) === String(u.id) ? 'selected' : ''}>${escHtml(u.name)}</option>`).join('')}
-      </select>
-    </div>` : ''}
-    <div class="toggle-wrap" style="padding:10px 0;">
-      <div class="toggle-info">
-        <label for="c-active">Charge active</label>
-        <p>Désactiver pour la suspendre temporairement</p>
-      </div>
-      <label class="toggle">
-        <input type="checkbox" id="c-active" ${c.active ? 'checked' : ''}>
-        <span class="toggle-slider"></span>
-      </label>
-    </div>
+    </details>
   `;
 
   const footer = `
