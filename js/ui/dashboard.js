@@ -417,6 +417,10 @@ async function _renderResume(container, s, users) {
         hint = _tx >= 0.15 ? "Excellent taux d'épargne ✓" : _tx >= 0.05 ? 'Correct — viser 15 % ou plus' : _tx > 0 ? 'Faible — augmenter les virements épargne' : 'Aucune épargne ce mois';
       } else if (c.label === 'Solde du mois') {
         hint = kpi.solde.total >= 0 ? 'Solde positif ✓' : 'Réduire les dépenses ou augmenter les revenus';
+      } else if (c.label === 'Charges fixes') {
+        hint = c.pts === c.max ? 'Charges bien maîtrisées ✓' : c.pts > 0 ? 'Charges élevées — revoir les abonnements et postes fixes' : 'Charges très élevées — plus de 65 % des revenus';
+      } else if (c.label === 'Dépenses imprévues') {
+        hint = c.pts === c.max ? 'Aucune dépense imprévue ✓' : c.pts > 0 ? 'Quelques imprévus — surveiller les achats exceptionnels' : 'Imprévus importants — plus de 8 % des revenus';
       } else if (c.label === 'Budget courses') {
         hint = c.pts === c.max ? 'Dans le budget ✓' : `Dépassé de ${eur(kpi.courses.total - _budgC)} — ajuster le budget courses`;
       } else if (c.label === 'Budget loisirs') {

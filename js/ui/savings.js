@@ -891,7 +891,21 @@ async function _renderSalariale(el, container) {
   const estimatedAbonPeriod = Math.min(periodContrib * ABON_RATIO_CFG, yearAbonRemaining);
   const abonMissing   = yearAbonRemaining <= 0 ? 0 : Math.max(0, (yearAbonRemaining / ABON_RATIO_CFG) - periodContrib);
   const pctPeriod     = yearAbonRemaining <= 0 ? 100 : Math.min(100, Math.round((periodContrib / (yearAbonRemaining / ABON_RATIO_CFG)) * 100));
-  const nextAbonDate  = curPeriod.period === 'mai' ? `28 mai ${curPeriod.periodEnd.year}` : `28 novembre ${curPeriod.periodEnd.year}`;
+  // Prochain abondement d'après les dates configurées
+  const abonDates = (s.salarialeAbonDates || [{ month: 5, day: 28 }, { month: 11, day: 28 }])
+    .filter(d => d.month >= 1 && d.month <= 12)
+    .sort((a, b) => a.month - b.month || a.day - b.day);
+  const nextAbonDate = (() => {
+    for (const yOffset of [0, 1]) {
+      const checkYear = year + yOffset;
+      for (const d of abonDates) {
+        if (checkYear > year || d.month > month || (d.month === month && d.day >= day)) {
+          return `${d.day} ${MOIS[d.month - 1]} ${checkYear}`;
+        }
+      }
+    }
+    return abonDates.length > 0 ? `${abonDates[0].day} ${MOIS[abonDates[0].month - 1]} ${year + 1}` : 'Non configuré';
+  })();
 
   // Versements du mois courant
   const monthlyOps   = freshOps.filter(op => op.year === year && op.month === month);
@@ -1108,6 +1122,20 @@ async function _showSalParamsModal(users, s, onSave) {
   const planned   = s.salarialePlanned   || {};
   const abonRatio = Number(s.salarialeAbonRatio) || (22.58 / 50);
   const abonMax   = Number(s.salarialeAbonMax)   || 1000;
+  const abonDates = (s.salarialeAbonDates || [{ month: 5, day: 28 }, { month: 11, day: 28 }])
+    .filter(d => d.month >= 1 && d.month <= 12);
+
+  const _monthOptions = (sel) => MOIS.map((m, i) =>
+    `<option value="${i + 1}" ${sel === i + 1 ? 'selected' : ''}>${m}</option>`).join('');
+  const _dateRow = (d, i) => `
+    <div class="abon-date-row" style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+      <select class="form-select abon-date-month" style="flex:1;font-size:0.82rem;">${_monthOptions(d.month)}</select>
+      <div class="input-wrap" style="width:68px;">
+        <input type="number" class="form-input abon-date-day" min="1" max="31" placeholder="Jour" value="${d.day}" style="padding-right:28px;">
+        <span class="input-suffix" style="font-size:0.72rem;">j.</span>
+      </div>
+      <button type="button" class="btn btn-sm btn-outline abon-date-remove" style="color:var(--danger);flex-shrink:0;padding:4px 8px;">✕</button>
+    </div>`;
 
   openModal('⚙️ Paramètres épargne salariale', `
     <div class="form-group" style="margin-bottom:14px;">
@@ -1127,6 +1155,13 @@ async function _showSalParamsModal(users, s, onSave) {
           </div>
         `).join('')}
       </div>
+    </div>
+    <hr style="border:none;border-top:1px solid var(--border);margin:12px 0;">
+    <div class="form-group" style="margin-bottom:14px;">
+      <label class="form-label" style="font-weight:700;">Dates d'abondement</label>
+      <p style="font-size:0.72rem;color:var(--text-3);margin-bottom:8px;">Dates auxquelles votre employeur verse l'abondement. Ajoutez ou supprimez selon votre accord.</p>
+      <div id="abon-dates-list">${abonDates.map(_dateRow).join('')}</div>
+      <button type="button" class="btn btn-sm btn-outline" id="abon-dates-add" style="width:100%;margin-top:4px;">+ Ajouter une date</button>
     </div>
     <hr style="border:none;border-top:1px solid var(--border);margin:12px 0;">
     <div class="form-group" style="margin-bottom:10px;">
@@ -1150,6 +1185,22 @@ async function _showSalParamsModal(users, s, onSave) {
     <button class="btn btn-primary" id="sal-params-save">Enregistrer</button>
   `);
 
+  // Ajouter une date
+  document.getElementById('abon-dates-add')?.addEventListener('click', () => {
+    const list = document.getElementById('abon-dates-list');
+    if (list) {
+      const div = document.createElement('div');
+      div.innerHTML = _dateRow({ month: 1, day: 1 }, -1);
+      list.appendChild(div.firstElementChild);
+    }
+  });
+
+  // Supprimer une date (délégation)
+  document.getElementById('abon-dates-list')?.addEventListener('click', (e) => {
+    const btn = e.target.closest('.abon-date-remove');
+    if (btn) btn.closest('.abon-date-row')?.remove();
+  });
+
   document.getElementById('sal-params-cancel')?.addEventListener('click', closeModal);
   document.getElementById('sal-params-save')?.addEventListener('click', async () => {
     const newPlanned = {};
@@ -1159,10 +1210,18 @@ async function _showSalParamsModal(users, s, onSave) {
     });
     const ratioInput = Number(document.getElementById('sal-abon-ratio')?.value) || 0;
     const maxInput   = Number(document.getElementById('sal-abon-max')?.value) || 1000;
+    // Collecter les dates d'abondement
+    const newDates = [];
+    document.querySelectorAll('#abon-dates-list .abon-date-row').forEach(row => {
+      const m = Number(row.querySelector('.abon-date-month')?.value) || 0;
+      const d = Number(row.querySelector('.abon-date-day')?.value)   || 0;
+      if (m >= 1 && m <= 12 && d >= 1 && d <= 31) newDates.push({ month: m, day: d });
+    });
     await Promise.all([
-      setSetting('salarialePlanned',   newPlanned),
-      setSetting('salarialeAbonRatio', ratioInput / 100),
-      setSetting('salarialeAbonMax',   maxInput),
+      setSetting('salarialePlanned',    newPlanned),
+      setSetting('salarialeAbonRatio',  ratioInput / 100),
+      setSetting('salarialeAbonMax',    maxInput),
+      setSetting('salarialeAbonDates',  newDates),
     ]);
     closeModal();
     showToast('Paramètres enregistrés ✅', 'success');

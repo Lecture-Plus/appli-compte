@@ -254,6 +254,7 @@ const SETTING_DEFAULTS = {
   salarialePlanned:       {},       // { "userId": monthlyAmount } versements planifiés
   salarialeAbonRatio:     22.58 / 50, // taux abondement (ex: 0.4516)
   salarialeAbonMax:       1000,     // plafond annuel abondement
+  salarialeAbonDates:     [{ month: 5, day: 28 }, { month: 11, day: 28 }], // dates d'abondement configurables
 };
 
 export async function getSetting(key) {

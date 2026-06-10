@@ -537,10 +537,24 @@ export function calcBudgetScore(result, settings) {
   const solde     = result.solde?.total ?? 0;
   const soldePts  = solde >= threshold ? 20 : solde >= 0 ? 10 : 0;
 
-  // Critères de base (toujours présents)
+  // Critères de base (toujours présents) — total max = 100 sans budgets optionnels
+  const rev = result.revenus?.total ?? 0;
+
+  // 1. Taux d'épargne (40 pts)
+  // 2. Solde positif (20 pts)
+  // 3. Taux de charges fixes — charges récurrentes / revenus (20 pts)
+  const txCharges = rev > 0 ? (result.charges?.total ?? 0) / rev : 1;
+  const chgPts    = txCharges < 0.35 ? 20 : txCharges < 0.50 ? 15 : txCharges < 0.65 ? 5 : 0;
+  // 4. Maîtrise des dépenses imprévues — (imprévus + achats except.) / revenus (20 pts)
+  const impAch    = (result.imprevus?.total ?? 0) + (result.achats?.total ?? 0);
+  const txImpAch  = rev > 0 ? impAch / rev : (impAch > 0 ? 1 : 0);
+  const impPts    = txImpAch === 0 ? 20 : txImpAch < 0.03 ? 15 : txImpAch < 0.08 ? 5 : 0;
+
   const criteria = [
-    { label: "Taux d'épargne", pts: txPts,   max: 40, detail: `${(tx * 100).toFixed(1)} %` },
-    { label: 'Solde du mois',  pts: soldePts, max: 20, detail: null },
+    { label: "Taux d'épargne",        pts: txPts,   max: 40, detail: `${(tx * 100).toFixed(1)} %` },
+    { label: 'Solde du mois',          pts: soldePts, max: 20, detail: null },
+    { label: 'Charges fixes',          pts: chgPts,   max: 20, detail: `${(txCharges * 100).toFixed(0)} % des revenus` },
+    { label: 'Dépenses imprévues',     pts: impPts,   max: 20, detail: rev > 0 ? `${(txImpAch * 100).toFixed(1)} % des revenus` : '—' },
   ];
 
   // Critères optionnels : uniquement si le budget est explicitement configuré

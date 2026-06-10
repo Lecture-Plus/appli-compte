@@ -630,19 +630,39 @@ async function renderChartSavingsBalance(year, curYear, curMonth, users = []) {
   const canvas = document.getElementById('chart-savings-balance');
   if (!canvas) return;
 
-  const [ops, latestConfirmed] = await Promise.all([
+  const [ops, confirmed] = await Promise.all([
     getAllSavingsOperations(),
     getLatestSavingsConfirmed(),
   ]);
-  // BM-8 : solde de départ = ops des années précédentes + solde confirmé de base
-  const opsBeforeYear = ops.filter(o => (o.year ?? 0) < year);
-  const { balance: baseBalance } = calcSavingsBalance(latestConfirmed, opsBeforeYear);
-  const pointsByMonth = [];
-  let runningBalance = baseBalance;
 
-  // Per-user running balances (ops with userId, no confirmed_balance support per user)
-  const userRunning = {};
-  users.forEach(u => { userRunning[String(u.id)] = 0; });
+  // Compare (year, month) pairs
+  const cmp = (y1, m1, y2, m2) => y1 !== y2 ? y1 - y2 : m1 - m2;
+
+  // Calcule le solde total à la fin du mois (tY, tM) en utilisant "confirmed" comme ancre.
+  // Évite le double-comptage : si confirmed est dans l'année affichée, on ne ré-additionne
+  // pas les ops déjà inclus dans confirmed.amount.
+  const balanceAt = (tY, tM) => {
+    if (!confirmed) {
+      return ops
+        .filter(o => cmp(o.year, o.month, tY, tM) <= 0)
+        .reduce((s, o) => s + (Number(o.amount) || 0), 0);
+    }
+    const cBase = Number(confirmed.amount) || 0;
+    const cY = confirmed.year;
+    const cM = confirmed.month;
+    if (cmp(tY, tM, cY, cM) >= 0) {
+      // Cible après (ou égale) la confirmation → base + ops strictement après confirmation
+      return cBase + ops
+        .filter(o => cmp(o.year, o.month, cY, cM) > 0 && cmp(o.year, o.month, tY, tM) <= 0)
+        .reduce((s, o) => s + (Number(o.amount) || 0), 0);
+    }
+    // Cible avant la confirmation → base − ops entre cible+1 et confirmation (incluse)
+    return cBase - ops
+      .filter(o => cmp(o.year, o.month, tY, tM) > 0 && cmp(o.year, o.month, cY, cM) <= 0)
+      .reduce((s, o) => s + (Number(o.amount) || 0), 0);
+  };
+
+  const pointsByMonth = [];
   const userPoints = {};
   users.forEach(u => { userPoints[String(u.id)] = []; });
 
@@ -652,19 +672,13 @@ async function renderChartSavingsBalance(year, curYear, curMonth, users = []) {
       users.forEach(u => userPoints[String(u.id)].push(null));
       continue;
     }
-    const monthOps = ops.filter(o => o.year === year && o.month === m);
-    // Les confirmations sont dans savings_confirmed, pas dans savings_operations
-    // On accumule simplement les deltas (versements/retraits)
-    const delta = monthOps.reduce((s, o) => s + (o.amount || 0), 0);
-    runningBalance += delta;
-    pointsByMonth.push(runningBalance || null);
-
+    pointsByMonth.push(balanceAt(year, m) || null);
     users.forEach(u => {
-      const uDelta = monthOps
-        .filter(o => String(o.userId) === String(u.id))
-        .reduce((s, o) => s + (o.amount || 0), 0);
-      userRunning[String(u.id)] += uDelta;
-      userPoints[String(u.id)].push(userRunning[String(u.id)] || null);
+      // Par utilisateur : somme cumulative de toutes ses ops jusqu'au mois (pas de confirmed par user)
+      const uBal = ops
+        .filter(o => String(o.userId) === String(u.id) && cmp(o.year, o.month, year, m) <= 0)
+        .reduce((s, o) => s + (Number(o.amount) || 0), 0);
+      userPoints[String(u.id)].push(uBal || null);
     });
   }
 
