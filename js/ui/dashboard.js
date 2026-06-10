@@ -236,16 +236,10 @@ async function _renderResume(container, s, users) {
   const txColor    = kpi.txEpargne.total >= 0.10 ? 'var(--success)' : kpi.txEpargne.total >= 0 ? 'var(--warning)' : 'var(--danger)';
 
   // ── Score budgétaire (mini ring) — BM-1 : source unique de vérité via calcBudgetScore ──
-  const cibles    = s.budgetCibles || {};
-  const threshold = Number(s.epargneThreshold) || 100;
   const { total: score, scoreHex, criteria: _scoreCriteria } = calcBudgetScore(kpi, s);
-  const _soldePts = _scoreCriteria[0]?.pts ?? 0;
-  const _txPts    = _scoreCriteria[1]?.pts ?? 0;
-  const _cPts     = _scoreCriteria[2]?.pts ?? 0;
-  const _ePts     = _scoreCriteria[3]?.pts ?? 0;
-  const _tx       = kpi.txEpargne?.total ?? 0;
-  const _budgC    = Number(cibles.courses) || 0;
-  const _budgE    = Number(cibles.extras)  || 0;
+  const _tx    = kpi.txEpargne?.total ?? 0;
+  const _budgC = Number((s.budgetCibles || {}).courses) || 0;
+  const _budgE = Number((s.budgetCibles || {}).extras)  || 0;
   const sR = 22, sCirc = 2 * Math.PI * sR;
   const sOffset   = sCirc - (score / 100) * sCirc;
 
@@ -417,11 +411,19 @@ async function _renderResume(container, s, users) {
 
   // ── Score : clic → modal de détail ──
   el.querySelector('#dash-score-area')?.addEventListener('click', () => {
-    const rows = [
-      { label: 'Solde positif',   pts: _soldePts, max: 20, hint: kpi.solde.total >= 0 ? 'Solde positif ✓' : 'Réduire les dépenses ou augmenter les revenus' },
-      { label: 'Budget courses',  pts: _cPts, max: 20, hint: _budgC > 0 ? (_cPts === 20 ? 'Dans le budget ✓' : `Dépasser de ${eur(kpi.courses.total - _budgC)} — définir un budget courses plus réaliste`) : 'Définir un budget courses dans Réglages' },
-      { label: 'Budget loisirs',  pts: _ePts, max: 20, hint: _budgE > 0 ? (_ePts === 20 ? 'Dans le budget ✓' : `Dépasser de ${eur(kpi.extras.total - _budgE)} — surveiller les extras`) : 'Définir un budget loisirs dans Réglages' },
-    ];
+    const rows = _scoreCriteria.map(c => {
+      let hint = '';
+      if (c.label === "Taux d'épargne") {
+        hint = _tx >= 0.15 ? "Excellent taux d'épargne ✓" : _tx >= 0.05 ? 'Correct — viser 15 % ou plus' : _tx > 0 ? 'Faible — augmenter les virements épargne' : 'Aucune épargne ce mois';
+      } else if (c.label === 'Solde du mois') {
+        hint = kpi.solde.total >= 0 ? 'Solde positif ✓' : 'Réduire les dépenses ou augmenter les revenus';
+      } else if (c.label === 'Budget courses') {
+        hint = c.pts === c.max ? 'Dans le budget ✓' : `Dépassé de ${eur(kpi.courses.total - _budgC)} — ajuster le budget courses`;
+      } else if (c.label === 'Budget loisirs') {
+        hint = c.pts === c.max ? 'Dans le budget ✓' : `Dépassé de ${eur(kpi.extras.total - _budgE)} — surveiller les extras`;
+      }
+      return { ...c, hint };
+    });
     const worstRow = [...rows].sort((a, b) => (a.pts / a.max) - (b.pts / b.max))[0];
     openModal(`🎯 Score budgétaire — ${score}/100`,
       `<div style="font-size:0.85rem;line-height:1.6;margin-bottom:16px;">

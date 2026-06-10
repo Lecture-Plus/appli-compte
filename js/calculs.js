@@ -537,33 +537,34 @@ export function calcBudgetScore(result, settings) {
   const solde     = result.solde?.total ?? 0;
   const soldePts  = solde >= threshold ? 20 : solde >= 0 ? 10 : 0;
 
-  const budgC  = Number(cibles.courses) || 0;
-  const spentC = result.courses?.total ?? 0;
-  // 0 pts si budget non configuré (IL-2 — évite un score minimum artificiel de 60)
-  const cPts   = budgC > 0
-    ? (spentC <= budgC ? 20 : Math.max(0, 20 - Math.round((spentC - budgC) / budgC * 20)))
-    : 0;
+  // Critères de base (toujours présents)
+  const criteria = [
+    { label: "Taux d'épargne", pts: txPts,   max: 40, detail: `${(tx * 100).toFixed(1)} %` },
+    { label: 'Solde du mois',  pts: soldePts, max: 20, detail: null },
+  ];
 
-  const budgE  = Number(cibles.extras) || 0;
-  const spentE = result.extras?.total ?? 0;
-  const ePts   = budgE > 0
-    ? (spentE <= budgE ? 20 : Math.max(0, 20 - Math.round((spentE - budgE) / budgE * 20)))
-    : 0;
+  // Critères optionnels : uniquement si le budget est explicitement configuré
+  const budgC = Number(cibles.courses) || 0;
+  if (budgC > 0) {
+    const spentC = result.courses?.total ?? 0;
+    const cPts   = spentC <= budgC ? 20 : Math.max(0, 20 - Math.round((spentC - budgC) / budgC * 20));
+    criteria.push({ label: 'Budget courses', pts: cPts, max: 20, detail: `${Math.round(spentC)}€ / ${budgC}€` });
+  }
 
-  const total = txPts + soldePts + cPts + ePts;
+  const budgE = Number(cibles.extras) || 0;
+  if (budgE > 0) {
+    const spentE = result.extras?.total ?? 0;
+    const ePts   = spentE <= budgE ? 20 : Math.max(0, 20 - Math.round((spentE - budgE) / budgE * 20));
+    criteria.push({ label: 'Budget loisirs', pts: ePts, max: 20, detail: `${Math.round(spentE)}€ / ${budgE}€` });
+  }
+
+  // Score normalisé sur 100 selon les critères actifs uniquement
+  const rawTotal    = criteria.reduce((s, c) => s + c.pts, 0);
+  const maxPossible = criteria.reduce((s, c) => s + c.max, 0);
+  const total       = maxPossible > 0 ? Math.round(rawTotal / maxPossible * 100) : 0;
 
   const scoreHex   = total >= 75 ? '#00D4A0' : total >= 50 ? '#FFB020' : '#FF5E57';
   const scoreLabel = total >= 75 ? 'Excellent' : total >= 50 ? 'Satisfaisant' : 'À améliorer';
 
-  return {
-    total,
-    scoreHex,
-    scoreLabel,
-    criteria: [
-      { label: "Taux d'épargne",  pts: txPts,   max: 40, detail: `${(tx * 100).toFixed(1)} %` },
-      { label: 'Solde du mois',   pts: soldePts, max: 20, detail: null },
-      { label: 'Budget courses',  pts: cPts,     max: 20, detail: budgC > 0 ? `${Math.round(spentC)}€ / ${budgC}€` : 'Non configuré' },
-      { label: 'Budget loisirs',  pts: ePts,     max: 20, detail: budgE > 0 ? `${Math.round(spentE)}€ / ${budgE}€` : 'Non configuré' },
-    ],
-  };
+  return { total, scoreHex, scoreLabel, criteria };
 }
