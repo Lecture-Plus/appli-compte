@@ -28,14 +28,8 @@ function _buildNarrative(kpi, s, daysLeft, isCurrentMonth) {
   const parts = [];
   const tx = kpi.txEpargne?.total ?? 0;
   const solde = kpi.solde.total;
-
-  if (isCurrentMonth && daysLeft > 0 && solde !== 0) {
-    const daily = solde / daysLeft;
-    if (daily >= 0) {
-      parts.push(`<strong style="color:var(--success);">${eur(daily)}/j</strong> à conserver sur ${daysLeft} j`);
-    } else {
-      parts.push(`<strong style="color:var(--danger);">Budget dépassé</strong> de ${eur(Math.abs(solde))}`);
-    }
+  if (isCurrentMonth && daysLeft > 0 && solde < 0) {
+    parts.push(`<strong style="color:var(--danger);">Budget dépassé</strong> de ${eur(Math.abs(solde))}`);
   }
 
   const cibles = s.budgetCibles || {};
@@ -45,9 +39,7 @@ function _buildNarrative(kpi, s, daysLeft, isCurrentMonth) {
     parts.push(`<span style="color:var(--${over ? 'danger' : 'warning'});">Courses à ${Math.round(kpi.courses.total / budgC * 100)} %</span>`);
   }
 
-  if (tx >= 0.15)      parts.push(`<span style="color:var(--success);">\uD83D\uDFE2 Ép. ${pct(tx, 0)}</span>`);
-  else if (tx >= 0.05) parts.push(`<span style="color:var(--warning);">\uD83D\uDFE1 Ép. ${pct(tx, 0)}</span>`);
-  else if (tx < 0)     parts.push(`<span style="color:var(--danger);">\uD83D\uDD34 Déficit</span>`);
+  if (tx < 0) parts.push(`<span style="color:var(--danger);">\uD83D\uDD34 Déficit</span>`);
 
   return parts.join(' · ');
 }
@@ -247,7 +239,6 @@ async function _renderResume(container, s, users) {
   const cibles    = s.budgetCibles || {};
   const threshold = Number(s.epargneThreshold) || 100;
   const _tx       = kpi.txEpargne?.total ?? 0;
-  const _txPts    = _tx >= 0.15 ? 40 : _tx >= 0.05 ? 25 : _tx > 0 ? 10 : 0;
   const _soldePts = kpi.solde.total >= threshold ? 20 : kpi.solde.total >= 0 ? 10 : 0;
   const _budgC    = Number(cibles.courses) || 0;
   const _cPts     = _budgC > 0 ? (_budgC >= kpi.courses.total ? 20 : Math.max(0, 20 - Math.round((kpi.courses.total - _budgC) / _budgC * 20))) : 10;
@@ -263,20 +254,13 @@ async function _renderResume(container, s, users) {
   const _daysLeft  = _isCurrentMonth
     ? (new Date(year, month, 0).getDate() - _today.getDate() + 1)
     : new Date(year, month, 0).getDate();
-  const _soldeRest = kpi.solde.total - (Number(s.savingsGoal) > 0 ? Math.max(0, Number(s.savingsGoal) / 12) : 0);
-  const _dailyBudg = _daysLeft > 0 ? _soldeRest / _daysLeft : _soldeRest;
-  const _dailyColor = _dailyBudg >= 30 ? 'var(--success)' : _dailyBudg >= 0 ? 'var(--warning)' : 'var(--danger)';
-  const _dailyLabel = _isCurrentMonth
-    ? `Budget aujourd'hui — ${_daysLeft} jour${_daysLeft > 1 ? 's' : ''} restant${_daysLeft > 1 ? 's' : ''}`
-    : `Budget/jour moyen`;
-
   const el = container.querySelector('#dash-content');
   el.innerHTML = `
     <!-- ── HERO compact + score ring ── -->
     <div class="hero-card" style="margin-bottom:12px;">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;">
         <div style="flex:1;min-width:0;">
-          <div class="hero-label">Solde de ${nomMois(month)} ${year} <span title="Solde = Revenus + Aides − Charges − Dépenses du mois" style="cursor:help;color:var(--primary);font-size:0.75em;">ⓘ</span></div>
+          <div class="hero-label">Solde de ${nomMois(month)} ${year}</div>
           <div class="hero-amount" style="color:${soldeColor};">${eur(kpi.solde.total)}</div>
           <div class="hero-meta">
             <span>${eur(kpi.revenus.total + (kpi.aides?.total ?? 0))} revenus</span>
@@ -434,7 +418,6 @@ async function _renderResume(container, s, users) {
   // ── Score : clic → modal de détail ──
   el.querySelector('#dash-score-area')?.addEventListener('click', () => {
     const rows = [
-      { label: 'Taux d\'épargne', pts: _txPts, max: 40, hint: _tx >= 0.15 ? 'Excellent !' : _tx >= 0.05 ? 'Bien — viser 15 %' : 'Mettre de côté au moins 5 % des revenus' },
       { label: 'Solde positif',   pts: _soldePts, max: 20, hint: kpi.solde.total >= 0 ? 'Solde positif ✓' : 'Réduire les dépenses ou augmenter les revenus' },
       { label: 'Budget courses',  pts: _cPts, max: 20, hint: _budgC > 0 ? (_cPts === 20 ? 'Dans le budget ✓' : `Dépasser de ${eur(kpi.courses.total - _budgC)} — définir un budget courses plus réaliste`) : 'Définir un budget courses dans Réglages' },
       { label: 'Budget loisirs',  pts: _ePts, max: 20, hint: _budgE > 0 ? (_ePts === 20 ? 'Dans le budget ✓' : `Dépasser de ${eur(kpi.extras.total - _budgE)} — surveiller les extras`) : 'Définir un budget loisirs dans Réglages' },

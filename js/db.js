@@ -251,6 +251,9 @@ const SETTING_DEFAULTS = {
   lastBackup:             null,
   driveLastSync:          null,
   notifEnabled:           false,
+  salarialePlanned:       {},       // { "userId": monthlyAmount } versements planifiés
+  salarialeAbonRatio:     22.58 / 50, // taux abondement (ex: 0.4516)
+  salarialeAbonMax:       1000,     // plafond annuel abondement
 };
 
 export async function getSetting(key) {

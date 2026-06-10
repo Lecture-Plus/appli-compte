@@ -62,10 +62,24 @@ async function _renderEconomies(el, container) {
   const { year, month } = today();
   const currentMonthConfirmed = latest && latest.year === year && latest.month === month;
 
-  // ── Solde par user : somme des opérations avec userId ──
+  // ── Solde par user : base confirmée par user + opérations post-confirmation ──
+  const confirmedTs = latest?.confirmedAt ? new Date(latest.confirmedAt).getTime() : null;
   const userBalances = users.map(u => {
-    const uOps = allOps.filter(op => String(op.userId) === String(u.id));
-    const bal  = uOps.reduce((s, op) => s + (Number(op.amount) || 0), 0);
+    const uid = String(u.id);
+    // Base : montant confirmé pour cet utilisateur (si disponible), sinon 0
+    const base_u = Number(latest?.perUserAmounts?.[uid]) || 0;
+    // Opérations APRÈS la confirmation (même logique que calcSavingsBalance)
+    const uOpsAfter = allOps.filter(op => {
+      if (String(op.userId) !== uid) return false;
+      if (!latest) return true;
+      if (op.year  > latest.year)  return true;
+      if (op.year  < latest.year)  return false;
+      if (op.month > latest.month) return true;
+      if (op.month < latest.month) return false;
+      if (confirmedTs && op.createdAt) return new Date(op.createdAt).getTime() > confirmedTs;
+      return (op.day || 1) > (latest.confirmedDay || 1);
+    });
+    const bal = base_u + uOpsAfter.reduce((s, op) => s + (Number(op.amount) || 0), 0);
     return { user: u, balance: bal };
   });
   const goalsByUser = s.savingsGoalsByUser || {};
@@ -468,10 +482,22 @@ async function showConfirmModal(users, onSave) {
   const lastDayOfMonth = new Date(year, month, 0).getDate();
   const N = users.length;
 
-  // Soldes calculés par user
+  // Soldes calculés par user (base confirmée par user + ops post-confirmation)
+  const confirmedTs = latest?.confirmedAt ? new Date(latest.confirmedAt).getTime() : null;
   const userBalances = users.map(u => {
-    const uOps = allOps.filter(op => String(op.userId) === String(u.id));
-    const bal  = uOps.reduce((s, op) => s + (Number(op.amount) || 0), 0);
+    const uid = String(u.id);
+    const base_u = Number(latest?.perUserAmounts?.[uid]) || 0;
+    const uOpsAfter = allOps.filter(op => {
+      if (String(op.userId) !== uid) return false;
+      if (!latest) return true;
+      if (op.year  > latest.year)  return true;
+      if (op.year  < latest.year)  return false;
+      if (op.month > latest.month) return true;
+      if (op.month < latest.month) return false;
+      if (confirmedTs && op.createdAt) return new Date(op.createdAt).getTime() > confirmedTs;
+      return (op.day || 1) > (latest.confirmedDay || 1);
+    });
+    const bal = base_u + uOpsAfter.reduce((s, op) => s + (Number(op.amount) || 0), 0);
     return { user: u, balance: bal };
   });
 
@@ -554,7 +580,9 @@ async function showConfirmModal(users, onSave) {
   document.getElementById('conf-save')?.addEventListener('click', async () => {
     const note = document.getElementById('conf-note')?.value.trim() || '';
     const now  = new Date();
+    const nowIso = now.toISOString();
     let totalAmount;
+    let perUserAmounts = {};
 
     if (N > 1) {
       const userAmts = [...document.querySelectorAll('.conf-user-amount')]
@@ -563,6 +591,7 @@ async function showConfirmModal(users, onSave) {
         showToast('Saisissez au moins un montant', 'error'); return;
       }
       totalAmount = userAmts.reduce((s, x) => s + x.amt, 0);
+      perUserAmounts = Object.fromEntries(userAmts.map(x => [x.uid, x.amt]));
     } else {
       const amountStr = document.getElementById('conf-amount')?.value?.trim();
       totalAmount = amountStr ? Number(amountStr) : balance;
@@ -570,7 +599,33 @@ async function showConfirmModal(users, onSave) {
     }
 
     await saveSavingsConfirmed({ year, month, amount: totalAmount,
-      confirmedAt: now.toISOString(), confirmedDay: now.getDate(), note });
+      confirmedAt: nowIso, confirmedDay: now.getDate(), note, perUserAmounts });
+
+    // Créer des opérations d'ajustement si montant confirmé ≠ solde calculé
+    if (N > 1) {
+      for (const ub of userBalances) {
+        const uid = String(ub.user.id);
+        const confirmed_u = perUserAmounts[uid] ?? 0;
+        const diff = confirmed_u - ub.balance;
+        if (Math.abs(diff) >= 0.01) {
+          await saveSavingsOperation({
+            type: 'adjustment', label: `Ajustement de solde (${ub.user.name})`,
+            amount: diff, year, month, day: now.getDate(),
+            createdAt: nowIso, userId: uid, note: 'Ajustement lors de la confirmation',
+          });
+        }
+      }
+    } else {
+      const diff = totalAmount - balance;
+      if (Math.abs(diff) >= 0.01) {
+        await saveSavingsOperation({
+          type: 'adjustment', label: 'Ajustement de solde',
+          amount: diff, year, month, day: now.getDate(),
+          createdAt: nowIso, note: 'Ajustement lors de la confirmation',
+        });
+      }
+    }
+
     closeModal();
     showToast(`Solde confirmé : ${eur(totalAmount)} ✅`, 'success');
     onSave();
@@ -759,46 +814,43 @@ function _abon_label(period, year) {
 }
 
 async function _renderSalariale(el, container) {
-  const [allOps, allAbons, users] = await Promise.all([
+  const [allOps, allAbons, users, s] = await Promise.all([
     getAllSalarySavings(),
     getAllSalaryAbondements(),
     getActiveUsers(),
+    getAllSettings(),
   ]);
 
   const { year, month, day } = today();
 
-  // ── Totaux globaux ──
+  // Paramètres configurables
+  const ABON_RATIO_CFG = Number(s.salarialeAbonRatio) || (22.58 / 50);
+  const ABON_MAX_CFG   = Number(s.salarialeAbonMax)   || 1000;
+  const planned        = s.salarialePlanned || {};
+
+  // Totaux
   const totalNet  = allOps.reduce((s, op) => s + (Number(op.amount) || 0), 0);
   const totalAbon = allAbons.reduce((s, a) => s + (Number(a.amount) || 0), 0);
   const totalBrut = totalNet + totalAbon;
 
-  // ── Abondement annuel (année civile courante) ──
-  const yearAbons         = allAbons.filter(a => a.year === year);
-  const yearAbonTotal     = yearAbons.reduce((s, a) => s + (Number(a.amount) || 0), 0);
-  const yearAbonRemaining = Math.max(0, ABON_MAX_YEAR - yearAbonTotal);
+  // Abondements de l'année
+  const yearAbonTotal     = allAbons.filter(a => a.year === year).reduce((s, a) => s + (Number(a.amount) || 0), 0);
+  const yearAbonRemaining = Math.max(0, ABON_MAX_CFG - yearAbonTotal);
 
-  // ── Versements de l'année courante ──
-  const yearOps    = allOps.filter(op => op.year === year);
-  const yearContrib = yearOps.reduce((s, op) => s + (Number(op.amount) || 0), 0);
-
-  // ── Période courante ──
+  // Période courante
   const curPeriod     = _abon_period(year, month);
   const periodOps     = allOps.filter(op => _inPeriod(op.year, op.month, curPeriod.periodStart, curPeriod.periodEnd));
   const periodContrib = periodOps.reduce((s, op) => s + (Number(op.amount) || 0), 0);
-  // Abondement de cette période : plafonné au reste disponible sur l'année
-  const estimatedAbonPeriod = Math.min(periodContrib * ABON_RATIO, yearAbonRemaining);
-  // Versements manquants pour épuiser la capacité restante annuelle
-  const abonMissing   = yearAbonRemaining <= 0 ? 0 : Math.max(0, (yearAbonRemaining / ABON_RATIO) - periodContrib);
-  const pctPeriod     = yearAbonRemaining <= 0 ? 100 : Math.min(100, Math.round((periodContrib / (yearAbonRemaining / ABON_RATIO)) * 100));
-
-  // Prochain abondement
+  const estimatedAbonPeriod = Math.min(periodContrib * ABON_RATIO_CFG, yearAbonRemaining);
+  const abonMissing   = yearAbonRemaining <= 0 ? 0 : Math.max(0, (yearAbonRemaining / ABON_RATIO_CFG) - periodContrib);
+  const pctPeriod     = yearAbonRemaining <= 0 ? 100 : Math.min(100, Math.round((periodContrib / (yearAbonRemaining / ABON_RATIO_CFG)) * 100));
   const nextAbonDate  = curPeriod.period === 'mai' ? `28 mai ${curPeriod.periodEnd.year}` : `28 novembre ${curPeriod.periodEnd.year}`;
 
-  // ── Mois courant ──
-  const monthlyOps = allOps.filter(op => op.year === year && op.month === month);
+  // Versements du mois courant
+  const monthlyOps   = allOps.filter(op => op.year === year && op.month === month);
   const monthlyTotal = monthlyOps.reduce((s, op) => s + (Number(op.amount) || 0), 0);
 
-  // ── Tri historique ──
+  // Tri historique
   const sortedOps = [...allOps].sort((a, b) => {
     if (b.year !== a.year) return b.year - a.year;
     if (b.month !== a.month) return b.month - a.month;
@@ -806,100 +858,105 @@ async function _renderSalariale(el, container) {
   });
 
   el.innerHTML = `
-    <!-- KPI net / abondé -->
+    <!-- KPI résumé -->
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
-      <div class="kpi-card" style="--kpi-color:var(--primary);padding:16px;text-align:center;">
-        <div class="kpi-label" style="font-size:0.67rem;">💶 Montant net versé</div>
-        <div class="kpi-value" style="font-size:1.5rem;color:var(--primary);">${eur(totalNet)}</div>
-        <div style="font-size:0.68rem;color:var(--text-3);margin-top:2px;">de notre poche</div>
+      <div class="kpi-card" style="--kpi-color:var(--primary);padding:14px;text-align:center;">
+        <div class="kpi-label" style="font-size:0.66rem;">💶 Versé (net)</div>
+        <div class="kpi-value" style="font-size:1.4rem;color:var(--primary);">${eur(totalNet)}</div>
       </div>
-      <div class="kpi-card" style="--kpi-color:var(--success);padding:16px;text-align:center;">
-        <div class="kpi-label" style="font-size:0.67rem;">🏦 Montant abondé total</div>
-        <div class="kpi-value" style="font-size:1.5rem;color:var(--success);">${eur(totalBrut)}</div>
-        <div style="font-size:0.68rem;color:var(--text-3);margin-top:2px;">net + ${eur(totalAbon)} d'abondement</div>
+      <div class="kpi-card" style="--kpi-color:var(--success);padding:14px;text-align:center;">
+        <div class="kpi-label" style="font-size:0.66rem;">🏦 Total abondé</div>
+        <div class="kpi-value" style="font-size:1.4rem;color:var(--success);">${eur(totalBrut)}</div>
+        <div style="font-size:0.65rem;color:var(--text-3);">+${eur(totalAbon)} employeur</div>
       </div>
     </div>
 
-    <!-- Période courante + progrès vers abondement -->
+    <!-- Progression vers prochain abondement -->
     <div class="card" style="margin-bottom:12px;">
       <div class="card-header">
-        <span class="card-title">🎯 Progression vers l'abondement</span>
+        <span class="card-title">🎯 Prochain abondement</span>
         <span class="chip primary">${nextAbonDate}</span>
+        <button class="btn btn-sm btn-outline" id="sal-btn-params" style="margin-left:auto;padding:4px 8px;font-size:0.7rem;">⚙️ Paramètres</button>
       </div>
-      <div style="margin-bottom:10px;">
-        <div class="progress-wrap" style="margin-bottom:4px;">
-          <div class="progress-labels">
-            <span>Versé cette période : ${eur(periodContrib)}</span>
-            <span style="color:var(--text-3);">${yearAbonRemaining <= 0 ? '✅ Plafond annuel atteint' : `capacité restante ${eur(yearAbonRemaining)} d'abond.`}</span>
-          </div>
-          <div class="progress-track"><div class="progress-bar ${pctPeriod >= 100 || yearAbonRemaining <= 0 ? 'success' : 'primary'}" style="width:${pctPeriod}%;"></div></div>
+      <div class="progress-wrap" style="margin-bottom:6px;">
+        <div class="progress-labels">
+          <span>Versé cette période : ${eur(periodContrib)}</span>
+          <span style="color:var(--text-3);">${yearAbonRemaining <= 0 ? '✅ Plafond annuel atteint' : `Capacité : ${eur(yearAbonRemaining)} d'abond.`}</span>
         </div>
-        <div style="font-size:0.75rem;color:var(--text-3);">${yearAbonRemaining <= 0
-          ? '✅ Le plafond de 1 000€ d\'abondement annuel est atteint !'
-          : pctPeriod >= 100
-            ? `✅ Vous avez versé assez pour épuiser la capacité restante (${eur(yearAbonRemaining)} d'abond. disponible)`
-            : `Il manque ${eur(abonMissing)} de versements pour utiliser toute la capacité restante`}</div>
+        <div class="progress-track"><div class="progress-bar ${pctPeriod >= 100 || yearAbonRemaining <= 0 ? 'success' : 'primary'}" style="width:${pctPeriod}%;"></div></div>
       </div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(90px,1fr));gap:8px;">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;">
         <div style="background:var(--success-bg);border-radius:var(--radius-sm);padding:10px;text-align:center;">
-          <div style="font-size:0.62rem;color:var(--text-3);font-weight:700;text-transform:uppercase;">Abond. période</div>
+          <div style="font-size:0.62rem;color:var(--text-3);font-weight:700;text-transform:uppercase;">Abond. estimé période</div>
           <div style="font-size:1rem;font-weight:800;color:var(--success);margin-top:2px;">${eur(estimatedAbonPeriod)}</div>
-          <div style="font-size:0.62rem;color:var(--text-3);">sur ${eur(yearAbonRemaining)} dispo</div>
         </div>
         <div style="background:var(--bg-secondary);border-radius:var(--radius-sm);padding:10px;text-align:center;">
           <div style="font-size:0.62rem;color:var(--text-3);font-weight:700;text-transform:uppercase;">Abond. année ${year}</div>
           <div style="font-size:1rem;font-weight:800;color:var(--primary);margin-top:2px;">${eur(yearAbonTotal)}</div>
-          <div style="font-size:0.62rem;color:var(--text-3);">/ ${eur(ABON_MAX_YEAR)} max</div>
-        </div>
-        <div style="background:var(--bg-secondary);border-radius:var(--radius-sm);padding:10px;text-align:center;">
-          <div style="font-size:0.62rem;color:var(--text-3);font-weight:700;text-transform:uppercase;">Ce mois</div>
-          <div style="font-size:1rem;font-weight:800;color:var(--primary);margin-top:2px;">${eur(monthlyTotal)}</div>
-          <div style="font-size:0.62rem;color:var(--text-3);">${monthlyOps.length} versement(s)</div>
+          <div style="font-size:0.62rem;color:var(--text-3);">/ ${eur(ABON_MAX_CFG)} max</div>
         </div>
       </div>
-      <div style="margin-top:10px;font-size:0.72rem;color:var(--text-3);padding:8px 10px;background:var(--bg-secondary);border-radius:var(--radius-sm);word-break:break-word;">
-        <strong>Règle :</strong> taux d'abondement <strong>${(ABON_RATIO * 100).toFixed(2)}%</strong>
-        (${eur(22.58)} pour ${eur(50)} versés) — plafond <strong>${eur(ABON_MAX_YEAR)}/an</strong> sur 2 périodes (28 mai · 28 novembre).
-        Pour maximiser les 1 000€ sur l'année, il faut verser ${eur(ABON_CONTRIB_FOR_YEAR_MAX)} au total.
-      </div>
+      ${yearAbonRemaining > 0 && pctPeriod < 100 ? `<div style="font-size:0.72rem;color:var(--text-3);margin-top:8px;">Il manque ${eur(abonMissing)} de versements pour utiliser tout le plafond restant.</div>` : ''}
     </div>
 
-    <!-- Abondements confirmés -->
+    <!-- Versements planifiés -->
+    ${users.length > 0 && Object.values(planned).some(v => Number(v) > 0) ? `
     <div class="card" style="margin-bottom:12px;">
-      <div class="card-header">
-        <span class="card-title">✅ Abondements confirmés</span>
-        <span class="chip">${allAbons.length}</span>
+      <div class="card-header"><span class="card-title">📅 Versements planifiés (mensuel)</span></div>
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        ${users.map(u => {
+          const amt = Number(planned[String(u.id)]) || 0;
+          if (!amt) return '';
+          const thisMonth = monthlyOps.filter(op => String(op.userId) === String(u.id) || !op.userId).reduce((s, op) => s + (Number(op.amount)||0), 0);
+          const done = thisMonth >= amt;
+          return `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:var(--bg-2);border-radius:var(--radius-sm);">
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span style="width:9px;height:9px;border-radius:50%;background:${escHtml(u.color||'#6C63FF')};display:inline-block;"></span>
+              <span style="font-size:0.88rem;font-weight:600;">${escHtml(u.name)}</span>
+            </div>
+            <div style="text-align:right;">
+              <div style="font-size:0.9rem;font-weight:800;color:var(--primary);">${eur(amt)}/mois</div>
+              <div style="font-size:0.65rem;color:${done ? 'var(--success)' : 'var(--warning)'};">${done ? '✅ Versé ce mois' : `⏳ ${eur(thisMonth)} versé ce mois`}</div>
+            </div>
+          </div>`;
+        }).filter(Boolean).join('')}
       </div>
-      ${allAbons.length === 0
-        ? '<p style="font-size:0.82rem;color:var(--text-3);">Aucun abondement enregistré.</p>'
-        : `<div class="item-list">${
-            [...allAbons].sort((a,b) => b.year - a.year || (b.period === 'mai' ? -1 : 1)).map(ab => `
-              <div class="list-item">
-                <div class="list-item-icon" style="background:var(--success-bg);">🏦</div>
-                <div class="list-item-body">
-                  <div class="list-item-title">${escHtml(_abon_label(ab.period, ab.year))}</div>
-                  <div class="list-item-sub">${ab.note ? escHtml(ab.note) : 'Abondement employeur'} · Versé : ${eur(ab.contributions ?? 0)}</div>
-                </div>
-                <div class="list-item-right">
-                  <div class="list-item-amount" style="color:var(--success);">+${eur(ab.amount)}</div>
-                  <button class="btn btn-sm btn-outline abon-delete" data-id="${ab.id}" style="margin-top:4px;font-size:0.65rem;padding:2px 6px;color:var(--danger);">✕</button>
-                </div>
-              </div>
-            `).join('')}
-          </div>`
-      }
-    </div>
+    </div>` : ''}
 
     <!-- Actions -->
-    <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px;">
+    <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px;">
       <button class="btn btn-primary" id="sal-btn-add">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="15" height="15"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
         Ajouter un versement
       </button>
-      <button class="btn btn-success" id="sal-btn-abon">🏦 Valider un abondement</button>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-success" style="flex:1;" id="sal-btn-abon">🏦 Valider abondement</button>
+        <button class="btn btn-outline" style="flex:1;" id="sal-btn-abon-recu">✅ Abond. déjà perçu</button>
+      </div>
       <button class="btn btn-secondary" id="sal-btn-transfer">💸 Transférer vers économies</button>
-      <button class="btn btn-outline btn-full" id="sal-btn-abon-recu">✅ Abondement déjà perçu</button>
     </div>
+
+    <!-- Abondements confirmés -->
+    ${allAbons.length > 0 ? `
+    <div class="card" style="margin-bottom:12px;">
+      <div class="card-header">
+        <span class="card-title">✅ Abondements reçus</span>
+        <span class="chip">${allAbons.length}</span>
+      </div>
+      <div class="item-list">${[...allAbons].sort((a,b) => b.year - a.year || (b.period === 'mai' ? -1 : 1)).map(ab => `
+        <div class="list-item">
+          <div class="list-item-icon" style="background:var(--success-bg);">🏦</div>
+          <div class="list-item-body">
+            <div class="list-item-title">${escHtml(_abon_label(ab.period, ab.year))}</div>
+            <div class="list-item-sub">${ab.note ? escHtml(ab.note) : 'Abondement employeur'}${ab.contributions ? ` · Versé : ${eur(ab.contributions)}` : ''}</div>
+          </div>
+          <div class="list-item-right">
+            <div class="list-item-amount" style="color:var(--success);">+${eur(ab.amount)}</div>
+            <button class="btn btn-sm btn-outline abon-delete" data-id="${ab.id}" style="margin-top:4px;font-size:0.65rem;padding:2px 6px;color:var(--danger);">✕</button>
+          </div>
+        </div>
+      `).join('')}</div>
+    </div>` : ''}
 
     <!-- Historique versements -->
     <div class="section-header" style="margin-bottom:8px;">
@@ -907,13 +964,13 @@ async function _renderSalariale(el, container) {
       <span class="chip">${sortedOps.length}</span>
     </div>
     ${sortedOps.length === 0
-      ? `<div class="empty-state"><div class="empty-state-icon">🏦</div><div class="empty-state-title">Aucun versement</div><div class="empty-state-text">Ajoutez vos versements mensuels pour suivre votre épargne salariale.</div></div>`
+      ? `<div class="empty-state"><div class="empty-state-icon">🏦</div><div class="empty-state-title">Aucun versement</div><div class="empty-state-text">Ajoutez vos versements pour suivre votre épargne salariale.</div></div>`
       : `<div class="item-list">${sortedOps.map(op => `
           <div class="list-item">
             <div class="list-item-icon" style="background:var(--primary-bg);">💶</div>
             <div class="list-item-body">
               <div class="list-item-title">${escHtml(op.label || 'Versement')}</div>
-              <div class="list-item-sub">${nomMois(op.month)} ${op.year}${op.day ? ' · j.' + op.day : ''}${op.type === 'extra' ? ' · ponctuel' : ''}</div>
+              <div class="list-item-sub">${nomMois(op.month)} ${op.year}${op.userId ? ` · ${escHtml(users.find(u=>String(u.id)===String(op.userId))?.name||'')}` : ''}${op.type === 'extra' ? ' · ponctuel' : op.type === 'salary_savings' ? ' · épargne salariale' : ''}</div>
             </div>
             <div class="list-item-right">
               <div class="list-item-amount" style="color:var(--primary);">+${eur(op.amount)}</div>
@@ -926,6 +983,7 @@ async function _renderSalariale(el, container) {
   `;
 
   // ── Événements ──
+  el.querySelector('#sal-btn-params')?.addEventListener('click', () => _showSalParamsModal(users, s, () => _renderPage(container)));
   el.querySelector('#sal-btn-add')?.addEventListener('click', () => _showSalAddModal(users, () => _renderPage(container)));
   el.querySelector('#sal-btn-abon')?.addEventListener('click', () => _showSalAbonModal(allOps, allAbons, users, () => _renderPage(container)));
   el.querySelector('#sal-btn-abon-recu')?.addEventListener('click', () => _showSalAbonRecuModal(allAbons, () => _renderPage(container)));
@@ -956,10 +1014,87 @@ async function _renderSalariale(el, container) {
   });
 }
 
+
+// ── Modal : paramètres épargne salariale ──
+async function _showSalParamsModal(users, s, onSave) {
+  const planned   = s.salarialePlanned   || {};
+  const abonRatio = Number(s.salarialeAbonRatio) || (22.58 / 50);
+  const abonMax   = Number(s.salarialeAbonMax)   || 1000;
+
+  openModal('⚙️ Paramètres épargne salariale', `
+    <div class="form-group" style="margin-bottom:14px;">
+      <label class="form-label" style="font-weight:700;">Versements planifiés mensuels</label>
+      <p style="font-size:0.72rem;color:var(--text-3);margin-bottom:8px;">Montant que chaque utilisateur prévoit de verser chaque mois. Mettez 0 pour désactiver.</p>
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        ${users.map(u => `
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span style="width:9px;height:9px;border-radius:50%;background:${escHtml(u.color||'#6C63FF')};display:inline-block;flex-shrink:0;"></span>
+            <span style="font-size:0.85rem;font-weight:600;flex:1;">${escHtml(u.name)}</span>
+            <div class="input-wrap" style="width:110px;">
+              <input type="number" class="form-input input-euro sal-planned-user" data-uid="${u.id}"
+                min="0" step="10" placeholder="0"
+                value="${Number(planned[String(u.id)]) || ''}">
+              <span class="input-suffix">€</span>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+    <hr style="border:none;border-top:1px solid var(--border);margin:12px 0;">
+    <div class="form-group" style="margin-bottom:10px;">
+      <label class="form-label" style="font-weight:700;">Taux d'abondement (%)</label>
+      <p style="font-size:0.72rem;color:var(--text-3);margin-bottom:4px;">Ex : 45.16 = l'employeur verse 45.16% de votre versement (22.58€ pour 50€ versés)</p>
+      <div class="input-wrap">
+        <input type="number" class="form-input" id="sal-abon-ratio" min="0" max="200" step="0.01"
+          value="${(abonRatio * 100).toFixed(2)}">
+        <span class="input-suffix">%</span>
+      </div>
+    </div>
+    <div class="form-group" style="margin-bottom:10px;">
+      <label class="form-label" style="font-weight:700;">Plafond annuel d'abondement (€)</label>
+      <div class="input-wrap">
+        <input type="number" class="form-input input-euro" id="sal-abon-max" min="0" step="100" value="${abonMax}">
+        <span class="input-suffix">€</span>
+      </div>
+    </div>
+  `, `
+    <button class="btn btn-outline" id="sal-params-cancel">Annuler</button>
+    <button class="btn btn-primary" id="sal-params-save">Enregistrer</button>
+  `);
+
+  document.getElementById('sal-params-cancel')?.addEventListener('click', closeModal);
+  document.getElementById('sal-params-save')?.addEventListener('click', async () => {
+    const newPlanned = {};
+    document.querySelectorAll('.sal-planned-user').forEach(inp => {
+      const v = Number(inp.value) || 0;
+      if (v > 0) newPlanned[inp.dataset.uid] = v;
+    });
+    const ratioInput = Number(document.getElementById('sal-abon-ratio')?.value) || 0;
+    const maxInput   = Number(document.getElementById('sal-abon-max')?.value) || 1000;
+    await Promise.all([
+      setSetting('salarialePlanned',   newPlanned),
+      setSetting('salarialeAbonRatio', ratioInput / 100),
+      setSetting('salarialeAbonMax',   maxInput),
+    ]);
+    closeModal();
+    showToast('Paramètres enregistrés ✅', 'success');
+    onSave();
+  });
+}
+
 // ── Modal : ajouter un versement salarial ──
 function _showSalAddModal(users, onSave) {
   const { year, month } = today();
   const now = new Date();
+  const N = users.length;
+  const userSelect = N > 1 ? `
+    <div class="form-group" style="margin-bottom:10px;">
+      <label class="form-label">Utilisateur</label>
+      <select class="form-select" id="sal-user">
+        ${users.map(u => `<option value="${u.id}">${escHtml(u.name)}</option>`).join('')}
+      </select>
+    </div>` : '';
+
   openModal('💶 Ajouter un versement', `
     <div class="form-group" style="margin-bottom:10px;">
       <label class="form-label">Montant (€) *</label>
@@ -968,9 +1103,10 @@ function _showSalAddModal(users, onSave) {
         <span class="input-suffix">€</span>
       </div>
     </div>
+    ${userSelect}
     <div class="form-group" style="margin-bottom:10px;">
       <label class="form-label">Libellé</label>
-      <input type="text" class="form-input" id="sal-label" placeholder="Ex: Versement mensuel, Versement exceptionnel…">
+      <input type="text" class="form-input" id="sal-label" placeholder="Ex: Épargne salariale, Versement exceptionnel…" value="Épargne salariale">
     </div>
     <div class="form-grid-2" style="margin-bottom:10px;">
       <div class="form-group">
@@ -983,14 +1119,11 @@ function _showSalAddModal(users, onSave) {
       </div>
     </div>
     <div class="form-group" style="margin-bottom:10px;">
-      <label class="form-label">Jour</label>
-      <input type="number" class="form-input" id="sal-day" min="1" max="31" value="${now.getDate()}">
-    </div>
-    <div class="form-group" style="margin-bottom:10px;">
       <label class="form-label">Type</label>
       <select class="form-select" id="sal-type">
-        <option value="monthly">📅 Versement mensuel régulier</option>
-        <option value="extra">⚡ Versement ponctuel (extra)</option>
+        <option value="salary_savings">💼 Épargne salariale (planifié)</option>
+        <option value="monthly">📅 Versement mensuel</option>
+        <option value="extra">⚡ Versement ponctuel</option>
       </select>
     </div>
   `, `
@@ -1002,12 +1135,13 @@ function _showSalAddModal(users, onSave) {
   document.getElementById('sal-save')?.addEventListener('click', async () => {
     const amount = Number(document.getElementById('sal-amount')?.value);
     if (!amount || amount <= 0) { showToast('Montant invalide', 'error'); return; }
-    const label = document.getElementById('sal-label')?.value.trim() || 'Versement';
-    const m     = Number(document.getElementById('sal-month')?.value) || month;
-    const y     = Number(document.getElementById('sal-year')?.value)  || year;
-    const d     = Number(document.getElementById('sal-day')?.value)   || now.getDate();
-    const type  = document.getElementById('sal-type')?.value || 'monthly';
-    await saveSalarySaving({ amount, label, type, year: y, month: m, day: d, createdAt: now.toISOString() });
+    const label  = document.getElementById('sal-label')?.value.trim() || 'Épargne salariale';
+    const m      = Number(document.getElementById('sal-month')?.value) || month;
+    const y      = Number(document.getElementById('sal-year')?.value)  || year;
+    const type   = document.getElementById('sal-type')?.value || 'salary_savings';
+    const userId = N > 1 ? (document.getElementById('sal-user')?.value || null) : (users[0]?.id ?? null);
+    await saveSalarySaving({ amount, label, type, year: y, month: m, day: now.getDate(),
+      userId: userId ? String(userId) : undefined, createdAt: now.toISOString() });
     closeModal();
     showToast(`+${eur(amount)} enregistré ✅`, 'success');
     onSave();

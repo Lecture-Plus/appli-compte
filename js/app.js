@@ -228,28 +228,8 @@ async function _checkAndFireNotification(year, month, md) {
   } catch (e) { /* silencieux */ }
 }
 
-// ── Nav hide/show on scroll ──
-function _initNavScroll() {
-  const content = document.getElementById('app-content');
-  const nav     = document.getElementById('bottom-nav');
-  if (!content || !nav) return;
-  let lastY = 0;
-  let ticking = false;
-  content.addEventListener('scroll', () => {
-    if (ticking) return;
-    ticking = true;
-    requestAnimationFrame(() => {
-      const y = content.scrollTop;
-      if (y > lastY + 8 && y > 60) {
-        nav.classList.add('nav-hidden');
-      } else if (y < lastY - 8) {
-        nav.classList.remove('nav-hidden');
-      }
-      lastY = y;
-      ticking = false;
-    });
-  }, { passive: true });
-}
+// ── Nav hide/show on scroll — désactivé (nav toujours visible) ──
+function _initNavScroll() {}
 
 // ── Counter animation pour éléments .data-counter[data-value] ──
 let _counterRafs = [];

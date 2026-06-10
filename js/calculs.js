@@ -404,13 +404,18 @@ export function calcSavingsBalance(latestConfirmed, allOperations) {
   }
 
   const base = Number(latestConfirmed.amount) || 0;
+  const confirmedTs = latestConfirmed.confirmedAt ? new Date(latestConfirmed.confirmedAt).getTime() : null;
   const opsSince = (allOperations ?? []).filter(op => {
     if (op.id === latestConfirmed.id) return false;
     if (op.year  > latestConfirmed.year)  return true;
     if (op.year  < latestConfirmed.year)  return false;
     if (op.month > latestConfirmed.month) return true;
     if (op.month < latestConfirmed.month) return false;
-    return (op.day || 1) >= (latestConfirmed.confirmedDay || 1);
+    // Same year & month — use timestamp if available, else day strictly after confirmedDay
+    if (confirmedTs && op.createdAt) {
+      return new Date(op.createdAt).getTime() > confirmedTs;
+    }
+    return (op.day || 1) > (latestConfirmed.confirmedDay || 1);
   });
 
   const delta = opsSince.reduce((s, op) => s + (Number(op.amount) || 0), 0);

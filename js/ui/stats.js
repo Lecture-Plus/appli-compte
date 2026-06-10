@@ -131,11 +131,6 @@ export async function render(container) {
         <div class="card-header"><span class="card-title">🎯 Score budgétaire mensuel</span></div>
         <div id="stats-score"><div class="loading"><div class="spinner"></div></div></div>
       </div>
-      ${users.length >= 2 ? `
-      <div class="card" style="margin-bottom:12px;">
-        <div class="card-header"><span class="card-title">👥 Comparatif par personne</span></div>
-        <div id="table-perso"><div class="loading"><div class="spinner"></div></div></div>
-      </div>` : ''}
     </div>
 
     <div id="stab-evolution" style="${_statsTab !== 'evolution' ? 'display:none;' : ''}">
@@ -261,13 +256,12 @@ async function loadAndRender(container, year, month, users, s) {
   destroyCharts();
   renderChartRevDep(displayResults);
   renderChartRevPrimes(displayResults, users);
-  renderChartEpargne(displayResults);
+  await renderChartEpargne(displayResults, year);
   await renderChartSavingsBalance(year, curYear, curMonth, users);
   renderChartRepartition(yearKPI);
   renderChartChargesCat(yearKPI, allChargesRaw);
   renderChartTendances(results, allChargesRaw);
   renderTableMensuel(container, displayResults);
-  if (users.length >= 2) renderTablePerso(container, yearKPI, users);
   await renderN1Comparison(container, year, users, s, displayResults);
   await renderProjectionEpargne(container, year, curYear, curMonth);
   await renderMonthCompare(container, year, month > 0 ? month : curMonth, users, s, allChargesRaw, allAchats, allRepartitions, monthMap);
@@ -306,7 +300,7 @@ async function _renderDetailTab(container, year, month, users) {
 
   function buildRow(label, cat) {
     if (!cat) return '';
-    return `<tr><td>${escHtml(label)}</td>${users.map(u => `<td style="text-align:right">${eur(cat.byUser?.[u.id] ?? 0)}</td>`).join('')}<td style="text-align:right">${eur(cat.total)}</td></tr>`;
+    return `<tr><td>${escHtml(label)}</td>${users.map(u => `<td style="text-align:right">${eur(cat.byUser?.[String(u.id)] ?? 0)}</td>`).join('')}<td style="text-align:right">${eur(cat.total)}</td></tr>`;
   }
 
   function renderTable() {
@@ -325,8 +319,8 @@ async function _renderDetailTab(container, year, month, users) {
         ${(dk.aides?.total ?? 0) > 0 ? buildRow('Aides', dk.aides) : ''}
         ${buildRow('Primes', dk.primes)}
         ${buildRow('Charges', dk.charges)}
-        ${courses > 0 ? `<tr><td>${isReel ? 'Courses (confirmé)' : 'Budget courses'}</td>${users.map(u => `<td style="text-align:right">${eur(dk.courses.byUser?.[u.id] ?? 0)}</td>`).join('')}<td style="text-align:right">${eur(courses)}</td></tr>` : ''}
-        ${extras > 0 ? `<tr><td>${isReel ? 'Loisirs (confirmé)' : 'Budget loisirs'}</td>${users.map(u => `<td style="text-align:right">${eur(dk.extras.byUser?.[u.id] ?? 0)}</td>`).join('')}<td style="text-align:right">${eur(extras)}</td></tr>` : ''}
+        ${courses > 0 ? `<tr><td>${isReel ? 'Courses (confirmé)' : 'Budget courses'}</td>${users.map(u => `<td style="text-align:right">${eur(dk.courses.byUser?.[String(u.id)] ?? 0)}</td>`).join('')}<td style="text-align:right">${eur(courses)}</td></tr>` : ''}
+        ${extras > 0 ? `<tr><td>${isReel ? 'Loisirs (confirmé)' : 'Budget loisirs'}</td>${users.map(u => `<td style="text-align:right">${eur(dk.extras.byUser?.[String(u.id)] ?? 0)}</td>`).join('')}<td style="text-align:right">${eur(extras)}</td></tr>` : ''}
         ${buildRow('Dép. ponctuelles', dk.achats ?? {total:0,byUser:{}})}
         ${buildRow('Imprévus', dk.imprevus ?? {total:0,byUser:{}})}
         ${(settings.customBudgets || []).map(b => {
@@ -336,8 +330,8 @@ async function _renderDetailTab(container, year, month, users) {
         }).join('')}
       </tbody>
       <tfoot>
-        <tr class="row-total"><td>${isReel ? 'À payer' : 'À envoyer (prév.)'}</td>${users.map(u => `<td style="text-align:right">${eur(dk.aPayer.byUser?.[u.id] ?? 0)}</td>`).join('')}<td style="text-align:right">${eur(dk.aPayer.total)}</td></tr>
-        <tr class="row-total"><td>Solde ${isReel ? 'net' : 'prévisionnel'}</td>${users.map(u => { const v = dk.solde.byUser?.[u.id] ?? 0; return `<td style="text-align:right;color:${v >= 0 ? 'var(--success)' : 'var(--danger)'}">${eur(v)}</td>`; }).join('')}<td style="text-align:right;color:${dk.solde.total >= 0 ? 'var(--success)' : 'var(--danger)'}">${eur(dk.solde.total)}</td></tr>
+        <tr class="row-total"><td>${isReel ? 'À payer' : 'À envoyer (prév.)'}</td>${users.map(u => `<td style="text-align:right">${eur(dk.aPayer.byUser?.[String(u.id)] ?? 0)}</td>`).join('')}<td style="text-align:right">${eur(dk.aPayer.total)}</td></tr>
+        <tr class="row-total"><td>Solde ${isReel ? 'net' : 'prévisionnel'}</td>${users.map(u => { const v = dk.solde.byUser?.[String(u.id)] ?? 0; return `<td style="text-align:right;color:${v >= 0 ? 'var(--success)' : 'var(--danger)'}">${eur(v)}</td>`; }).join('')}<td style="text-align:right;color:${dk.solde.total >= 0 ? 'var(--success)' : 'var(--danger)'}">${eur(dk.solde.total)}</td></tr>
       </tfoot>
     </table></div>
     ${!isReel ? `<p style="font-size:0.72rem;color:var(--text-3);margin-top:8px;padding:0 2px;">💡 Ce calcul utilise les plafonds de budget et la répartition configurée. Il représente le maximum à envoyer sur le compte joint.</p>` : ''}`;
@@ -358,7 +352,7 @@ async function _renderDetailTab(container, year, month, users) {
     ${users.length >= 2 ? `<div class="card" style="margin-bottom:12px;">
       <div class="card-header"><span class="card-title">⚖️ Répartition prévue</span></div>
       <div style="display:grid;gap:8px;margin-top:4px;">
-        ${users.map(u => `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:var(--bg-2);border-radius:var(--radius-sm);"><div style="display:flex;align-items:center;gap:8px;"><span style="width:9px;height:9px;border-radius:50%;background:${escHtml(u.color || '#6C63FF')};display:inline-block;"></span><span style="font-size:0.88rem;font-weight:600;">${escHtml(u.name)}</span></div><div style="text-align:right;"><div style="font-size:1rem;font-weight:800;color:var(--primary);">${eur(kpiPrev.aPayer.byUser?.[u.id] ?? 0)}</div><div style="font-size:0.62rem;color:var(--text-3);">\u00e0 envoyer</div></div></div>`).join('')}
+        ${users.map(u => `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:var(--bg-2);border-radius:var(--radius-sm);"><div style="display:flex;align-items:center;gap:8px;"><span style="width:9px;height:9px;border-radius:50%;background:${escHtml(u.color || '#6C63FF')};display:inline-block;"></span><span style="font-size:0.88rem;font-weight:600;">${escHtml(u.name)}</span></div><div style="text-align:right;"><div style="font-size:1rem;font-weight:800;color:var(--primary);">${eur(kpiPrev.aPayer.byUser?.[String(u.id)] ?? 0)}</div><div style="font-size:0.62rem;color:var(--text-3);">\u00e0 envoyer</div></div></div>`).join('')}
       </div>
     </div>` : ''}
   `;
@@ -436,7 +430,7 @@ function renderChartRevPrimes(displayResults, users = []) {
     {
       type: 'line',
       label: `Revenus ${escHtml(u.name)}`,
-      data: displayResults.map(r => r ? (r.revenus.byUser?.[u.id] ?? 0) : null),
+      data: displayResults.map(r => r ? (r.revenus.byUser?.[String(u.id)] ?? 0) : null),
       borderColor: u.color || '#6C63FF',
       backgroundColor: 'transparent',
       borderWidth: 2, pointRadius: 3, tension: 0.3, spanGaps: false,
@@ -461,18 +455,27 @@ function renderChartRevPrimes(displayResults, users = []) {
   _charts.push(chart);
 }
 
-function renderChartEpargne(displayResults) {
+async function renderChartEpargne(displayResults, year) {
   const canvas = document.getElementById('chart-epargne');
   if (!canvas) return;
 
-  // Épargne mensuelle
-  const mensuelle = displayResults.map(r => r ? r.solde.total : null);
+  // Versements réels depuis savings_operations (vrais montants épargnés)
+  const allOps = await getAllSavingsOperations();
+  const yearOps = allOps.filter(op => op.year === year);
+
+  // Épargne mensuelle réelle : somme des versements du mois
+  const mensuelle = Array.from({ length: 12 }, (_, i) => {
+    const m = i + 1;
+    if (displayResults[i] === null) return null;
+    const mOps = yearOps.filter(op => op.month === m);
+    return mOps.reduce((s, op) => s + (Number(op.amount) || 0), 0);
+  });
 
   // Épargne cumulée (somme glissante des mois non-null)
   let cum = 0;
-  const cumulee = displayResults.map(r => {
+  const cumulee = displayResults.map((r, i) => {
     if (r === null) return null;
-    cum += r.solde.total;
+    cum += mensuelle[i] ?? 0;
     return cum;
   });
 
@@ -483,7 +486,7 @@ function renderChartEpargne(displayResults) {
   const gridColor = getComputedStyle(document.documentElement).getPropertyValue('--border').trim() || 'rgba(0,0,0,0.1)';
 
   canvas.setAttribute('role', 'img');
-  canvas.setAttribute('aria-label', 'Évolution de l\'épargne mensuelle');
+  canvas.setAttribute('aria-label', "Évolution de l'épargne mensuelle");
   const chart = new Chart(canvas, {
     type: 'bar',
     data: {
@@ -505,7 +508,7 @@ function renderChartEpargne(displayResults) {
         },
         {
           type: 'bar',
-          label: 'Épargne mensuelle',
+          label: 'Versements mensuels',
           data: mensuelle,
           backgroundColor: mensuelle.map(v => v === null ? 'transparent' : v >= 0 ? 'rgba(0,200,150,0.7)' : 'rgba(255,71,87,0.7)'),
           borderRadius: 4,
@@ -559,6 +562,7 @@ function renderChartEpargne(displayResults) {
     },
   });
   _charts.push(chart);
+}
 }
 
 async function renderChartSavingsBalance(year, curYear, curMonth, users = []) {
@@ -762,50 +766,6 @@ function renderTableMensuel(container, results) {
   `;
 }
 
-function renderTablePerso(container, yearKPI, users) {
-  const el = container.querySelector('#table-perso');
-  if (!el || !yearKPI) {
-    if (el) el.innerHTML = '<p style="color:var(--text-3);text-align:center;padding:20px;">Aucune donnée</p>';
-    return;
-  }
-
-  const categories = [
-    ['Revenus',  kpi => kpi.revenus],
-    ['Primes',   kpi => kpi.primes],
-    ['Charges',  kpi => kpi.charges],
-    ['Courses',  kpi => kpi.courses],
-    ['Loisirs',   kpi => kpi.extras],
-    ['Imprévus', kpi => kpi.imprevus],
-    ['Solde net',kpi => kpi.solde ?? kpi.epargne],
-  ];
-
-  el.innerHTML = `
-    <div style="overflow-x:auto;">
-      <table class="data-table">
-        <thead>
-          <tr>
-            <th>Catégorie</th>
-            ${users.map(u => `<th style="text-align:right">
-              <span class="user-color-dot" style="background:${escHtml(u.color||'#6C63FF')};width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:3px;"></span>
-              ${escHtml(u.name)}
-            </th>`).join('')}
-            <th style="text-align:right">Total</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${categories.map(([label, getter]) => {
-            const field = getter(yearKPI);
-            return `<tr>
-              <td>${label}</td>
-              ${users.map(u => `<td style="text-align:right;font-weight:600;">${eur(field?.byUser?.[u.id] ?? 0)}</td>`).join('')}
-              <td style="text-align:right;font-weight:700;">${eur(field?.total ?? 0)}</td>
-            </tr>`;
-          }).join('')}
-        </tbody>
-      </table>
-    </div>
-  `;
-}
 
 async function exportPDF(year, month, users, s) {
   showToast('Génération du PDF…', 'success');
@@ -915,7 +875,7 @@ async function exportPDF(year, month, users, s) {
     const epProgressBar=epObjectif>0?`<div style="background:#E2E8F0;border-radius:8px;overflow:hidden;height:12px;margin:8px 0;"><div style="height:12px;width:${epProgress}%;background:linear-gradient(90deg,#10B981,#34D399);border-radius:8px;min-width:4px;"></div></div><div style="font-size:9px;color:#64748B;">${epProgress}% de l'objectif annuel de ${fmt(epObjectif)}</div>`:'';
 
     // Tableau mensuel
-    const tableRows=months.map(m=>{ const r=allResults[m-1]; if(!r) return `<tr><td style="color:#CBD5E1;font-style:italic;">${MOIS_FULL[m-1]}</td>${users.map(()=>'<td style="color:#CBD5E1">—</td>').join('')}<td style="color:#CBD5E1">—</td><td style="color:#CBD5E1">—</td><td style="color:#CBD5E1">—</td><td style="color:#CBD5E1">—</td></tr>`; const txC=r.txEpargne.total>=0.1?'#10B981':r.txEpargne.total>=0?'#F59E0B':'#EF4444'; return `<tr><td>${MOIS_FULL[m-1]}</td>${users.map(u=>`<td>${fmt(r.revenus.byUser?.[u.id]??0)}</td>`).join('')}<td>${fmt(r.charges.total)}</td><td>${fmt(r.depenses.total)}</td><td style="color:${clr(r.solde.total)};font-weight:800;">${fmt(r.solde.total)}</td><td style="color:${txC};font-weight:700;">${fmtPct(r.txEpargne.total)}</td></tr>`; }).join('');
+    const tableRows=months.map(m=>{ const r=allResults[m-1]; if(!r) return `<tr><td style="color:#CBD5E1;font-style:italic;">${MOIS_FULL[m-1]}</td>${users.map(()=>'<td style="color:#CBD5E1">—</td>').join('')}<td style="color:#CBD5E1">—</td><td style="color:#CBD5E1">—</td><td style="color:#CBD5E1">—</td><td style="color:#CBD5E1">—</td></tr>`; const txC=r.txEpargne.total>=0.1?'#10B981':r.txEpargne.total>=0?'#F59E0B':'#EF4444'; return `<tr><td>${MOIS_FULL[m-1]}</td>${users.map(u=>`<td>${fmt(r.revenus.byUser?.[String(u.id)]??0)}</td>`).join('')}<td>${fmt(r.charges.total)}</td><td>${fmt(r.depenses.total)}</td><td style="color:${clr(r.solde.total)};font-weight:800;">${fmt(r.solde.total)}</td><td style="color:${txC};font-weight:700;">${fmtPct(r.txEpargne.total)}</td></tr>`; }).join('');
 
     // Imprévus (depuis monthlyData.imprévusList)
     const imprévusForPDF = [];
@@ -1071,7 +1031,7 @@ ${(epObjectif > 0 || epTxObjectif > 0) ? `<div class="st">🎯 Objectifs &amp; p
 ` : '<p style="color:#94A3B8;text-align:center;padding:24px 0;">Aucune donnée pour cette période.</p>'}
 
 ${users.length > 1 && yearKPI ? `<div class="st">👤 Bilan par personne</div>
-<div class="ug">${users.map(u => { const uc=u.color||'#6C63FF'; return `<div class="uc"><div class="un"><span class="ud" style="background:${uc};"></span>${esc(u.name)}</div><div class="ur"><span class="ul">Revenus</span><span class="uv" style="color:#4F46E5;">${fmt(yearKPI.revenus.byUser?.[u.id]??0)}</span></div><div class="ur"><span class="ul">Primes</span><span class="uv" style="color:#7C3AED;">${fmt(yearKPI.primes.byUser?.[u.id]??0)}</span></div><div class="ur"><span class="ul">Dépenses</span><span class="uv" style="color:#DC2626;">${fmt(yearKPI.depenses.byUser?.[u.id]??0)}</span></div><div class="ur"><span class="ul">Solde</span><span class="uv" style="color:${clr(yearKPI.solde.byUser?.[u.id]??0)};">${fmt(yearKPI.solde.byUser?.[u.id]??0)}</span></div><div class="ur"><span class="ul">Taux épargne</span><span class="uv">${fmtPct(yearKPI.txEpargne.byUser?.[u.id]??0)}</span></div></div>`; }).join('')}
+<div class="ug">${users.map(u => { const uc=u.color||'#6C63FF'; return `<div class="uc"><div class="un"><span class="ud" style="background:${uc};"></span>${esc(u.name)}</div><div class="ur"><span class="ul">Revenus</span><span class="uv" style="color:#4F46E5;">${fmt(yearKPI.revenus.byUser?.[String(u.id)]??0)}</span></div><div class="ur"><span class="ul">Primes</span><span class="uv" style="color:#7C3AED;">${fmt(yearKPI.primes.byUser?.[String(u.id)]??0)}</span></div><div class="ur"><span class="ul">Dépenses</span><span class="uv" style="color:#DC2626;">${fmt(yearKPI.depenses.byUser?.[String(u.id)]??0)}</span></div><div class="ur"><span class="ul">Solde</span><span class="uv" style="color:${clr(yearKPI.solde.byUser?.[String(u.id)]??0)};">${fmt(yearKPI.solde.byUser?.[String(u.id)]??0)}</span></div><div class="ur"><span class="ul">Taux épargne</span><span class="uv">${fmtPct(yearKPI.txEpargne.byUser?.[String(u.id)]??0)}</span></div></div>`; }).join('')}
 </div>` : ''}
 
 ${!singleMonth && barRows.length > 1 ? `<div class="st">📊 Revenus vs Dépenses par mois</div>
@@ -1085,7 +1045,7 @@ ${Object.keys(chargesByCat).length > 0 ? `<div class="st">🏠 Charges fixes</di
 <div class="mt-wrap"><table class="mt">
   <thead><tr><th>Mois</th>${users.map(u=>`<th>Revenus ${esc(u.name)}</th>`).join('')}<th>Charges</th><th>Dépenses</th><th>Solde</th><th>Taux ép.</th></tr></thead>
   <tbody>${tableRows}</tbody>
-  ${yearKPI ? `<tfoot><tr><td>TOTAL / CUMUL</td>${users.map(u=>`<td>${fmt(yearKPI.revenus.byUser?.[u.id]??0)}</td>`).join('')}<td>${fmt(yearKPI.charges.total)}</td><td>${fmt(yearKPI.depenses.total)}</td><td style="color:#A5F3C4;">${fmt(yearKPI.solde.total)}</td><td style="color:#A5F3C4;">${fmtPct(yearKPI.txEpargne.total)}</td></tr></tfoot>` : ''}
+  ${yearKPI ? `<tfoot><tr><td>TOTAL / CUMUL</td>${users.map(u=>`<td>${fmt(yearKPI.revenus.byUser?.[String(u.id)]??0)}</td>`).join('')}<td>${fmt(yearKPI.charges.total)}</td><td>${fmt(yearKPI.depenses.total)}</td><td style="color:#A5F3C4;">${fmt(yearKPI.solde.total)}</td><td style="color:#A5F3C4;">${fmtPct(yearKPI.txEpargne.total)}</td></tr></tfoot>` : ''}
 </table></div>
 
 ${imprévusForPDF.length > 0 ? `<div class="st">⚡ Imprévus${imprévusForPDF.length>40?' (40 premiers)':''}</div>
@@ -1142,6 +1102,7 @@ function renderChartTendances(results, allCharges) {
   canvas.setAttribute('aria-label', 'Graphique tendances mensuelle des catégories de dépenses');
   const chart = new Chart(canvas, {
     type: 'line',
+    data: { labels: MOIS_COURT, datasets },
     options: {
       responsive: true, maintainAspectRatio: false,
       interaction: { mode: 'index', intersect: false },

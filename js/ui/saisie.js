@@ -627,6 +627,7 @@ function _renderPrevTable(container, kpiPrev, kpiReel) {
   const { year, month } = State;
   const N = _users.length;
   const customBudgets = _settings?.customBudgets || [];
+  const salarialePlanned = _settings?.salarialePlanned || {};
   let detailMode = 'previsionnel';
 
   const realCourses = _budgetOpsCache.filter(o => o.category === 'courses').reduce((s, o) => s + (Number(o.amount)||0), 0);
@@ -670,6 +671,12 @@ function _renderPrevTable(container, kpiPrev, kpiReel) {
             return `<tr><td>${b.icon||'📌'} ${escHtml(b.name)}</td>${uCols?_users.map(u=>`<td style="text-align:right">${eur(bByUserP[String(u.id)]??0)}</td>`).join(''):''}<td style="text-align:right">${eur(bgt)}</td></tr>`;
           }
         }).join('')}
+        ${(() => {
+          const salTotal = _users.reduce((s,u)=>s+(Number(salarialePlanned[String(u.id)])||0),0);
+          if (!salTotal) return '';
+          const salByUser = uCols ? Object.fromEntries(_users.map(u=>[String(u.id), Number(salarialePlanned[String(u.id)])||0])) : {};
+          return `<tr><td>💼 Épargne salariale</td>${uCols?_users.map(u=>`<td style="text-align:right">${eur(salByUser[String(u.id)]??0)}</td>`).join(''):''}<td style="text-align:right">${eur(salTotal)}</td></tr>`;
+        })()}
       </tbody>
       <tfoot>
         ${uCols ? `<tr class="row-total"><td>${isReel?'À payer':'À envoyer (prév.)'}</td>${_users.map(u=>`<td style="text-align:right">${eur(dk.aPayer?.byUser?.[u.id]??0)}</td>`).join('')}<td style="text-align:right">${eur(dk.aPayer?.total||0)}</td></tr>` : ''}
