@@ -322,7 +322,14 @@ function bindEvents(container, s, users, archived, N) {
         await reloadUsers();
         closeModal();
         showToast(`${u.name} supprimé (données conservées)`, 'success');
-        render(container);
+        // Si plus aucun utilisateur actif → retour à l'onboarding
+        const remaining = await getActiveUsers();
+        if (remaining.length === 0) {
+          localStorage.removeItem('currentDeviceUserId');
+          setTimeout(() => { location.href = location.pathname; }, 800);
+        } else {
+          render(container);
+        }
       });
     });
   });
@@ -678,9 +685,10 @@ function bindEvents(container, s, users, archived, N) {
       const val = document.getElementById('reset-confirm-input')?.value.trim();
       if (val !== 'EFFACER') { showToast('Tapez EFFACER pour confirmer', 'error'); return; }
       await resetAllData();
+      localStorage.removeItem('currentDeviceUserId');
       closeModal();
       showToast('Données effacées. Rechargement…', 'success');
-      setTimeout(() => location.reload(), 1200);
+      setTimeout(() => { location.href = location.pathname; }, 1200);
     });
   });
 }
