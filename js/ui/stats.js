@@ -398,13 +398,13 @@ function renderKPIAnnuel(container, kpi, monthLabel = null, nMonths = 12) {
     </div>
     <div class="kpi-card danger">
       <div class="kpi-label">Dépenses totales</div>
-      <div class="kpi-value neutral">${eur(kpi.depenses.total)}</div>
-      <div class="kpi-sub">dont charges : ${eur(kpi.charges.total)} · imprévus : ${eur(kpi.imprevus.total)}</div>
+      <div class="kpi-value neutral">${eur(kpi.depensesReelles?.total ?? kpi.depenses.total)}</div>
+      <div class="kpi-sub">dont charges : ${eur(kpi.charges.total)} · achats : ${eur(kpi.achats?.total ?? 0)}</div>
     </div>
     <div class="kpi-card danger">
       <div class="kpi-label">Moy. mensuelle dépensés</div>
-      <div class="kpi-value neutral">${eur(kpi.depenses.total / n)}</div>
-      <div class="kpi-sub">sur ${n} mois · total : ${eur(kpi.depenses.total)}</div>
+      <div class="kpi-value neutral">${eur((kpi.depensesReelles?.total ?? kpi.depenses.total) / n)}</div>
+      <div class="kpi-sub">sur ${n} mois · total : ${eur(kpi.depensesReelles?.total ?? kpi.depenses.total)}</div>
     </div>
     <div class="kpi-card warning">
       <div class="kpi-label">Moy. mensuelle épargnée</div>
@@ -425,7 +425,7 @@ function renderChartRevDep(displayResults) {
       labels: MOIS_COURT,
       datasets: [
         { label: 'Revenus + Aides + Primes', data: displayResults.map(r => r ? r.revenus.total + (r.aides?.total ?? 0) + r.primes.total : 0), backgroundColor: 'rgba(108,99,255,0.7)', borderRadius: 4 },
-        { label: 'Dépenses',                  data: displayResults.map(r => r ? r.depenses.total : 0),                                                    backgroundColor: 'rgba(255,71,87,0.7)',  borderRadius: 4 },
+        { label: 'Dépenses',                  data: displayResults.map(r => r ? (r.depensesReelles?.total ?? r.depenses.total) : 0),                                                    backgroundColor: 'rgba(255,71,87,0.7)',  borderRadius: 4 },
       ],
     },
     options: chartOptions({}),
@@ -777,7 +777,7 @@ function renderTableMensuel(container, results) {
       <td><strong>${MOIS_COURT[i]}</strong></td>
       <td style="text-align:right">${eur(r.revenus.total + r.primes.total)}</td>
       <td style="text-align:right;color:var(--text-2);">${eur(r.charges.total)}</td>
-      <td style="text-align:right">${eur(r.depenses.total)}</td>
+      <td style="text-align:right">${eur(r.depensesReelles?.total ?? r.depenses.total)}</td>
       <td style="text-align:right;color:${s >= 0 ? 'var(--success)' : 'var(--danger)'};font-weight:700;">${eur(s)}</td>
       <td style="text-align:right">${pct(r.txEpargne.total, 0)}</td>
     </tr>`;
@@ -893,7 +893,7 @@ async function exportPDF(year, month, users, s) {
     }
 
     // Barres revenus vs dépenses
-    const barRows=months.map(m=>{ const r=allResults[m-1]; if(!r) return null; return { lbl:MOIS_SHORT[m-1], rev:r.revenus.total+(r.aides?.total??0)+r.primes.total, dep:r.depenses.total, solde:r.solde.total }; }).filter(Boolean);
+    const barRows=months.map(m=>{ const r=allResults[m-1]; if(!r) return null; return { lbl:MOIS_SHORT[m-1], rev:r.revenus.total+(r.aides?.total??0)+r.primes.total, dep:r.depensesReelles?.total??r.depenses.total, solde:r.solde.total }; }).filter(Boolean);
     const maxBarVal=Math.max(...barRows.map(b=>Math.max(b.rev,b.dep)),1);
     const barChartRows=barRows.map(b=>{ const rw=Math.round((b.rev/maxBarVal)*260), dw=Math.round((b.dep/maxBarVal)*260); return `<tr><td style="font-size:9.5px;font-weight:600;color:#64748B;width:30px;padding:2px 6px 2px 0;">${b.lbl}</td><td style="padding:2px 0;"><div style="height:9px;background:#EEF2FF;border-radius:5px;overflow:hidden;margin-bottom:2px;"><div style="height:9px;width:${rw}px;background:linear-gradient(90deg,#4F46E5,#8B85FF);border-radius:5px;"></div></div><div style="height:9px;background:#FEF2F2;border-radius:5px;overflow:hidden;"><div style="height:9px;width:${dw}px;background:linear-gradient(90deg,#DC2626,#F87171);border-radius:5px;"></div></div></td><td style="font-size:9px;text-align:right;padding:2px 0 2px 8px;white-space:nowrap;"><div style="color:#4F46E5;font-weight:700;">${fmt(b.rev)}</div><div style="color:#DC2626;">${fmt(b.dep)}</div></td><td style="font-size:9px;text-align:right;padding:2px 0 2px 8px;white-space:nowrap;font-weight:700;color:${clr(b.solde)};">${fmt(b.solde)}</td></tr>`; }).join('');
 
@@ -909,7 +909,7 @@ async function exportPDF(year, month, users, s) {
     const epProgressBar=epObjectif>0?`<div style="background:#E2E8F0;border-radius:8px;overflow:hidden;height:12px;margin:8px 0;"><div style="height:12px;width:${epProgress}%;background:linear-gradient(90deg,#10B981,#34D399);border-radius:8px;min-width:4px;"></div></div><div style="font-size:9px;color:#64748B;">${epProgress}% de l'objectif annuel de ${fmt(epObjectif)}</div>`:'';
 
     // Tableau mensuel
-    const tableRows=months.map(m=>{ const r=allResults[m-1]; if(!r) return `<tr><td style="color:#CBD5E1;font-style:italic;">${MOIS_FULL[m-1]}</td>${users.map(()=>'<td style="color:#CBD5E1">—</td>').join('')}<td style="color:#CBD5E1">—</td><td style="color:#CBD5E1">—</td><td style="color:#CBD5E1">—</td><td style="color:#CBD5E1">—</td></tr>`; const txC=r.txEpargne.total>=0.1?'#10B981':r.txEpargne.total>=0?'#F59E0B':'#EF4444'; return `<tr><td>${MOIS_FULL[m-1]}</td>${users.map(u=>`<td>${fmt(r.revenus.byUser?.[String(u.id)]??0)}</td>`).join('')}<td>${fmt(r.charges.total)}</td><td>${fmt(r.depenses.total)}</td><td style="color:${clr(r.solde.total)};font-weight:800;">${fmt(r.solde.total)}</td><td style="color:${txC};font-weight:700;">${fmtPct(r.txEpargne.total)}</td></tr>`; }).join('');
+    const tableRows=months.map(m=>{ const r=allResults[m-1]; if(!r) return `<tr><td style="color:#CBD5E1;font-style:italic;">${MOIS_FULL[m-1]}</td>${users.map(()=>'<td style="color:#CBD5E1">—</td>').join('')}<td style="color:#CBD5E1">—</td><td style="color:#CBD5E1">—</td><td style="color:#CBD5E1">—</td><td style="color:#CBD5E1">—</td></tr>`; const txC=r.txEpargne.total>=0.1?'#10B981':r.txEpargne.total>=0?'#F59E0B':'#EF4444'; return `<tr><td>${MOIS_FULL[m-1]}</td>${users.map(u=>`<td>${fmt(r.revenus.byUser?.[String(u.id)]??0)}</td>`).join('')}<td>${fmt(r.charges.total)}</td><td>${fmt(r.depensesReelles?.total??r.depenses.total)}</td><td style="color:${clr(r.solde.total)};font-weight:800;">${fmt(r.solde.total)}</td><td style="color:${txC};font-weight:700;">${fmtPct(r.txEpargne.total)}</td></tr>`; }).join('');
 
     // Imprévus (depuis monthlyData.imprévusList)
     const imprévusForPDF = [];
@@ -1037,7 +1037,7 @@ async function exportPDF(year, month, users, s) {
 ${yearKPI ? `
 <div class="kpi-grid">
   <div class="kc kr"><span class="kc-ico">💰</span><div class="kc-lbl">Revenus nets</div><div class="kc-val">${fmt(yearKPI.revenus.total+(yearKPI.aides?.total??0))}</div><div class="kc-sub">Primes : ${fmt(yearKPI.primes.total)}</div></div>
-  <div class="kc kd"><span class="kc-ico">💸</span><div class="kc-lbl">Dépenses</div><div class="kc-val">${fmt(yearKPI.depenses.total)}</div><div class="kc-sub">Charges : ${fmt(yearKPI.charges.total)}</div></div>
+  <div class="kc kd"><span class="kc-ico">💸</span><div class="kc-lbl">Dépenses</div><div class="kc-val">${fmt(yearKPI.depensesReelles?.total??yearKPI.depenses.total)}</div><div class="kc-sub">Charges : ${fmt(yearKPI.charges.total)}</div></div>
   <div class="kc ks" style="--bg:${Number(yearKPI.solde.total)>=0?'#ECFDF5':'#FEF2F2'};--fc:${clr(yearKPI.solde.total)};"><span class="kc-ico">⚖️</span><div class="kc-lbl">Solde cumulé</div><div class="kc-val">${fmt(yearKPI.solde.total)}</div><div class="kc-sub">${Number(yearKPI.solde.total)>=0?'Positif ✓':'Négatif !'}</div></div>
   <div class="kc ke"><span class="kc-ico">📈</span><div class="kc-lbl">Taux d'épargne</div><div class="kc-val">${fmtPct(yearKPI.txEpargne.total)}</div><div class="kc-sub">${yearKPI.txEpargne.total>=0.15?'Excellent ✓':yearKPI.txEpargne.total>=0.35?'Bon ✓':'Objectif : 35 %'}</div></div>
 </div>
@@ -1065,7 +1065,7 @@ ${(epObjectif > 0 || epTxObjectif > 0) ? `<div class="st">🎯 Objectifs &amp; p
 ` : '<p style="color:#94A3B8;text-align:center;padding:24px 0;">Aucune donnée pour cette période.</p>'}
 
 ${users.length > 1 && yearKPI ? `<div class="st">👤 Bilan par personne</div>
-<div class="ug">${users.map(u => { const uc=u.color||'#6C63FF'; return `<div class="uc"><div class="un"><span class="ud" style="background:${uc};"></span>${esc(u.name)}</div><div class="ur"><span class="ul">Revenus</span><span class="uv" style="color:#4F46E5;">${fmt(yearKPI.revenus.byUser?.[String(u.id)]??0)}</span></div><div class="ur"><span class="ul">Primes</span><span class="uv" style="color:#7C3AED;">${fmt(yearKPI.primes.byUser?.[String(u.id)]??0)}</span></div><div class="ur"><span class="ul">Dépenses</span><span class="uv" style="color:#DC2626;">${fmt(yearKPI.depenses.byUser?.[String(u.id)]??0)}</span></div><div class="ur"><span class="ul">Solde</span><span class="uv" style="color:${clr(yearKPI.solde.byUser?.[String(u.id)]??0)};">${fmt(yearKPI.solde.byUser?.[String(u.id)]??0)}</span></div><div class="ur"><span class="ul">Taux épargne</span><span class="uv">${fmtPct(yearKPI.txEpargne.byUser?.[String(u.id)]??0)}</span></div></div>`; }).join('')}
+<div class="ug">${users.map(u => { const uc=u.color||'#6C63FF'; return `<div class="uc"><div class="un"><span class="ud" style="background:${uc};"></span>${esc(u.name)}</div><div class="ur"><span class="ul">Revenus</span><span class="uv" style="color:#4F46E5;">${fmt(yearKPI.revenus.byUser?.[String(u.id)]??0)}</span></div><div class="ur"><span class="ul">Primes</span><span class="uv" style="color:#7C3AED;">${fmt(yearKPI.primes.byUser?.[String(u.id)]??0)}</span></div><div class="ur"><span class="ul">Dépenses</span><span class="uv" style="color:#DC2626;">${fmt(yearKPI.depensesReelles?.byUser?.[String(u.id)]??yearKPI.depenses.byUser?.[String(u.id)]??0)}</span></div><div class="ur"><span class="ul">Solde</span><span class="uv" style="color:${clr(yearKPI.solde.byUser?.[String(u.id)]??0)};">${fmt(yearKPI.solde.byUser?.[String(u.id)]??0)}</span></div><div class="ur"><span class="ul">Taux épargne</span><span class="uv">${fmtPct(yearKPI.txEpargne.byUser?.[String(u.id)]??0)}</span></div></div>`; }).join('')}
 </div>` : ''}
 
 ${!singleMonth && barRows.length > 1 ? `<div class="st">📊 Revenus vs Dépenses par mois</div>
@@ -1079,7 +1079,7 @@ ${Object.keys(chargesByCat).length > 0 ? `<div class="st">🏠 Charges fixes</di
 <div class="mt-wrap"><table class="mt">
   <thead><tr><th>Mois</th>${users.map(u=>`<th>Revenus ${esc(u.name)}</th>`).join('')}<th>Charges</th><th>Dépenses</th><th>Solde</th><th>Taux ép.</th></tr></thead>
   <tbody>${tableRows}</tbody>
-  ${yearKPI ? `<tfoot><tr><td>TOTAL / CUMUL</td>${users.map(u=>`<td>${fmt(yearKPI.revenus.byUser?.[String(u.id)]??0)}</td>`).join('')}<td>${fmt(yearKPI.charges.total)}</td><td>${fmt(yearKPI.depenses.total)}</td><td style="color:#A5F3C4;">${fmt(yearKPI.solde.total)}</td><td style="color:#A5F3C4;">${fmtPct(yearKPI.txEpargne.total)}</td></tr></tfoot>` : ''}
+  ${yearKPI ? `<tfoot><tr><td>TOTAL / CUMUL</td>${users.map(u=>`<td>${fmt(yearKPI.revenus.byUser?.[String(u.id)]??0)}</td>`).join('')}<td>${fmt(yearKPI.charges.total)}</td><td>${fmt(yearKPI.depensesReelles?.total??yearKPI.depenses.total)}</td><td style="color:#A5F3C4;">${fmt(yearKPI.solde.total)}</td><td style="color:#A5F3C4;">${fmtPct(yearKPI.txEpargne.total)}</td></tr></tfoot>` : ''}
 </table></div>
 
 ${imprévusForPDF.length > 0 ? `<div class="st">⚡ Imprévus${imprévusForPDF.length>40?' (40 premiers)':''}</div>
@@ -1258,7 +1258,7 @@ async function renderMonthCompare(container, year, month, users, s, allChargesRa
     };
 
     const rows = [
-      ['Revenus', 'revenus'], ['Dépenses', 'depenses'], ['Solde', 'solde'],
+      ['Revenus', 'revenus'], ['Dépenses', 'depensesReelles'], ['Solde', 'solde'],
     ].map(([label, key]) => `<tr>
       <td>${label}</td>
       <td style="text-align:right">${prev ? eur(prev[key]?.total ?? 0) : '—'}</td>
@@ -1429,7 +1429,7 @@ async function renderN1Comparison(container, year, users, s, currentResults, all
 
     const metrics = [
       ['Revenus', r => r.revenus.total + (r.aides?.total ?? 0) + r.primes.total],
-      ['Dépenses', r => r.depenses.total],
+      ['Dépenses', r => r.depensesReelles?.total ?? r.depenses.total],
       ['Solde net', r => r.solde.total],
       ["Taux d'épargne", r => r.txEpargne.total],
     ];
@@ -1497,8 +1497,8 @@ function renderInsights(container, results, curMonth, year, s) {
   if (curResult && validMonths.length >= 2) {
     const past = validMonths.filter(r => r !== curResult);
     if (past.length) {
-      const avgDep  = past.reduce((acc, r) => acc + r.depenses.total, 0) / past.length;
-      const curDep  = curResult.depenses.total;
+      const avgDep  = past.reduce((acc, r) => acc + (r.depensesReelles?.total ?? r.depenses.total), 0) / past.length;
+      const curDep  = curResult.depensesReelles?.total ?? curResult.depenses.total;
       const diffPct = avgDep > 0 ? Math.round((curDep - avgDep) / avgDep * 100) : 0;
       if (Math.abs(diffPct) >= 8) {
         const better = curDep < avgDep;
@@ -1586,7 +1586,7 @@ async function _renderEvolution(container, year, users) {
     const rows = data.filter(Boolean);
     if (!rows.length) return null;
     const revTotal = rows.reduce((s, r) => s + r.revenus.total, 0);
-    const depTotal = rows.reduce((s, r) => s + r.depenses.total, 0);
+    const depTotal = rows.reduce((s, r) => s + (r.depensesReelles?.total ?? r.depenses.total), 0);
     const solTotal = rows.reduce((s, r) => s + r.solde.total, 0);
     const txAvg    = rows.reduce((s, r) => s + (r.txEpargne?.total ?? 0), 0) / rows.length;
     const chgTotal = rows.reduce((s, r) => s + r.charges.total, 0);
