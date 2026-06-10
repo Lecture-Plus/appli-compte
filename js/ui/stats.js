@@ -210,8 +210,14 @@ async function loadAndRender(container, year, month, users, s) {
     const out = [];
     for (const c of allChargesRaw) {
       if (!c.active) continue;
-      const ok = c.months === 'all' || (Array.isArray(c.months) && c.months.includes(m));
-      if (!ok) continue;
+      // Nouveau modèle : charge liée à une année+mois précis
+      if (c.year != null && c.month != null) {
+        if (c.year !== year || c.month !== m) continue;
+      } else {
+        // Modèle legacy : filtrage par liste de mois
+        const ok = c.months === 'all' || (Array.isArray(c.months) && c.months.includes(m));
+        if (!ok) continue;
+      }
       if (c.lines?.length) {
         for (const l of c.lines) {
           const amt = resolveLineAmount(l, c, year, m);
@@ -219,7 +225,7 @@ async function loadAndRender(container, year, month, users, s) {
         }
       } else {
         const amt = resolveChargeAmount(c, year, m);
-        out.push({ ...c, amount: amt });
+        out.push({ ...c, amount: amt, qui: c.qui ?? 'shared' });
       }
     }
     return out;
@@ -227,9 +233,11 @@ async function loadAndRender(container, year, month, users, s) {
 
   // Calculer tous les mois, puis filtrer si un mois précis est sélectionné
   const results = [];
+  const chargesByMonth = []; // charges expanded par mois (index 0 = mois 1)
   for (let m = 1; m <= 12; m++) {
     const md  = monthMap[m] ?? null;
     const chg = chargesForMonth(m);
+    chargesByMonth.push(chg);
     const ach = achatMap[m]  ?? [];
     const rp  = repartMap[m] ?? { year, month: m, mode: defaultRepartMode, pcts: {} };
     results.push(md ? calcMonth(md, chg, ach, rp, users, bopsMap[m] ?? []) : null);
@@ -259,8 +267,8 @@ async function loadAndRender(container, year, month, users, s) {
   await renderChartEpargne(displayResults, year);
   await renderChartSavingsBalance(year, curYear, curMonth, users);
   renderChartRepartition(yearKPI);
-  renderChartChargesCat(yearKPI, allChargesRaw);
-  renderChartTendances(results, allChargesRaw);
+  renderChartChargesCat(chargesByMonth);
+  renderChartTendances(results, chargesByMonth);
   renderTableMensuel(container, displayResults);
   await renderN1Comparison(container, year, users, s, displayResults);
   await renderProjectionEpargne(container, year, curYear, curMonth);
@@ -645,18 +653,17 @@ async function renderChartSavingsBalance(year, curYear, curMonth, users = []) {
   _charts.push(chart);
 }
 
-function renderChartChargesCat(yearKPI, allCharges = []) {
+function renderChartChargesCat(chargesByMonth = []) {
   const canvas = document.getElementById('chart-charges-cat');
   if (!canvas) return;
 
-  // Calculer le total par catégorie depuis les charges actives
+  // Calculer le total par catégorie depuis les charges déjà expandées (filtrées par année)
   const byCat = {};
-  for (const c of allCharges) {
-    if (!c.active) continue;
-    const cat = c.category || 'autre';
-    const lines = c.lines?.length ? c.lines : [c];
-    const amt   = lines.reduce((s, l) => s + (Number(l.amount) || 0), 0);
-    byCat[cat] = (byCat[cat] || 0) + amt;
+  for (const monthCharges of chargesByMonth) {
+    for (const c of monthCharges) {
+      const cat = c.category || 'autre';
+      byCat[cat] = (byCat[cat] || 0) + (Number(c.amount) || 0);
+    }
   }
 
   const entries = Object.entries(byCat).filter(([, v]) => v > 0)
@@ -1073,22 +1080,24 @@ ${imprévusForPDF.length > 0 ? `<div class="st">⚡ Imprévus${imprévusForPDF.l
 // ─────────────────────────────────────────────────
 // Tendances : évolution des charges par catégorie
 // ─────────────────────────────────────────────────
-function renderChartTendances(results, allCharges) {
+function renderChartTendances(results, chargesByMonth) {
   const canvas = document.getElementById('chart-tendances');
   if (!canvas) return;
 
   const COLORS = ['#6C63FF','#00C896','#FFB020','#FF4757','#8B85FF','#00D2D3','#FF9F43','#EE5A24','#0652DD','#9980FA'];
-  const cats = [...new Set(allCharges.filter(c => c.active).map(c => c.category || 'autre'))];
+  // Collecter toutes les catégories présentes sur l'année
+  const allMonthCharges = chargesByMonth.flat();
+  const cats = [...new Set(allMonthCharges.map(c => c.category || 'autre'))];
 
   const datasets = cats.map((catId, idx) => {
     const info = getCategoryInfo(catId);
     return {
       label: `${info.emoji} ${info.label}`,
-      data: results.map(r => {
+      data: results.map((r, i) => {
         if (!r) return null;
-        // Approximer par charges.total * part de cette catégorie dans les charges brutes
-        const catTotal = allCharges.filter(c => c.active && (c.category || 'autre') === catId)
-          .reduce((s, c) => s + (c.lines?.length ? c.lines.reduce((ss, l) => ss + (Number(l.amount)||0), 0) : (Number(c.amount)||0)), 0);
+        // Total réel de cette catégorie pour ce mois
+        const catTotal = (chargesByMonth[i] ?? []).filter(c => (c.category || 'autre') === catId)
+          .reduce((s, c) => s + (Number(c.amount) || 0), 0);
         return catTotal;
       }),
       borderColor: COLORS[idx % COLORS.length],
