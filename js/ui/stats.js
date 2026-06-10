@@ -563,7 +563,6 @@ async function renderChartEpargne(displayResults, year) {
   });
   _charts.push(chart);
 }
-}
 
 async function renderChartSavingsBalance(year, curYear, curMonth, users = []) {
   const canvas = document.getElementById('chart-savings-balance');

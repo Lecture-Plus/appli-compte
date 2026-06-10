@@ -239,6 +239,7 @@ async function _renderResume(container, s, users) {
   const cibles    = s.budgetCibles || {};
   const threshold = Number(s.epargneThreshold) || 100;
   const _tx       = kpi.txEpargne?.total ?? 0;
+  const _txPts    = _tx >= 0.15 ? 40 : _tx >= 0.05 ? 25 : _tx > 0 ? 10 : 0;
   const _soldePts = kpi.solde.total >= threshold ? 20 : kpi.solde.total >= 0 ? 10 : 0;
   const _budgC    = Number(cibles.courses) || 0;
   const _cPts     = _budgC > 0 ? (_budgC >= kpi.courses.total ? 20 : Math.max(0, 20 - Math.round((kpi.courses.total - _budgC) / _budgC * 20))) : 10;
