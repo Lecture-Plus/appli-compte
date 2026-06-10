@@ -442,11 +442,11 @@ export async function showChargeModal(charge, onSave) {
   document.getElementById('c-delete')?.addEventListener('click', async () => {
     const toDelete = { ...charge };
     closeModal();
-    const li = document.querySelector(`.list-item[data-id="${toDelete.id}"]`);
-    if (li) li.style.display = 'none';
+    await deleteCharge(toDelete.id);
+    onSave();
     showToastWithUndo(`Charge « ${toDelete.label || 'sans nom'} » supprimée`,
-      async () => { await deleteCharge(toDelete.id); onSave(); }, 6000, 'warning',
-      () => { if (li) li.style.display = ''; });
+      () => {}, 6000, 'warning',
+      async () => { await saveCharge(toDelete); onSave(); });
   });
 
   document.getElementById('c-save')?.addEventListener('click', async () => {

@@ -266,7 +266,8 @@ async function loadAndRender(container, year, month, users, s) {
   renderChartRevPrimes(displayResults, users);
   await renderChartEpargne(displayResults, year);
   await renderChartSavingsBalance(year, curYear, curMonth, users);
-  renderChartRepartition(yearKPI);
+  const yearBudgetOps = singleMonth ? (bopsMap[month] ?? []) : Object.values(bopsMap).flat();
+  renderChartRepartition(yearKPI, yearBudgetOps, s);
   renderChartChargesCat(chargesByMonth);
   renderChartTendances(results, chargesByMonth);
   renderTableMensuel(container, displayResults);
@@ -702,11 +703,36 @@ function renderChartChargesCat(chargesByMonth = []) {
   _charts.push(chart);
 }
 
-function renderChartRepartition(yearKPI) {
+function renderChartRepartition(yearKPI, budgetOps = [], settings = {}) {
   const canvas = document.getElementById('chart-repartition');
   if (!canvas || !yearKPI) return;
-  const labels = ['Charges fixes', 'Courses', 'Loisirs', 'Dép. ponctuelles', 'Imprévus'];
-  const data   = [yearKPI.charges.total, yearKPI.courses.total, yearKPI.extras.total, yearKPI.achats.total, yearKPI.imprevus.total];
+
+  const PALETTE = ['#6C63FF','#00C896','#FFB020','#FF4757','#8B85FF','#00D2D3','#FF9F43','#EE5A24','#0652DD','#9980FA'];
+  const segments = [];
+
+  // Charges fixes
+  if (yearKPI.charges.total > 0)
+    segments.push({ label: 'Charges fixes', value: yearKPI.charges.total });
+
+  // Budgets personnalisés (depuis les ops réelles)
+  const customBudgets = settings.customBudgets || [];
+  for (const b of customBudgets) {
+    const total = budgetOps.filter(op => op.category === b.id).reduce((s, op) => s + (Number(op.amount) || 0), 0);
+    if (total > 0) segments.push({ label: b.name || b.id, value: total });
+  }
+
+  // Dépenses ponctuelles
+  if (yearKPI.achats.total > 0)
+    segments.push({ label: 'Dép. ponctuelles', value: yearKPI.achats.total });
+
+  // Imprévus
+  if (yearKPI.imprevus.total > 0)
+    segments.push({ label: 'Imprévus', value: yearKPI.imprevus.total });
+
+  if (!segments.length) return;
+
+  const labels = segments.map(s => s.label);
+  const data   = segments.map(s => s.value);
   const total  = data.reduce((s, v) => s + v, 0);
   canvas.setAttribute('role', 'img');
   canvas.setAttribute('aria-label', 'Graphique répartition des dépenses annuelles');
@@ -716,7 +742,7 @@ function renderChartRepartition(yearKPI) {
       labels,
       datasets: [{
         data,
-        backgroundColor: ['#6C63FF','#00C896','#FFB020','#FF4757','#8B85FF'],
+        backgroundColor: PALETTE.slice(0, segments.length),
         borderWidth: 0,
       }],
     },
@@ -1186,27 +1212,34 @@ async function renderMonthCompare(container, year, month, users, s, allChargesRa
     const prevMap = Object.fromEntries(prevMonthsData.map(m => [m.month, m]));
 
     const defaultMode = s.defaultRepartMode ?? 'separe';
-    const expandCharges = (m, charges) => {
+    const expandCharges = (m, yr, charges) => {
       const out = [];
       for (const c of charges) {
         if (!c.active) continue;
-        const ok = c.months === 'all' || (Array.isArray(c.months) && c.months.includes(m));
-        if (!ok) continue;
+        // Nouveau modèle : charge liée à une année+mois précis
+        if (c.year != null && c.month != null) {
+          if (c.year !== yr || c.month !== m) continue;
+        } else {
+          // Modèle legacy : filtrage par liste de mois
+          const ok = c.months === 'all' || (Array.isArray(c.months) && c.months.includes(m));
+          if (!ok) continue;
+        }
         if (c.lines?.length) {
           for (const l of c.lines) out.push({ ...c, amount: Number(l.amount)||0, qui: l.qui ?? 'shared', dayOfMonth: l.dayOfMonth ?? null });
-        } else out.push(c);
+        } else out.push({ ...c, qui: c.qui ?? 'shared' });
       }
       return out;
     };
 
-    const chg = expandCharges(month, allChargesRaw);
+    const chg     = expandCharges(month, year,     allChargesRaw);
+    const prevChg = expandCharges(month, prevYear, allChargesRaw);
     const ach = allAchats.filter(a => a.year === year && a.month === month);
     const rp  = allRepartitions.find(r => r.year === year && r.month === month) ?? { year, month, mode: defaultMode, pcts: {} };
     const prevAch = allAchats.filter(a => a.year === prevYear && a.month === month);
     const prevRp  = allRepartitions.find(r => r.year === prevYear && r.month === month) ?? { year: prevYear, month, mode: defaultMode, pcts: {} };
 
-    const cur  = monthMap[month]  ? calcMonth(monthMap[month],  chg, ach,    rp,    users) : null;
-    const prev = prevMap[month]   ? calcMonth(prevMap[month],   chg, prevAch, prevRp, users) : null;
+    const cur  = monthMap[month]  ? calcMonth(monthMap[month],  chg,     ach,    rp,    users) : null;
+    const prev = prevMap[month]   ? calcMonth(prevMap[month],   prevChg, prevAch, prevRp, users) : null;
 
     if (!cur && !prev) {
       el.innerHTML = `<p style="color:var(--text-3);font-size:0.82rem;padding:8px 0;">Aucune donnée pour ${mLabel} ni en ${year} ni en ${prevYear}.</p>`;
