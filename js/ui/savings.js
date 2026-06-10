@@ -484,36 +484,33 @@ async function showConfirmModal(users, onSave) {
     getAllSavingsOperations(),
     getLatestSavingsConfirmed(),
   ]);
-  const { balance } = calcSavingsBalance(latest, allOps);
-  const { year, month } = today();
-  const moisLabel      = nomMois(month);
-  const lastDayOfMonth = new Date(year, month, 0).getDate();
+  const { year: todayY, month: todayM } = today();
   const N = users.length;
 
-  // Soldes calculés par user (base confirmée par user + ops post-confirmation)
-  const confirmedTs = latest?.confirmedAt ? new Date(latest.confirmedAt).getTime() : null;
-  const userBalances = users.map(u => {
+  // Calcule le solde logique pour un mois donné (somme cumulative des ops jusqu'à ce mois)
+  // — identique à la logique du graphique
+  const balanceForMonth = (tY, tM) =>
+    allOps
+      .filter(o => o.year < tY || (o.year === tY && o.month <= tM))
+      .reduce((s, o) => s + (Number(o.amount) || 0), 0);
+
+  // Solde par user pour un mois donné
+  const userBalancesForMonth = (tY, tM) => users.map(u => {
     const uid = String(u.id);
-    const base_u = Number(latest?.perUserAmounts?.[uid]) || 0;
-    const uOpsAfter = allOps.filter(op => {
-      if (String(op.userId) !== uid) return false;
-      if (!latest) return true;
-      if (op.year  > latest.year)  return true;
-      if (op.year  < latest.year)  return false;
-      if (op.month > latest.month) return true;
-      if (op.month < latest.month) return false;
-      if (confirmedTs && op.createdAt) return new Date(op.createdAt).getTime() > confirmedTs;
-      return (op.day || 1) > (latest.confirmedDay || 1);
-    });
-    const bal = base_u + uOpsAfter.reduce((s, op) => s + (Number(op.amount) || 0), 0);
+    const bal = allOps
+      .filter(o => String(o.userId) === uid && (o.year < tY || (o.year === tY && o.month <= tM)))
+      .reduce((s, o) => s + (Number(o.amount) || 0), 0);
     return { user: u, balance: bal };
   });
 
-  const perUserForm = N > 1 ? `
+  const _monthOptions = MOIS.map((m, i) =>
+    `<option value="${i + 1}" ${i + 1 === todayM ? 'selected' : ''}>${m}</option>`).join('');
+
+  const perUserForm = (userBalances) => N > 1 ? `
     <div class="form-group" style="margin-bottom:12px;">
       <label class="form-label">Solde réel par personne</label>
       <p style="font-size:0.72rem;color:var(--text-3);margin-bottom:8px;">Le bouton affiche le solde logique calculé. Corrigez si nécessaire.</p>
-      <div style="display:flex;flex-direction:column;gap:8px;">
+      <div style="display:flex;flex-direction:column;gap:8px;" id="conf-user-rows">
         ${userBalances.map(ub => `
           <div style="display:flex;align-items:center;gap:8px;">
             <span style="width:10px;height:10px;border-radius:50%;background:${escHtml(ub.user.color||'#6C63FF')};display:inline-block;flex-shrink:0;"></span>
@@ -534,9 +531,9 @@ async function showConfirmModal(users, onSave) {
       <label class="form-label">Solde logique (calculé)</label>
       <button class="btn btn-outline trf-preset" id="conf-use-calc"
         style="width:100%;justify-content:flex-start;font-size:0.85rem;padding:8px 12px;text-align:left;">
-        ✅ Utiliser : <strong>${eur(balance)}</strong>
+        ✅ Utiliser : <strong id="conf-calc-display">${eur(userBalances[0]?.balance ?? 0)}</strong>
       </button>
-      <div style="font-size:0.72rem;color:var(--text-3);margin-top:4px;">Basé sur la dernière confirmation + toutes les opérations</div>
+      <div style="font-size:0.72rem;color:var(--text-3);margin-top:4px;">Basé sur toutes les opérations jusqu'à ce mois</div>
     </div>
     <div class="form-group" style="margin-bottom:10px;">
       <label class="form-label">Ou saisir manuellement (€)</label>
@@ -544,19 +541,28 @@ async function showConfirmModal(users, onSave) {
         <input type="number" class="form-input input-euro" id="conf-amount" min="0" step="0.01" placeholder="0.00">
         <span class="input-suffix">€</span>
       </div>
-      <div style="font-size:0.72rem;color:var(--text-3);margin-top:4px;">Si supérieur au solde logique, la différence sera enregistrée comme ajustement de ${moisLabel}</div>
+      <div style="font-size:0.72rem;color:var(--text-3);margin-top:4px;">Si différent du solde logique, la différence sera enregistrée comme ajustement</div>
     </div>`;
 
   openModal('✅ Confirmer le solde épargne', `
     <p style="color:var(--text-2); font-size:0.875rem; margin-bottom:12px;">
-      Indiquez le solde <strong>réel actuel</strong> de votre épargne (livret, compte, cash…).
+      Indiquez le solde <strong>réel</strong> de votre épargne pour le mois sélectionné.
     </p>
-    ${perUserForm}
+    <div class="form-grid-2" style="margin-bottom:14px;">
+      <div class="form-group">
+        <label class="form-label">Mois</label>
+        <select class="form-select" id="conf-month">${_monthOptions}</select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Année</label>
+        <input type="number" class="form-input" id="conf-year" min="2020" max="2099" value="${todayY}">
+      </div>
+    </div>
+    <div id="conf-amount-section">${perUserForm(userBalancesForMonth(todayY, todayM))}</div>
     <div class="form-group">
       <label class="form-label">Note (optionnel)</label>
       <input type="text" class="form-input" id="conf-note" placeholder="Ex: Vérification début de mois">
     </div>
-    <div style="margin-top:10px; font-size:0.75rem; color:var(--text-3);">Mois : ${moisLabel} ${year}</div>
   `, `
     <button class="btn btn-outline" id="conf-cancel">Annuler</button>
     <button class="btn btn-primary" id="conf-save">Confirmer</button>
@@ -564,31 +570,52 @@ async function showConfirmModal(users, onSave) {
 
   document.getElementById('conf-cancel')?.addEventListener('click', closeModal);
 
-  if (N > 1) {
-    const updateTotal = () => {
-      const t = [...document.querySelectorAll('.conf-user-amount')]
-        .reduce((s, inp) => s + (Number(inp.value) || 0), 0);
-      const el = document.getElementById('conf-total-display');
-      if (el) el.textContent = t > 0 ? `Total : ${eur(t)}` : '';
-    };
-    document.querySelectorAll('.conf-user-amount').forEach(inp => inp.addEventListener('input', updateTotal));
-    document.querySelectorAll('.conf-use-user').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const inp = document.querySelector(`.conf-user-amount[data-uid="${btn.dataset.uid}"]`);
-        if (inp) { inp.value = Math.max(0, Number(btn.dataset.calc)).toFixed(2); updateTotal(); }
+  // Recalcul du solde suggeré quand le mois/année change
+  const _refreshForMonth = () => {
+    const tM = Number(document.getElementById('conf-month')?.value) || todayM;
+    const tY = Number(document.getElementById('conf-year')?.value)  || todayY;
+    const ubs = userBalancesForMonth(tY, tM);
+    const section = document.getElementById('conf-amount-section');
+    if (section) section.innerHTML = perUserForm(ubs);
+    _rebindAmountListeners();
+  };
+  document.getElementById('conf-month')?.addEventListener('change', _refreshForMonth);
+  document.getElementById('conf-year')?.addEventListener('change',  _refreshForMonth);
+
+  const _rebindAmountListeners = () => {
+    if (N > 1) {
+      const updateTotal = () => {
+        const t = [...document.querySelectorAll('.conf-user-amount')]
+          .reduce((s, inp) => s + (Number(inp.value) || 0), 0);
+        const el = document.getElementById('conf-total-display');
+        if (el) el.textContent = t > 0 ? `Total : ${eur(t)}` : '';
+      };
+      document.querySelectorAll('.conf-user-amount').forEach(inp => inp.addEventListener('input', updateTotal));
+      document.querySelectorAll('.conf-use-user').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const inp = document.querySelector(`.conf-user-amount[data-uid="${btn.dataset.uid}"]`);
+          if (inp) { inp.value = Math.max(0, Number(btn.dataset.calc)).toFixed(2); updateTotal(); }
+        });
       });
-    });
-  } else {
-    document.getElementById('conf-use-calc')?.addEventListener('click', () => {
-      const inp = document.getElementById('conf-amount');
-      if (inp) inp.value = balance.toFixed(2);
-    });
-  }
+    } else {
+      const tM  = Number(document.getElementById('conf-month')?.value) || todayM;
+      const tY  = Number(document.getElementById('conf-year')?.value)  || todayY;
+      const bal = balanceForMonth(tY, tM);
+      document.getElementById('conf-use-calc')?.addEventListener('click', () => {
+        const inp = document.getElementById('conf-amount');
+        if (inp) inp.value = bal.toFixed(2);
+      });
+    }
+  };
+  _rebindAmountListeners();
 
   document.getElementById('conf-save')?.addEventListener('click', async () => {
-    const note = document.getElementById('conf-note')?.value.trim() || '';
-    const now  = new Date();
+    const note  = document.getElementById('conf-note')?.value.trim() || '';
+    const selM  = Number(document.getElementById('conf-month')?.value) || todayM;
+    const selY  = Number(document.getElementById('conf-year')?.value)  || todayY;
+    const now   = new Date();
     const nowIso = now.toISOString();
+    const balance = balanceForMonth(selY, selM);
     let totalAmount;
     let perUserAmounts = {};
 
@@ -606,15 +633,13 @@ async function showConfirmModal(users, onSave) {
       if (isNaN(totalAmount) || totalAmount < 0) { showToast('Montant invalide', 'error'); return; }
     }
 
-    await saveSavingsConfirmed({ year, month, amount: totalAmount,
+    await saveSavingsConfirmed({ year: selY, month: selM, amount: totalAmount,
       confirmedAt: nowIso, confirmedDay: now.getDate(), note, perUserAmounts });
 
-    // Créer des opérations d'ajustement si montant confirmé ≠ solde calculé
-    // Si c'est la toute première confirmation (aucune op ni confirmation précédente),
-    // on marque l'ajustement comme "solde initial" pour ne pas le comptabiliser dans les stats.
+    // Créer une opération d'ajustement si montant confirmé ≠ solde calculé
     const isInitialConfirm = allOps.length === 0 && !latest;
     if (N > 1) {
-      for (const ub of userBalances) {
+      for (const ub of userBalancesForMonth(selY, selM)) {
         const uid = String(ub.user.id);
         const confirmed_u = perUserAmounts[uid] ?? 0;
         const diff = confirmed_u - ub.balance;
@@ -622,7 +647,7 @@ async function showConfirmModal(users, onSave) {
           await saveSavingsOperation({
             type: isInitialConfirm ? 'initial_balance' : 'adjustment',
             label: isInitialConfirm ? `Solde initial (${ub.user.name})` : `Ajustement de solde (${ub.user.name})`,
-            amount: diff, year, month, day: now.getDate(),
+            amount: diff, year: selY, month: selM, day: now.getDate(),
             createdAt: nowIso, userId: uid,
             note: isInitialConfirm ? 'Solde de départ (première confirmation)' : 'Ajustement lors de la confirmation',
           });
@@ -634,7 +659,7 @@ async function showConfirmModal(users, onSave) {
         await saveSavingsOperation({
           type: isInitialConfirm ? 'initial_balance' : 'adjustment',
           label: isInitialConfirm ? 'Solde initial' : 'Ajustement de solde',
-          amount: diff, year, month, day: now.getDate(),
+          amount: diff, year: selY, month: selM, day: now.getDate(),
           createdAt: nowIso,
           note: isInitialConfirm ? 'Solde de départ (première confirmation)' : 'Ajustement lors de la confirmation',
         });
@@ -642,7 +667,7 @@ async function showConfirmModal(users, onSave) {
     }
 
     closeModal();
-    showToast(`Solde confirmé : ${eur(totalAmount)} ✅`, 'success');
+    showToast(`Solde ${nomMois(selM)} ${selY} confirmé : ${eur(totalAmount)} ✅`, 'success');
     onSave();
   });
 }
