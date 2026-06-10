@@ -1,7 +1,7 @@
 // Service Worker – Compta+
 // Stratégie : Network First pour l'app shell (auto-update), Cache pour CDN
 
-const CACHE_NAME = 'compta-plus-v76';
+const CACHE_NAME = 'compta-plus-v77';
 
 const APP_SHELL = [
   './index.html',
@@ -77,30 +77,38 @@ self.addEventListener('notificationclick', event => {
   );
 });
 
-// Fetch : Cache First + revalidation en arrière-plan (Stale-While-Revalidate)
-// → 1ère visite : réseau. Visites suivantes : cache immédiat + mise à jour silencieuse.
+// Fetch : Network First pour les fichiers JS/HTML (toujours du code frais),
+//          Cache First pour le CDN (Chart.js etc.)
 self.addEventListener('fetch', event => {
   if (event.request.method !== 'GET') return;
 
   const url = new URL(event.request.url);
-  // Ignore non-http(s) schemes (chrome-extension, data, blob, etc.)
   if (!url.protocol.startsWith('http')) return;
 
   const isCDN = CDN_ORIGINS.some(o => url.hostname.includes(o));
 
-  event.respondWith(
-    caches.match(event.request).then(cached => {
-      // Revalider en arrière-plan (ne bloque pas la réponse)
-      const revalidate = fetch(event.request).then(response => {
+  if (isCDN) {
+    // CDN : cache-first, jamais besoin d'être à jour
+    event.respondWith(
+      caches.match(event.request).then(cached => cached || fetch(event.request).then(response => {
         if (response && response.status === 200) {
-          const toCache = response.clone(); // Clone AVANT toute consommation async
+          const toCache = response.clone();
           caches.open(CACHE_NAME).then(c => c.put(event.request, toCache));
         }
         return response;
-      }).catch(() => null);
+      }))
+    );
+    return;
+  }
 
-      // Servir depuis le cache immédiatement si disponible, sinon attendre le réseau
-      return cached || revalidate;
-    })
+  // App shell (JS/HTML/CSS) : Network First → toujours le code le plus récent
+  event.respondWith(
+    fetch(event.request).then(response => {
+      if (response && response.status === 200) {
+        const toCache = response.clone();
+        caches.open(CACHE_NAME).then(c => c.put(event.request, toCache));
+      }
+      return response;
+    }).catch(() => caches.match(event.request))  // offline : fallback cache
   );
 });
