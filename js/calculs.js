@@ -510,3 +510,60 @@ export function whatIf(baseResult, extraByUser, users) {
     },
   };
 }
+
+/**
+ * Calcule le score budgétaire mensuel (0-100).
+ * Source de vérité unique — utilisée par Dashboard, Stats et PDF.
+ *
+ * Grille :
+ *   Taux d'épargne  : 40 pts  (≥15% → 40, ≥5% → 25, >0% → 10, sinon 0)
+ *   Solde positif   : 20 pts  (≥seuil → 20, ≥0 → 10, sinon 0)
+ *   Budget courses  : 20 pts  (0 si non configuré — IL-2)
+ *   Budget loisirs  : 20 pts  (0 si non configuré — IL-2)
+ *
+ * @param {object} result   - résultat de calcMonth()
+ * @param {object} settings - getAllSettings()
+ * @returns {{ total, scoreHex, scoreLabel, criteria }}
+ */
+export function calcBudgetScore(result, settings) {
+  if (!result) return { total: 0, scoreHex: '#FF5E57', scoreLabel: 'Aucune donnée', criteria: [] };
+
+  const cibles    = settings?.budgetCibles || {};
+  const threshold = Number(settings?.epargneThreshold) || 100;
+
+  const tx      = result.txEpargne?.total ?? 0;
+  const txPts   = tx >= 0.15 ? 40 : tx >= 0.05 ? 25 : tx > 0 ? 10 : 0;
+
+  const solde     = result.solde?.total ?? 0;
+  const soldePts  = solde >= threshold ? 20 : solde >= 0 ? 10 : 0;
+
+  const budgC  = Number(cibles.courses) || 0;
+  const spentC = result.courses?.total ?? 0;
+  // 0 pts si budget non configuré (IL-2 — évite un score minimum artificiel de 60)
+  const cPts   = budgC > 0
+    ? (spentC <= budgC ? 20 : Math.max(0, 20 - Math.round((spentC - budgC) / budgC * 20)))
+    : 0;
+
+  const budgE  = Number(cibles.extras) || 0;
+  const spentE = result.extras?.total ?? 0;
+  const ePts   = budgE > 0
+    ? (spentE <= budgE ? 20 : Math.max(0, 20 - Math.round((spentE - budgE) / budgE * 20)))
+    : 0;
+
+  const total = txPts + soldePts + cPts + ePts;
+
+  const scoreHex   = total >= 75 ? '#00D4A0' : total >= 50 ? '#FFB020' : '#FF5E57';
+  const scoreLabel = total >= 75 ? 'Excellent' : total >= 50 ? 'Satisfaisant' : 'À améliorer';
+
+  return {
+    total,
+    scoreHex,
+    scoreLabel,
+    criteria: [
+      { label: "Taux d'épargne",  pts: txPts,   max: 40, detail: `${(tx * 100).toFixed(1)} %` },
+      { label: 'Solde du mois',   pts: soldePts, max: 20, detail: null },
+      { label: 'Budget courses',  pts: cPts,     max: 20, detail: budgC > 0 ? `${Math.round(spentC)}€ / ${budgC}€` : 'Non configuré' },
+      { label: 'Budget loisirs',  pts: ePts,     max: 20, detail: budgE > 0 ? `${Math.round(spentE)}€ / ${budgE}€` : 'Non configuré' },
+    ],
+  };
+}

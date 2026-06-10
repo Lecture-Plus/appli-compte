@@ -65,13 +65,17 @@ export function today() {
   return { year: d.getFullYear(), month: d.getMonth() + 1 };
 }
 
-/** Avance ou recule d'un mois */
+/** Avance ou recule d'un mois (O(1)) */
 export function addMonth(year, month, delta = 1) {
-  let m = month + delta;
-  let y = year;
-  while (m > 12) { m -= 12; y++; }
-  while (m < 1)  { m += 12; y--; }
+  const total = month - 1 + delta;          // index 0-based
+  const y = year + Math.floor(total / 12);
+  const m = ((total % 12) + 12) % 12 + 1;  // toujours 1-12
   return { year: y, month: m };
+}
+
+/** Normalise un montant saisi : nombre ≥ 0, NaN → 0 */
+export function parseAmount(v) {
+  return Math.max(0, Number(v) || 0);
 }
 
 /** Retourne la classe CSS de couleur selon le signe */

@@ -88,6 +88,19 @@ export async function initDriveSync() {
     }
 
     const latest = backups[0]; // déjà triés du plus récent au plus ancien
+
+    // BC-1 : ne pas écraser les données locales si elles sont plus récentes que le backup Drive
+    const lastSyncStr = await getSetting(DRIVE_SYNC_KEY);
+    const lastSync    = lastSyncStr ? new Date(lastSyncStr).getTime() : 0;
+    const driveLatest = latest.savedAt ? new Date(latest.savedAt).getTime() : 0;
+    if (lastSync > 0 && driveLatest <= lastSync + 5_000) {
+      console.log('[Sync] Données locales à jour — import Drive ignoré', latest.filename);
+      setSyncStatus('ok');
+      if (overlay) overlay.classList.add('hidden');
+      _isSyncing = false;
+      return false;
+    }
+
     const data   = await pullBackup(url, latest.filename);
 
     if (data && data.appName) {

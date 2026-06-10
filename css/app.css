@@ -338,7 +338,12 @@ svg { display: block; }
   width: 26px; height: 26px; border-radius: 8px; background: var(--primary-bg);
   display: flex; align-items: center; justify-content: center; font-size: 0.85rem;
 }
+.form-grid-1 { display: grid; grid-template-columns: 1fr; gap: 10px; }
 .form-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.form-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+.form-grid-4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 10px; }
+.form-grid-5 { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }
+.form-grid-6 { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; }
 .form-group { display: flex; flex-direction: column; gap: 5px; }
 .form-label { font-size: 0.7rem; font-weight: 600; color: var(--text-3); letter-spacing: 0.02em; }
 .form-input {
@@ -620,6 +625,9 @@ svg { display: block; }
   .main-wrapper { order: 1; }
   #bottom-nav   { order: 2; }
   .sidebar-brand { display: none; }
+  /* CL-3 : repli des grilles larges sur mobile */
+  .form-grid-3, .form-grid-4, .form-grid-5, .form-grid-6 { grid-template-columns: 1fr 1fr; }
+  .form-grid-2 { grid-template-columns: 1fr; }
 }
 
 /* ─── 33. Utilitaires ─── */

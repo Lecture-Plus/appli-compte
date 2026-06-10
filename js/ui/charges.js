@@ -146,7 +146,16 @@ async function renderRecurrentes(container) {
     <div style="height:80px;"></div>
   `;
 
-  tc.innerHTML = html;
+  // FM-2 : barre de recherche des charges récurrentes
+  const searchWrap = `<div style="margin-bottom:10px;"><input type="search" class="form-input" id="charges-search" placeholder="🔍 Rechercher une charge…" style="width:100%;"></div>`;
+  tc.innerHTML = searchWrap + html;
+  tc.querySelector('#charges-search')?.addEventListener('input', (e) => {
+    const q = e.target.value.toLowerCase();
+    tc.querySelectorAll('.list-item[data-id]').forEach(item => {
+      const label = item.querySelector('.list-item-title')?.textContent?.toLowerCase() || '';
+      item.style.display = label.includes(q) ? '' : 'none';
+    });
+  });
 
   tc.querySelectorAll('.list-item[data-id]').forEach(el => {
     el.addEventListener('click', async () => {

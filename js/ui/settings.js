@@ -366,6 +366,16 @@ function bindEvents(container, s, users, archived, N) {
   const _updateRepartHint = (mode) => {
     const el = container.querySelector('#repartition-mode-hint');
     if (el) el.textContent = _REPART_HINTS[mode] || '';
+    // IL-3 : avertissement mode personnalisé (non supporté dans les calculs auto)
+    let warn = container.querySelector('#repartition-mode-warn');
+    if (!warn) {
+      warn = document.createElement('div');
+      warn.id = 'repartition-mode-warn';
+      warn.style.cssText = 'font-size:0.75rem;color:var(--warning,#F59E0B);background:var(--warning-bg,#FEF3C7);border-radius:var(--radius-sm,6px);padding:6px 10px;margin-top:6px;';
+      el?.insertAdjacentElement('afterend', warn);
+    }
+    warn.style.display = mode === 'personnalise' ? '' : 'none';
+    warn.textContent   = '⚠️ Non supporté dans les calculs automatiques — utilisez Séparé, Fixe % ou Équitable.';
   };
   _updateRepartHint(s.defaultRepartMode || 'separe');
 
@@ -682,8 +692,13 @@ function bindEvents(container, s, users, archived, N) {
     `);
     document.getElementById('reset-cancel')?.addEventListener('click', closeModal);
     document.getElementById('reset-confirm')?.addEventListener('click', async () => {
+      const confirmBtn = document.getElementById('reset-confirm');
+      if (confirmBtn) confirmBtn.disabled = true; // BM-5 : éviter double-clic accidentel
       const val = document.getElementById('reset-confirm-input')?.value.trim();
-      if (val !== 'EFFACER') { showToast('Tapez EFFACER pour confirmer', 'error'); return; }
+      if (val !== 'EFFACER') {
+        if (confirmBtn) confirmBtn.disabled = false;
+        showToast('Tapez EFFACER pour confirmer', 'error'); return;
+      }
       await resetAllData();
       localStorage.removeItem('currentDeviceUserId');
       closeModal();

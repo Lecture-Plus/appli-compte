@@ -8,9 +8,9 @@ import { getMonthsByYear, getAllCharges,
          getAchatsForMonth, getRepartition, getBudgetOpsForMonth,
          getAllSettings, getAvailableYears,
          getActiveUsers, getAllUsers,
-         getAllSavingsOperations, getAllRepartitions,
+         getAllSavingsOperations, getLatestSavingsConfirmed, getAllRepartitions,
          getAllAchats, getAllBudgetOps }                     from '../db.js';
-import { calcMonth, calcYear, calcSavingsBalance }         from '../calculs.js';
+import { calcMonth, calcYear, calcSavingsBalance, calcBudgetScore } from '../calculs.js';
 import { resolveLineAmount, resolveChargeAmount }           from '../db.js';
 import { eur, pct, nomMoisCourt, escHtml, showToast,
          downloadBlob, buildCSV, MOIS_COURT, MOIS,
@@ -19,6 +19,7 @@ import { eur, pct, nomMoisCourt, escHtml, showToast,
 let _charts = [];
 let _statsTab  = 'revenus'; // 'revenus' | 'epargne' | 'depenses' | 'evolution'
 let _statsMonth = 0;        // 0 = toute l'année, 1-12 = mois précis
+let _lastDisplayResults = null; // FM-3 : cache pour export CSV
 
 export async function render(container) {
   const [s, users, allUsers] = await Promise.all([getAllSettings(), getActiveUsers(), getAllUsers()]);
@@ -39,6 +40,7 @@ export async function render(container) {
           `<option value="${i+1}" ${_statsMonth === i+1 ? 'selected' : ''}>${m}</option>`).join('')}
       </select>
       <button class="btn btn-outline btn-sm" id="btn-export-pdf">📄 PDF</button>
+      <button class="btn btn-outline btn-sm" id="btn-export-csv">📊 CSV</button>
     </div>
 
     <!-- Auto-insights -->
@@ -158,6 +160,10 @@ export async function render(container) {
 
   container.querySelector('#btn-export-pdf')?.addEventListener('click', () => {
     exportPDF(State.year, _statsMonth, users, s);
+  });
+
+  container.querySelector('#btn-export-csv')?.addEventListener('click', () => {
+    exportTableCSV(State.year, _statsMonth, users);
   });
 
   container.querySelector('#toggle-amounts')?.addEventListener('change', (e) => {
@@ -319,6 +325,7 @@ async function loadAndRender(container, year, month, users, s) {
   await renderProjectionEpargne(container, year, curYear, curMonth);
   await renderMonthCompare(container, year, month > 0 ? month : curMonth, users, s, allChargesRaw, allAchats, allRepartitions, monthMap, allBudgetOpsYear);
   renderScoreBudgetaire(container, singleMonth ? augResults[month - 1] : augResults[curMonth - 1], s);
+  _lastDisplayResults = augDisplayResults; // FM-3: cache pour export CSV
   renderInsights(container, augResults, singleMonth ? month : curMonth, year, s);
 }
 
@@ -345,7 +352,7 @@ async function _renderDetailTab(container, year, month, users) {
   const kpiPrev = calcMonth(md, charges, achats, repCfg, users);
   const today = new Date();
   const isCurrentMonth = year === today.getFullYear() && month === today.getMonth() + 1;
-  const chargesReel = isCurrentMonth ? charges.filter(c => (c.day || 1) <= today.getDate()) : charges;
+  const chargesReel = isCurrentMonth ? charges.filter(c => (c.dayOfMonth || 1) <= today.getDate()) : charges;
   const kpiReel = calcMonth(md, chargesReel, achats, repCfg, users, budgetOps);
   const realCourses = budgetOps.filter(o => o.category === 'courses').reduce((s, o) => s + (Number(o.amount) || 0), 0);
   const realExtras  = budgetOps.filter(o => o.category === 'extras').reduce((s, o) => s + (Number(o.amount) || 0), 0);
@@ -623,9 +630,15 @@ async function renderChartSavingsBalance(year, curYear, curMonth, users = []) {
   const canvas = document.getElementById('chart-savings-balance');
   if (!canvas) return;
 
-  const ops = await getAllSavingsOperations();
+  const [ops, latestConfirmed] = await Promise.all([
+    getAllSavingsOperations(),
+    getLatestSavingsConfirmed(),
+  ]);
+  // BM-8 : solde de départ = ops des années précédentes + solde confirmé de base
+  const opsBeforeYear = ops.filter(o => (o.year ?? 0) < year);
+  const { balance: baseBalance } = calcSavingsBalance(latestConfirmed, opsBeforeYear);
   const pointsByMonth = [];
-  let runningBalance = 0;
+  let runningBalance = baseBalance;
 
   // Per-user running balances (ops with userId, no confirmed_balance support per user)
   const userRunning = {};
@@ -866,10 +879,16 @@ async function exportPDF(year, month, users, s) {
       const out = [];
       for (const c of allChargesR) {
         if (!c.active) continue;
-        const ok = c.months === 'all' || (Array.isArray(c.months) && c.months.includes(m));
-        if (!ok) continue;
-        if (c.lines?.length) { for (const l of c.lines) out.push({ ...c, amount: Number(l.amount)||0, qui: l.qui??'shared' }); }
-        else { out.push(c); }
+        // BC-4 : nouveau modèle charge liée à une année+mois précis
+        if (c.year != null && c.month != null) {
+          if (c.year !== year || c.month !== m) continue;
+        } else {
+          // Modèle legacy : filtrage par liste de mois
+          const ok = c.months === 'all' || (Array.isArray(c.months) && c.months.includes(m));
+          if (!ok) continue;
+        }
+        if (c.lines?.length) { for (const l of c.lines) out.push({ ...c, amount: Number(l.amount)||0, qui: l.qui??'shared', dayOfMonth: l.dayOfMonth ?? null }); }
+        else { out.push({ ...c, qui: c.qui ?? 'shared' }); }
       }
       return out;
     }
@@ -1150,6 +1169,34 @@ ${imprévusForPDF.length > 0 ? `<div class="st">⚡ Imprévus${imprévusForPDF.l
 }
 
 // ─────────────────────────────────────────────────
+// FM-3 : Export CSV du tableau mensuel
+// ─────────────────────────────────────────────────
+function exportTableCSV(year, month, users = []) {
+  const results = _lastDisplayResults;
+  if (!results) { showToast('Aucune donnée à exporter', 'error'); return; }
+
+  const MOIS_FULL = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+  const headers   = ['Mois', ...users.map(u => `Revenus ${u.name}`), 'Charges', 'Dépenses', 'Solde', 'Taux épargne'];
+  const rows = results.map((r, i) => {
+    if (!r) return [MOIS_FULL[i], ...users.map(() => ''), '', '', '', ''];
+    return [
+      MOIS_FULL[i],
+      ...users.map(u => (r.revenus.byUser?.[String(u.id)] ?? 0).toFixed(2)),
+      r.charges.total.toFixed(2),
+      (r.depensesReelles?.total ?? r.depenses.total).toFixed(2),
+      r.solde.total.toFixed(2),
+      ((r.txEpargne?.total ?? 0) * 100).toFixed(1) + '%',
+    ];
+  });
+
+  const periodLabel = month > 0 ? `${MOIS_FULL[month - 1]}-${year}` : String(year);
+  const csv  = buildCSV(rows, headers);
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+  downloadBlob(blob, `compta-plus-${periodLabel}.csv`);
+  showToast('CSV exporté ✅', 'success');
+}
+
+// ─────────────────────────────────────────────────
 // Tendances : évolution des charges par catégorie
 // ─────────────────────────────────────────────────
 function renderChartTendances(results, chargesByMonth) {
@@ -1339,41 +1386,15 @@ function renderScoreBudgetaire(container, result, s) {
     return;
   }
 
-  const cibles    = s.budgetCibles || {};
-  const threshold = Number(s.epargneThreshold) || 100;
-
-  const criteria = [];
-
-  // 1. Taux d'épargne (40 pts)
-  const tx = (result.txEpargne?.total ?? 0);
-  const txPts = tx >= 0.15 ? 40 : tx >= 0.05 ? 25 : tx > 0 ? 10 : 0;
-  criteria.push({ label: "Taux épargne", pts: txPts, max: 40, detail: `${(tx * 100).toFixed(1)}%` });
-
-  // 2. Solde positif (20 pts)
-  const soldePts = (result.solde?.total ?? 0) >= threshold ? 20 : (result.solde?.total ?? 0) >= 0 ? 10 : 0;
-  criteria.push({ label: 'Solde mois', pts: soldePts, max: 20, detail: eur(result.solde?.total ?? 0) });
-
-  // 3. Budget courses (20 pts)
-  const budgC = cibles.courses || 0;
-  const spentC = result.courses?.total ?? 0;
-  const cPts = budgC > 0 ? (spentC <= budgC ? 20 : Math.max(0, 20 - Math.round((spentC - budgC) / budgC * 20))) : 10;
-  criteria.push({ label: 'Courses', pts: cPts, max: 20, detail: budgC > 0 ? `${eur(spentC)}/${eur(budgC)}` : '—' });
-
-  // 4. Budget loisirs (20 pts)
-  const budgE = cibles.extras || 0;
-  const spentE = result.extras?.total ?? 0;
-  const ePts = budgE > 0 ? (spentE <= budgE ? 20 : Math.max(0, 20 - Math.round((spentE - budgE) / budgE * 20))) : 10;
-  criteria.push({ label: 'Loisirs', pts: ePts, max: 20, detail: budgE > 0 ? `${eur(spentE)}/${eur(budgE)}` : '—' });
-
-  const total = criteria.reduce((s, c) => s + c.pts, 0);
+  // BM-1 + IL-2 : score via calcBudgetScore (source de vérité unique, 0 pts si budget non configuré)
+  const { total, scoreHex: dashColor, scoreLabel, criteria } = calcBudgetScore(result, s);
+  criteria[1].detail = eur(result.solde?.total ?? 0); // enrichir le solde avec la valeur formatée
   const scoreColor = total >= 75 ? 'var(--success)' : total >= 50 ? 'var(--warning)' : 'var(--danger)';
-  const scoreLabel = total >= 75 ? 'Excellent' : total >= 50 ? 'Correct' : 'À améliorer';
 
   // SVG ring: r=46 → circumference ≈ 289
   const R = 46;
   const C = 2 * Math.PI * R;
   const offset = C - (total / 100) * C;
-  const dashColor = total >= 75 ? '#00D4A0' : total >= 50 ? '#FFB020' : '#FF5E57';
 
   el.innerHTML = `
     <div style="display:flex;align-items:center;gap:18px;padding:6px 0 10px;">

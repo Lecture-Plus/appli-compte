@@ -201,6 +201,7 @@
     <button class="btn btn-primary btn-lg" id="ob-start" style="width:100%;margin-top:4px;">
       Commencer 🚀
     </button>
+    <p id="ob-start-error" style="color:var(--danger);font-size:0.82rem;display:none;text-align:left;margin-top:-4px;"></p>
 
     <!-- Séparateur -->
     <div style="display:flex;align-items:center;gap:12px;">
@@ -359,7 +360,16 @@
     // ── Démarrer ──
     document.getElementById('ob-start')?.addEventListener('click', async () => {
       const name1 = document.getElementById('ob-name-1')?.value.trim();
-      if (!name1) { document.getElementById('ob-name-1').focus(); return; }
+      const nameErrEl = document.getElementById('ob-start-error');
+      if (!name1) {
+        document.getElementById('ob-name-1').focus();
+        document.getElementById('ob-name-1').style.borderColor = 'var(--danger)';
+        if (nameErrEl) { nameErrEl.textContent = '⚠️ Veuillez saisir votre prénom.'; nameErrEl.style.display = ''; }
+        return;
+      }
+      // Effacer l'erreur
+      document.getElementById('ob-name-1').style.borderColor = '';
+      if (nameErrEl) nameErrEl.style.display = 'none';
 
       const now          = new Date().toISOString();
       const createdUsers = [];

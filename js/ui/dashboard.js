@@ -12,7 +12,7 @@ import { getMonthlyData, getChargesForMonth,
          getAllCharges, getAllBudgetOps,
          getBudgetOpsForMonth, saveBudgetOp,
          getActiveUsers, setSetting }                                  from '../db.js';
-import { calcMonth, calcPrevisionnel }                    from '../calculs.js';
+import { calcMonth, calcPrevisionnel, calcBudgetScore } from '../calculs.js';
 import { eur, pct, nomMois, addMonth, signClass,
          txEparClass, completenessStatus, MOIS,
          progressColor, escHtml, showToast, showToastWithUndo,
@@ -235,18 +235,17 @@ async function _renderResume(container, s, users) {
   const soldeColor = kpi.solde.total >= 0 ? 'var(--success)' : 'var(--danger)';
   const txColor    = kpi.txEpargne.total >= 0.10 ? 'var(--success)' : kpi.txEpargne.total >= 0 ? 'var(--warning)' : 'var(--danger)';
 
-  // ── Score budgétaire (mini ring) ──
+  // ── Score budgétaire (mini ring) — BM-1 : source unique de vérité via calcBudgetScore ──
   const cibles    = s.budgetCibles || {};
   const threshold = Number(s.epargneThreshold) || 100;
+  const { total: score, scoreHex, criteria: _scoreCriteria } = calcBudgetScore(kpi, s);
+  const _soldePts = _scoreCriteria[0]?.pts ?? 0;
+  const _txPts    = _scoreCriteria[1]?.pts ?? 0;
+  const _cPts     = _scoreCriteria[2]?.pts ?? 0;
+  const _ePts     = _scoreCriteria[3]?.pts ?? 0;
   const _tx       = kpi.txEpargne?.total ?? 0;
-  const _txPts    = _tx >= 0.15 ? 40 : _tx >= 0.05 ? 25 : _tx > 0 ? 10 : 0;
-  const _soldePts = kpi.solde.total >= threshold ? 20 : kpi.solde.total >= 0 ? 10 : 0;
   const _budgC    = Number(cibles.courses) || 0;
-  const _cPts     = _budgC > 0 ? (_budgC >= kpi.courses.total ? 20 : Math.max(0, 20 - Math.round((kpi.courses.total - _budgC) / _budgC * 20))) : 10;
   const _budgE    = Number(cibles.extras)  || 0;
-  const _ePts     = _budgE > 0 ? (_budgE >= kpi.extras.total  ? 20 : Math.max(0, 20 - Math.round((kpi.extras.total  - _budgE) / _budgE * 20))) : 10;
-  const score     = _txPts + _soldePts + _cPts + _ePts;
-  const scoreHex  = score >= 75 ? '#00D4A0' : score >= 50 ? '#FFB020' : '#FF5E57';
   const sR = 22, sCirc = 2 * Math.PI * sR;
   const sOffset   = sCirc - (score / 100) * sCirc;
 

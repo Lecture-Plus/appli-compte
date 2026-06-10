@@ -279,6 +279,11 @@ async function _renderEconomies(el, container) {
 
   // ── Objectif épargne ──
   el.querySelector('#sv-save-goal')?.addEventListener('click', async () => {
+    // CL-4 : validation de l'année cible
+    const goalYearVal = Number(el.querySelector('#sv-goal-year')?.value);
+    if (goalYearVal && (goalYearVal < 2000 || goalYearVal > 2100)) {
+      showToast('Année invalide (2000–2100)', 'error'); return;
+    }
     const goalsByUserNew = {};
     el.querySelectorAll('.sv-goal-user').forEach(inp => {
       const v = Number(inp.value);
