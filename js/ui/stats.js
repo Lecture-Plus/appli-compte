@@ -189,12 +189,13 @@ export async function render(container) {
 
 async function loadAndRender(container, year, month, users, s) {
   // Charger toutes les données en parallèle
-  const [monthsData, allChargesRaw, allAchats, allRepartitions, allBudgetOpsYear] = await Promise.all([
+  const [monthsData, allChargesRaw, allAchats, allRepartitions, allBudgetOpsYear, allSavingsOps] = await Promise.all([
     getMonthsByYear(year),
     getAllCharges(),
     getAllAchats(),
     getAllRepartitions(),
     getAllBudgetOps(),
+    getAllSavingsOperations(),
   ]);
   const bopsMap = {};
   for (const op of allBudgetOpsYear) { if (op.year === year) { (bopsMap[op.month] ??= []).push(op); } }
@@ -261,11 +262,15 @@ async function loadAndRender(container, year, month, users, s) {
   const yearKPI     = calcYear(kpiMonths);
   const nMonths     = kpiMonths.length || 1;
 
-  renderKPIAnnuel(container, yearKPI, singleMonth ? MOIS[month - 1] : null, nMonths);
+  // Épargne réelle = somme des ops savings_operations de l'année (versements + retraits + ajustements)
+  const yearSavingsOps  = allSavingsOps.filter(op => op.year === year && (!singleMonth || op.month === month));
+  const realSavingsTotal = yearSavingsOps.reduce((s, op) => s + (Number(op.amount) || 0), 0);
+
+  renderKPIAnnuel(container, yearKPI, singleMonth ? MOIS[month - 1] : null, nMonths, realSavingsTotal);
   destroyCharts();
   renderChartRevDep(displayResults);
   renderChartRevPrimes(displayResults, users);
-  await renderChartEpargne(displayResults, year);
+  await renderChartEpargne(displayResults, year, allSavingsOps);
   await renderChartSavingsBalance(year, curYear, curMonth, users);
   const yearBudgetOps = singleMonth ? (bopsMap[month] ?? []) : Object.values(bopsMap).flat();
   renderChartRepartition(yearKPI, yearBudgetOps, s);
@@ -383,13 +388,14 @@ async function _renderDetailTab(container, year, month, users) {
   };
 }
 
-function renderKPIAnnuel(container, kpi, monthLabel = null, nMonths = 12) {
+function renderKPIAnnuel(container, kpi, monthLabel = null, nMonths = 12, realSavingsTotal = null) {
   const el = container.querySelector('#kpi-annuel');
   if (!el || !kpi) {
     if (el) el.innerHTML = `<div style="grid-column:span 2;text-align:center;color:var(--text-3);padding:20px;">Aucune donnée${monthLabel ? ' pour ' + monthLabel : ' pour cette année'}</div>`;
     return;
   }
   const n = nMonths || 1;
+  const epargneAffiche = realSavingsTotal !== null ? realSavingsTotal : (kpi.epargne?.total ?? 0);
   el.innerHTML = `
     <div class="kpi-card primary">
       <div class="kpi-label">Revenus annuels</div>
@@ -408,8 +414,8 @@ function renderKPIAnnuel(container, kpi, monthLabel = null, nMonths = 12) {
     </div>
     <div class="kpi-card warning">
       <div class="kpi-label">Moy. mensuelle épargnée</div>
-      <div class="kpi-value neutral">${eur((kpi.epargne?.total ?? 0) / n)}</div>
-      <div class="kpi-sub">sur ${n} mois · revenu moy: ${eur((kpi.revenus.total + (kpi.aides?.total ?? 0) + kpi.primes.total) / n)}</div>
+      <div class="kpi-value neutral">${eur(epargneAffiche / n)}</div>
+      <div class="kpi-sub">sur ${n} mois · total réel : ${eur(epargneAffiche)}</div>
     </div>
   `;
 }
@@ -466,12 +472,12 @@ function renderChartRevPrimes(displayResults, users = []) {
   _charts.push(chart);
 }
 
-async function renderChartEpargne(displayResults, year) {
+async function renderChartEpargne(displayResults, year, allOpsParam = null) {
   const canvas = document.getElementById('chart-epargne');
   if (!canvas) return;
 
   // Versements réels depuis savings_operations (vrais montants épargnés)
-  const allOps = await getAllSavingsOperations();
+  const allOps = allOpsParam ?? await getAllSavingsOperations();
   const yearOps = allOps.filter(op => op.year === year);
 
   // Épargne mensuelle réelle : somme des versements du mois

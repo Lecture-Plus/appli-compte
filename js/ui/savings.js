@@ -5,12 +5,13 @@
 import { getAllSavingsOperations, saveSavingsOperation,
          deleteSavingsOperation, getLatestSavingsConfirmed,
          saveSavingsConfirmed, getAllSettings, setSetting,
-         getActiveUsers,
+         getActiveUsers, getChargesForMonth,
          getAllSalarySavings, saveSalarySaving, deleteSalarySaving,
          getAllSalaryAbondements, saveSalaryAbondement, deleteSalaryAbondement,
          getAllSavingsGoals, saveSavingsGoal, deleteSavingsGoal }
                                                              from '../db.js';
 import { calcSavingsBalance }                                from '../calculs.js';
+import { State }                                             from '../app.js';
 import { eur, escHtml, showToast, showToastWithUndo, openModal, closeModal,
          today, nomMois, MOIS }                              from '../utils.js';
 
@@ -814,22 +815,54 @@ function _abon_label(period, year) {
 }
 
 async function _renderSalariale(el, container) {
-  const [allOps, allAbons, users, s] = await Promise.all([
+  const [allOps, allAbons, users, s, chargesMois] = await Promise.all([
     getAllSalarySavings(),
     getAllSalaryAbondements(),
     getActiveUsers(),
     getAllSettings(),
+    getChargesForMonth(State.month, State.year),
   ]);
 
   const { year, month, day } = today();
+
+  // ── Auto-versement depuis charge "épargne salariale" ──
+  // Cherche une charge active du mois courant dont le libellé correspond
+  const salCharges = chargesMois.filter(c =>
+    !c.perso && /[ée]pargne\s+salariale/i.test(c.label || '')
+  );
+  for (const sc of salCharges) {
+    const amt = Number(sc.amount) || 0;
+    if (amt <= 0) continue;
+    // Vérifie si un versement auto pour ce mois existe déjà (même montant, même source)
+    const alreadyDone = allOps.some(op =>
+      op.year === year && op.month === month &&
+      op.source === 'charge_auto' && op.chargeId === sc.id
+    );
+    if (!alreadyDone) {
+      await saveSalarySaving({
+        amount: amt,
+        year, month, day,
+        userId: sc.qui !== 'shared' ? sc.qui : (users[0]?.id ?? null),
+        note: `Auto depuis charge "${sc.label}"`,
+        source: 'charge_auto',
+        chargeId: sc.id,
+      });
+      // Recharger
+      allOps.push(...await getAllSalarySavings().then(ops =>
+        ops.filter(op => op.year === year && op.month === month && op.source === 'charge_auto' && op.chargeId === sc.id)
+      ));
+    }
+  }
+  // Recharger les ops après éventuels ajouts auto
+  const freshOps = await getAllSalarySavings();
 
   // Paramètres configurables
   const ABON_RATIO_CFG = Number(s.salarialeAbonRatio) || (22.58 / 50);
   const ABON_MAX_CFG   = Number(s.salarialeAbonMax)   || 1000;
   const planned        = s.salarialePlanned || {};
 
-  // Totaux
-  const totalNet  = allOps.reduce((s, op) => s + (Number(op.amount) || 0), 0);
+  // Totaux (sur ops fraîches)
+  const totalNet  = freshOps.reduce((s, op) => s + (Number(op.amount) || 0), 0);
   const totalAbon = allAbons.reduce((s, a) => s + (Number(a.amount) || 0), 0);
   const totalBrut = totalNet + totalAbon;
 
@@ -839,7 +872,7 @@ async function _renderSalariale(el, container) {
 
   // Période courante
   const curPeriod     = _abon_period(year, month);
-  const periodOps     = allOps.filter(op => _inPeriod(op.year, op.month, curPeriod.periodStart, curPeriod.periodEnd));
+  const periodOps     = freshOps.filter(op => _inPeriod(op.year, op.month, curPeriod.periodStart, curPeriod.periodEnd));
   const periodContrib = periodOps.reduce((s, op) => s + (Number(op.amount) || 0), 0);
   const estimatedAbonPeriod = Math.min(periodContrib * ABON_RATIO_CFG, yearAbonRemaining);
   const abonMissing   = yearAbonRemaining <= 0 ? 0 : Math.max(0, (yearAbonRemaining / ABON_RATIO_CFG) - periodContrib);
@@ -847,11 +880,25 @@ async function _renderSalariale(el, container) {
   const nextAbonDate  = curPeriod.period === 'mai' ? `28 mai ${curPeriod.periodEnd.year}` : `28 novembre ${curPeriod.periodEnd.year}`;
 
   // Versements du mois courant
-  const monthlyOps   = allOps.filter(op => op.year === year && op.month === month);
+  const monthlyOps   = freshOps.filter(op => op.year === year && op.month === month);
   const monthlyTotal = monthlyOps.reduce((s, op) => s + (Number(op.amount) || 0), 0);
 
+  // Simulation : mois restants jusqu'au prochain abondement
+  const periodEnd = curPeriod.periodEnd;
+  const monthsRemaining = Math.max(0,
+    (periodEnd.year - year) * 12 + (periodEnd.month - month)
+  );
+  // Moyenne mensuelle des versements de la période en cours (ou mensuelle planifiée si pas encore de données)
+  const avgMonthly = periodOps.length > 0
+    ? periodContrib / Math.max(1, (year - curPeriod.periodStart.year) * 12 + (month - curPeriod.periodStart.month) + 1)
+    : users.reduce((s, u) => s + (Number(planned[String(u.id)]) || 0), 0);
+  const projectedExtraContrib = avgMonthly * monthsRemaining;
+  const projectedTotalContrib = periodContrib + projectedExtraContrib;
+  const projectedAbon         = Math.min(projectedTotalContrib * ABON_RATIO_CFG, yearAbonRemaining);
+  const projectedTotal        = totalBrut + projectedExtraContrib + projectedAbon;
+
   // Tri historique
-  const sortedOps = [...allOps].sort((a, b) => {
+  const sortedOps = [...freshOps].sort((a, b) => {
     if (b.year !== a.year) return b.year - a.year;
     if (b.month !== a.month) return b.month - a.month;
     return (b.day || 0) - (a.day || 0);
@@ -899,6 +946,30 @@ async function _renderSalariale(el, container) {
       ${yearAbonRemaining > 0 && pctPeriod < 100 ? `<div style="font-size:0.72rem;color:var(--text-3);margin-top:8px;">Il manque ${eur(abonMissing)} de versements pour utiliser tout le plafond restant.</div>` : ''}
     </div>
 
+    <!-- Simulation après abondement -->
+    ${monthsRemaining > 0 || projectedAbon > 0 ? `
+    <div class="card" style="margin-bottom:12px;">
+      <div class="card-header"><span class="card-title">🔮 Simulation au ${nextAbonDate}</span></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px;">
+        <div style="background:var(--bg-2);border-radius:var(--radius-sm);padding:10px;text-align:center;">
+          <div style="font-size:0.6rem;color:var(--text-3);font-weight:700;text-transform:uppercase;margin-bottom:4px;">Vos versements</div>
+          <div style="font-size:0.95rem;font-weight:800;color:var(--primary);">${eur(periodContrib + projectedExtraContrib)}</div>
+          <div style="font-size:0.6rem;color:var(--text-3);">+${eur(projectedExtraContrib)} projetés</div>
+        </div>
+        <div style="background:var(--success-bg);border-radius:var(--radius-sm);padding:10px;text-align:center;">
+          <div style="font-size:0.6rem;color:var(--text-3);font-weight:700;text-transform:uppercase;margin-bottom:4px;">Abondement</div>
+          <div style="font-size:0.95rem;font-weight:800;color:var(--success);">${eur(projectedAbon)}</div>
+          <div style="font-size:0.6rem;color:var(--text-3);">${yearAbonRemaining <= 0 ? 'Plafond atteint' : `sur ${eur(yearAbonRemaining)} restants`}</div>
+        </div>
+        <div style="background:var(--primary-bg);border-radius:var(--radius-sm);padding:10px;text-align:center;">
+          <div style="font-size:0.6rem;color:var(--text-3);font-weight:700;text-transform:uppercase;margin-bottom:4px;">Total estimé</div>
+          <div style="font-size:0.95rem;font-weight:800;color:var(--primary);">${eur(projectedTotal)}</div>
+          <div style="font-size:0.6rem;color:var(--text-3);">actuel + projeté</div>
+        </div>
+      </div>
+      <div style="font-size:0.7rem;color:var(--text-3);">Projection sur ${monthsRemaining} mois restants à ${eur(avgMonthly)}/mois de moyenne.</div>
+    </div>` : ''}
+
     <!-- Versements planifiés -->
     ${users.length > 0 && Object.values(planned).some(v => Number(v) > 0) ? `
     <div class="card" style="margin-bottom:12px;">
@@ -908,7 +979,10 @@ async function _renderSalariale(el, container) {
           const amt = Number(planned[String(u.id)]) || 0;
           if (!amt) return '';
           const thisMonth = monthlyOps.filter(op => String(op.userId) === String(u.id) || !op.userId).reduce((s, op) => s + (Number(op.amount)||0), 0);
-          const done = thisMonth >= amt;
+          // Aussi compter les versements auto depuis charges (qui peuvent être sur userId du premier user)
+          const autoAmt   = monthlyOps.filter(op => op.source === 'charge_auto').reduce((s, op) => s + (Number(op.amount)||0), 0);
+          const effectif  = Math.max(thisMonth, autoAmt > 0 && users.length === 1 ? autoAmt : thisMonth);
+          const done = effectif >= amt;
           return `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:var(--bg-2);border-radius:var(--radius-sm);">
             <div style="display:flex;align-items:center;gap:8px;">
               <span style="width:9px;height:9px;border-radius:50%;background:${escHtml(u.color||'#6C63FF')};display:inline-block;"></span>
@@ -916,7 +990,7 @@ async function _renderSalariale(el, container) {
             </div>
             <div style="text-align:right;">
               <div style="font-size:0.9rem;font-weight:800;color:var(--primary);">${eur(amt)}/mois</div>
-              <div style="font-size:0.65rem;color:${done ? 'var(--success)' : 'var(--warning)'};">${done ? '✅ Versé ce mois' : `⏳ ${eur(thisMonth)} versé ce mois`}</div>
+              <div style="font-size:0.65rem;color:${done ? 'var(--success)' : 'var(--warning)'};">${done ? '✅ Versé ce mois' : `⏳ ${eur(effectif)} versé ce mois`}</div>
             </div>
           </div>`;
         }).filter(Boolean).join('')}
