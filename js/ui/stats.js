@@ -257,10 +257,11 @@ async function loadAndRender(container, year, month, users, s) {
         return (i + 1) > curMonth ? null : r;
       });
 
-  const kpiSource   = singleMonth ? results.filter((r, i) => (i + 1) === month) : results;
-  const yearKPI     = calcYear(kpiSource.filter(Boolean));
+  const kpiMonths    = kpiSource.filter(Boolean);
+  const yearKPI     = calcYear(kpiMonths);
+  const nMonths     = kpiMonths.length || 1;
 
-  renderKPIAnnuel(container, yearKPI, singleMonth ? MOIS[month - 1] : null);
+  renderKPIAnnuel(container, yearKPI, singleMonth ? MOIS[month - 1] : null, nMonths);
   destroyCharts();
   renderChartRevDep(displayResults);
   renderChartRevPrimes(displayResults, users);
@@ -382,12 +383,13 @@ async function _renderDetailTab(container, year, month, users) {
   };
 }
 
-function renderKPIAnnuel(container, kpi, monthLabel = null) {
+function renderKPIAnnuel(container, kpi, monthLabel = null, nMonths = 12) {
   const el = container.querySelector('#kpi-annuel');
   if (!el || !kpi) {
     if (el) el.innerHTML = `<div style="grid-column:span 2;text-align:center;color:var(--text-3);padding:20px;">Aucune donnée${monthLabel ? ' pour ' + monthLabel : ' pour cette année'}</div>`;
     return;
   }
+  const n = nMonths || 1;
   el.innerHTML = `
     <div class="kpi-card primary">
       <div class="kpi-label">Revenus annuels</div>
@@ -395,19 +397,19 @@ function renderKPIAnnuel(container, kpi, monthLabel = null) {
       <div class="kpi-sub">dont aides: ${eur(kpi.aides?.total ?? 0)} · primes: ${eur(kpi.primes.total)}</div>
     </div>
     <div class="kpi-card danger">
-      <div class="kpi-label">Dépenses annuelles</div>
+      <div class="kpi-label">Dépenses totales</div>
       <div class="kpi-value neutral">${eur(kpi.depenses.total)}</div>
       <div class="kpi-sub">dont charges : ${eur(kpi.charges.total)} · imprévus : ${eur(kpi.imprevus.total)}</div>
     </div>
     <div class="kpi-card danger">
       <div class="kpi-label">Moy. mensuelle dépensés</div>
-      <div class="kpi-value neutral">${eur(kpi.depenses.total / 12)}</div>
-      <div class="kpi-sub">Total année : ${eur(kpi.depenses.total)}</div>
+      <div class="kpi-value neutral">${eur(kpi.depenses.total / n)}</div>
+      <div class="kpi-sub">sur ${n} mois · total : ${eur(kpi.depenses.total)}</div>
     </div>
     <div class="kpi-card warning">
       <div class="kpi-label">Moy. mensuelle épargnée</div>
-      <div class="kpi-value neutral">${eur((kpi.epargne?.total ?? 0) / 12)}</div>
-      <div class="kpi-sub">Revenu moy: ${eur((kpi.revenus.total + (kpi.aides?.total ?? 0) + kpi.primes.total) / 12)}</div>
+      <div class="kpi-value neutral">${eur((kpi.epargne?.total ?? 0) / n)}</div>
+      <div class="kpi-sub">sur ${n} mois · revenu moy: ${eur((kpi.revenus.total + (kpi.aides?.total ?? 0) + kpi.primes.total) / n)}</div>
     </div>
   `;
 }

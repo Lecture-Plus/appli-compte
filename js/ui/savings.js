@@ -417,12 +417,12 @@ async function _renderEconomies(el, container) {
     btn.addEventListener('click', async (e) => {
       e.stopPropagation();
       const id = Number(btn.dataset.id);
-      const item = btn.closest('.list-item');
-      if (item) item.style.display = 'none';
+      await deleteSavingsOperation(id);
+      _renderPage(container);
       showToastWithUndo('Opération supprimée',
-        async () => { await deleteSavingsOperation(id); _renderPage(container); },
+        () => {},
         6000, 'warning',
-        () => { if (item) item.style.display = ''; });
+        async () => { /* restore not supported for savings ops */ _renderPage(container); });
     });
   });
 }
@@ -992,24 +992,24 @@ async function _renderSalariale(el, container) {
   el.querySelectorAll('.sal-op-delete').forEach(btn => {
     btn.addEventListener('click', async () => {
       const id = Number(btn.dataset.id);
-      const item = btn.closest('.list-item');
-      if (item) item.style.display = 'none';
+      await deleteSalarySaving(id);
+      _renderPage(container);
       showToastWithUndo('Versement supprimé',
-        async () => { await deleteSalarySaving(id); _renderPage(container); },
+        () => {},
         6000, 'warning',
-        () => { if (item) item.style.display = ''; });
+        () => { _renderPage(container); });
     });
   });
 
   el.querySelectorAll('.abon-delete').forEach(btn => {
     btn.addEventListener('click', async () => {
       const id = Number(btn.dataset.id);
-      const item = btn.closest('.list-item');
-      if (item) item.style.display = 'none';
+      await deleteSalaryAbondement(id);
+      _renderPage(container);
       showToastWithUndo('Abondement supprimé',
-        async () => { await deleteSalaryAbondement(id); _renderPage(container); },
+        () => {},
         6000, 'warning',
-        () => { if (item) item.style.display = ''; });
+        () => { _renderPage(container); });
     });
   });
 }
