@@ -262,13 +262,11 @@ async function loadAndRender(container, year, month, users, s) {
   const yearKPI     = calcYear(kpiMonths);
   const nMonths     = kpiMonths.length || 1;
 
-  // Épargne réelle = revenus + primes + aides − dépenses réelles (solde après dépenses confirmées seulement)
-  const realEpargne = (yearKPI.revenus?.total ?? 0)
-    + (yearKPI.primes?.total  ?? 0)
-    + (yearKPI.aides?.total   ?? 0)
-    - (yearKPI.depensesReelles?.total ?? yearKPI.depenses?.total ?? 0);
+  // Épargne réelle = somme signée des savings_operations (versements + ajustements − retraits − craquages)
+  const yearSavingsOps   = allSavingsOps.filter(op => op.year === year && (!singleMonth || op.month === month));
+  const realSavingsTotal = yearSavingsOps.reduce((s, op) => s + (Number(op.amount) || 0), 0);
 
-  renderKPIAnnuel(container, yearKPI, singleMonth ? MOIS[month - 1] : null, nMonths, realEpargne);
+  renderKPIAnnuel(container, yearKPI, singleMonth ? MOIS[month - 1] : null, nMonths, realSavingsTotal);
   destroyCharts();
   renderChartRevDep(displayResults);
   renderChartRevPrimes(displayResults, users);
@@ -390,14 +388,14 @@ async function _renderDetailTab(container, year, month, users) {
   };
 }
 
-function renderKPIAnnuel(container, kpi, monthLabel = null, nMonths = 12, realEpargne = null) {
+function renderKPIAnnuel(container, kpi, monthLabel = null, nMonths = 12, realSavingsTotal = null) {
   const el = container.querySelector('#kpi-annuel');
   if (!el || !kpi) {
     if (el) el.innerHTML = `<div style="grid-column:span 2;text-align:center;color:var(--text-3);padding:20px;">Aucune donnée${monthLabel ? ' pour ' + monthLabel : ' pour cette année'}</div>`;
     return;
   }
   const n = nMonths || 1;
-  const epargneAffiche = realEpargne !== null ? realEpargne : (kpi.epargne?.total ?? 0);
+  const epargneAffiche = realSavingsTotal !== null ? realSavingsTotal : (kpi.epargne?.total ?? 0);
   el.innerHTML = `
     <div class="kpi-card primary">
       <div class="kpi-label">Revenus annuels</div>
@@ -417,7 +415,7 @@ function renderKPIAnnuel(container, kpi, monthLabel = null, nMonths = 12, realEp
     <div class="kpi-card warning">
       <div class="kpi-label">Moy. mensuelle épargnée</div>
       <div class="kpi-value neutral">${eur(epargneAffiche / n)}</div>
-      <div class="kpi-sub">sur ${n} mois · total : ${eur(epargneAffiche)}</div>
+      <div class="kpi-sub">sur ${n} mois · total épargné : ${eur(epargneAffiche)}</div>
     </div>
   `;
 }
