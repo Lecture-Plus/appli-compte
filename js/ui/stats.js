@@ -257,7 +257,7 @@ async function loadAndRender(container, year, month, users, s) {
         return (i + 1) > curMonth ? null : r;
       });
 
-  const kpiMonths    = kpiSource.filter(Boolean);
+  const kpiMonths    = (singleMonth ? results.filter((r, i) => (i + 1) === month) : results).filter(Boolean);
   const yearKPI     = calcYear(kpiMonths);
   const nMonths     = kpiMonths.length || 1;
 
