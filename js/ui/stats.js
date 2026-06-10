@@ -638,27 +638,42 @@ async function renderChartSavingsBalance(year, curYear, curMonth, users = []) {
   // Compare (year, month) pairs
   const cmp = (y1, m1, y2, m2) => y1 !== y2 ? y1 - y2 : m1 - m2;
 
-  // Calcule le solde total à la fin du mois (tY, tM) en utilisant "confirmed" comme ancre.
-  // Évite le double-comptage : si confirmed est dans l'année affichée, on ne ré-additionne
-  // pas les ops déjà inclus dans confirmed.amount.
+  // Détermine si une op est APRÈS la confirmation (donc non incluse dans confirmed.amount).
+  // Pour les ops du même mois que confirmed, on compare par jour ou timestamp.
+  const cBase       = confirmed ? (Number(confirmed.amount) || 0) : 0;
+  const cY          = confirmed?.year  ?? -1;
+  const cM          = confirmed?.month ?? -1;
+  const confirmedTs = confirmed?.confirmedAt ? new Date(confirmed.confirmedAt).getTime() : null;
+  const cDay        = Number(confirmed?.confirmedDay) || 1; // défaut : début du jour 1
+
+  const opAfterConfirmed = confirmed ? (o) => {
+    if (o.id === confirmed.id) return false;          // exclure l'op qui est la confirmation elle-même
+    const rel = cmp(o.year, o.month, cY, cM);
+    if (rel > 0) return true;                         // mois ultérieur → après confirmed
+    if (rel < 0) return false;                        // mois antérieur → avant confirmed
+    // Même mois : comparer par timestamp ou par jour
+    if (confirmedTs && o.createdAt) return new Date(o.createdAt).getTime() > confirmedTs;
+    return (o.day || 1) > cDay;
+  } : null;
+
+  // Calcule le solde cumulé à la fin du mois (tY, tM).
   const balanceAt = (tY, tM) => {
     if (!confirmed) {
+      // Pas d'ancre : somme cumulative de toutes les ops jusqu'à ce mois
       return ops
         .filter(o => cmp(o.year, o.month, tY, tM) <= 0)
         .reduce((s, o) => s + (Number(o.amount) || 0), 0);
     }
-    const cBase = Number(confirmed.amount) || 0;
-    const cY = confirmed.year;
-    const cM = confirmed.month;
     if (cmp(tY, tM, cY, cM) >= 0) {
-      // Cible après (ou égale) la confirmation → base + ops strictement après confirmation
+      // Mois ≥ confirmed : base confirmée + ops post-confirmation jusqu'au mois cible
       return cBase + ops
-        .filter(o => cmp(o.year, o.month, cY, cM) > 0 && cmp(o.year, o.month, tY, tM) <= 0)
+        .filter(o => opAfterConfirmed(o) && cmp(o.year, o.month, tY, tM) <= 0)
         .reduce((s, o) => s + (Number(o.amount) || 0), 0);
     }
-    // Cible avant la confirmation → base − ops entre cible+1 et confirmation (incluse)
+    // Mois < confirmed : base − ops pré-confirmation situées entre (tM, cM]
+    // (on "recule" en retirant les ops qui ont construit le solde après le mois cible)
     return cBase - ops
-      .filter(o => cmp(o.year, o.month, tY, tM) > 0 && cmp(o.year, o.month, cY, cM) <= 0)
+      .filter(o => !opAfterConfirmed(o) && cmp(o.year, o.month, tY, tM) > 0)
       .reduce((s, o) => s + (Number(o.amount) || 0), 0);
   };
 
