@@ -920,10 +920,10 @@ async function _renderSalariale(el, container) {
 
     <!-- Progression vers prochain abondement -->
     <div class="card" style="margin-bottom:12px;">
-      <div class="card-header">
-        <span class="card-title">🎯 Prochain abondement</span>
-        <span class="chip primary">${nextAbonDate}</span>
-        <button class="btn btn-sm btn-outline" id="sal-btn-params" style="margin-left:auto;padding:4px 8px;font-size:0.7rem;">⚙️ Paramètres</button>
+      <div class="card-header" style="flex-wrap:wrap;gap:4px;">
+        <span class="card-title" style="flex:1 1 auto;min-width:0;">🎯 Prochain abondement</span>
+        <span class="chip primary" style="flex-shrink:0;">${nextAbonDate}</span>
+        <button class="btn btn-sm btn-outline" id="sal-btn-params" style="flex-shrink:0;padding:4px 8px;font-size:0.7rem;">⚙️ Paramètres</button>
       </div>
       <div class="progress-wrap" style="margin-bottom:6px;">
         <div class="progress-labels">
@@ -1003,9 +1003,9 @@ async function _renderSalariale(el, container) {
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="15" height="15"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
         Ajouter un versement
       </button>
-      <div style="display:flex;gap:8px;">
-        <button class="btn btn-success" style="flex:1;" id="sal-btn-abon">🏦 Valider abondement</button>
-        <button class="btn btn-outline" style="flex:1;" id="sal-btn-abon-recu">✅ Abond. déjà perçu</button>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="btn btn-success" style="flex:1 1 140px;" id="sal-btn-abon">🏦 Valider abondement</button>
+        <button class="btn btn-outline" style="flex:1 1 140px;" id="sal-btn-abon-recu">✅ Abondement déjà perçu</button>
       </div>
       <button class="btn btn-secondary" id="sal-btn-transfer">💸 Transférer vers économies</button>
     </div>
