@@ -271,22 +271,52 @@ async function loadAndRender(container, year, month, users, s) {
   );
   const realSavingsTotal = yearSavingsOps.reduce((s, op) => s + (Number(op.amount) || 0), 0);
 
+  // ── Taux d'épargne réel par mois (savings_ops / revenus) ──
+  // Si aucune donnée savings, on garde le taux de reste-à-vivre (solde/revenus) comme fallback.
+  const mSavingsMap = {};
+  for (const op of allSavingsOps) {
+    if (op.year === year && op.type !== 'initial_balance') {
+      mSavingsMap[op.month] = (mSavingsMap[op.month] || 0) + (Number(op.amount) || 0);
+    }
+  }
+  const hasSavingsData = Object.keys(mSavingsMap).length > 0;
+
+  // Résultats augmentés : txEpargne.total patched avec la vraie valeur si dispo
+  const augResults = hasSavingsData
+    ? results.map((r, i) => {
+        if (!r) return null;
+        const m   = i + 1;
+        const rev = (r.revenus?.total ?? 0) + (r.primes?.total ?? 0) + (r.aides?.total ?? 0);
+        const realTx = rev > 0 ? (mSavingsMap[m] ?? 0) / rev : 0;
+        return { ...r, txEpargne: { ...r.txEpargne, total: realTx } };
+      })
+    : results;
+
+  // displayResults dérivé des augResults
+  const augDisplayResults = singleMonth
+    ? augResults.map((r, i) => (i + 1) === month ? r : null)
+    : augResults.map((r, i) => {
+        if (year < curYear) return r;
+        if (year > curYear) return null;
+        return (i + 1) > curMonth ? null : r;
+      });
+
   renderKPIAnnuel(container, yearKPI, singleMonth ? MOIS[month - 1] : null, nMonths, realSavingsTotal);
   destroyCharts();
   renderChartRevDep(displayResults);
   renderChartRevPrimes(displayResults, users);
-  await renderChartEpargne(displayResults, year, allSavingsOps);
+  await renderChartEpargne(augDisplayResults, year, allSavingsOps);
   await renderChartSavingsBalance(year, curYear, curMonth, users);
   const yearBudgetOps = singleMonth ? (bopsMap[month] ?? []) : Object.values(bopsMap).flat();
   renderChartRepartition(yearKPI, yearBudgetOps, s);
   renderChartChargesCat(chargesByMonth);
   renderChartTendances(results, chargesByMonth);
-  renderTableMensuel(container, displayResults);
+  renderTableMensuel(container, augDisplayResults);
   await renderN1Comparison(container, year, users, s, displayResults, allBudgetOpsYear);
   await renderProjectionEpargne(container, year, curYear, curMonth);
   await renderMonthCompare(container, year, month > 0 ? month : curMonth, users, s, allChargesRaw, allAchats, allRepartitions, monthMap, allBudgetOpsYear);
-  renderScoreBudgetaire(container, singleMonth ? results[month - 1] : results[curMonth - 1], s);
-  renderInsights(container, results, singleMonth ? month : curMonth, year, s);
+  renderScoreBudgetaire(container, singleMonth ? augResults[month - 1] : augResults[curMonth - 1], s);
+  renderInsights(container, augResults, singleMonth ? month : curMonth, year, s);
 }
 
 async function _renderDetailTab(container, year, month, users) {
