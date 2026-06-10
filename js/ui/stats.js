@@ -521,24 +521,30 @@ async function renderChartEpargne(displayResults, year, allOpsParam = null) {
   const canvas = document.getElementById('chart-epargne');
   if (!canvas) return;
 
-  // Versements réels depuis savings_operations — on exclut initial_balance (solde de départ)
+  // Versements réels depuis savings_operations
+  // Pour les barres mensuelles : on inclut TOUT (add, withdraw, adjustment, initial_balance…)
+  // Pour le taux d'épargne : on exclut initial_balance (solde de départ, pas une épargne de la période)
   const allOps = allOpsParam ?? await getAllSavingsOperations();
-  const yearOps = allOps.filter(op => op.year === year && op.type !== 'initial_balance');
+  const yearOps     = allOps.filter(op => op.year === year);
+  const yearOpsFlow = allOps.filter(op => op.year === year && op.type !== 'initial_balance');
 
-  // Épargne mensuelle réelle : somme des versements du mois
+  // Épargne mensuelle réelle : somme des ops du mois (incluant adjustments et initial_balance)
   const mensuelle = Array.from({ length: 12 }, (_, i) => {
     const m = i + 1;
     if (displayResults[i] === null) return null;
     const mOps = yearOps.filter(op => op.month === m);
+    if (!mOps.length) return null; // aucune op ce mois → ne pas afficher 0
     return mOps.reduce((s, op) => s + (Number(op.amount) || 0), 0);
   });
 
-  // Épargne cumulée (somme glissante des mois non-null)
+  // Épargne cumulée sur l'année (flow uniquement, hors initial_balance)
   let cum = 0;
   const cumulee = displayResults.map((r, i) => {
     if (r === null) return null;
-    cum += mensuelle[i] ?? 0;
-    return cum;
+    const m = i + 1;
+    const mFlow = yearOpsFlow.filter(op => op.month === m).reduce((s, op) => s + (Number(op.amount) || 0), 0);
+    cum += mFlow;
+    return yearOpsFlow.some(op => op.month <= m) ? cum : null;
   });
 
   // Taux d'épargne (0..1 → affiché en %)
