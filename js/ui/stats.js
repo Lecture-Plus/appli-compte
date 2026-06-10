@@ -271,9 +271,9 @@ async function loadAndRender(container, year, month, users, s) {
   renderChartChargesCat(chargesByMonth);
   renderChartTendances(results, chargesByMonth);
   renderTableMensuel(container, displayResults);
-  await renderN1Comparison(container, year, users, s, displayResults);
+  await renderN1Comparison(container, year, users, s, displayResults, allBudgetOpsYear);
   await renderProjectionEpargne(container, year, curYear, curMonth);
-  await renderMonthCompare(container, year, month > 0 ? month : curMonth, users, s, allChargesRaw, allAchats, allRepartitions, monthMap);
+  await renderMonthCompare(container, year, month > 0 ? month : curMonth, users, s, allChargesRaw, allAchats, allRepartitions, monthMap, allBudgetOpsYear);
   renderScoreBudgetaire(container, singleMonth ? results[month - 1] : results[curMonth - 1], s);
   renderInsights(container, results, singleMonth ? month : curMonth, year, s);
 }
@@ -1201,7 +1201,7 @@ async function renderProjectionEpargne(container, year, curYear, curMonth) {
 // ─────────────────────────────────────────────────
 // Comparaison mois similaires N vs N-1
 // ─────────────────────────────────────────────────
-async function renderMonthCompare(container, year, month, users, s, allChargesRaw, allAchats, allRepartitions, monthMap) {
+async function renderMonthCompare(container, year, month, users, s, allChargesRaw, allAchats, allRepartitions, monthMap, allBudgetOps = []) {
   const el = container.querySelector('#stats-month-compare');
   if (!el) return;
   const prevYear = year - 1;
@@ -1238,8 +1238,10 @@ async function renderMonthCompare(container, year, month, users, s, allChargesRa
     const prevAch = allAchats.filter(a => a.year === prevYear && a.month === month);
     const prevRp  = allRepartitions.find(r => r.year === prevYear && r.month === month) ?? { year: prevYear, month, mode: defaultMode, pcts: {} };
 
-    const cur  = monthMap[month]  ? calcMonth(monthMap[month],  chg,     ach,    rp,    users) : null;
-    const prev = prevMap[month]   ? calcMonth(prevMap[month],   prevChg, prevAch, prevRp, users) : null;
+    const curBops  = allBudgetOps.filter(op => op.year === year     && op.month === month);
+    const prevBops = allBudgetOps.filter(op => op.year === prevYear && op.month === month);
+    const cur  = monthMap[month]  ? calcMonth(monthMap[month],  chg,     ach,    rp,    users, curBops) : null;
+    const prev = prevMap[month]   ? calcMonth(prevMap[month],   prevChg, prevAch, prevRp, users, prevBops) : null;
 
     if (!cur && !prev) {
       el.innerHTML = `<p style="color:var(--text-3);font-size:0.82rem;padding:8px 0;">Aucune donnée pour ${mLabel} ni en ${year} ni en ${prevYear}.</p>`;
@@ -1376,7 +1378,7 @@ function destroyCharts() {
   _charts = [];
 }
 
-async function renderN1Comparison(container, year, users, s, currentResults) {
+async function renderN1Comparison(container, year, users, s, currentResults, allBudgetOps = []) {
   const el = container.querySelector('#n1-content');
   if (!el) return;
   const prevYear = year - 1;
@@ -1387,20 +1389,23 @@ async function renderN1Comparison(container, year, users, s, currentResults) {
       return;
     }
     const prevMap = Object.fromEntries(prevMonths.map(m => [m.month, m]));
-    // Use same charge data as current year (simplified N-1)
     const [allChargesRaw, allAchats, allRepartitions] = await Promise.all([
       getAllCharges(), getAllAchats(), getAllRepartitions(),
     ]);
     const defaultRepartMode = s.defaultRepartMode ?? 'separe';
-    function chargesForMonth(m) {
+    function chargesForMonthYear(m, y) {
       const out = [];
       for (const c of allChargesRaw) {
         if (!c.active) continue;
-        const ok = c.months === 'all' || (Array.isArray(c.months) && c.months.includes(m));
-        if (!ok) continue;
+        if (c.year != null && c.month != null) {
+          if (c.year !== y || c.month !== m) continue;
+        } else {
+          const ok = c.months === 'all' || (Array.isArray(c.months) && c.months.includes(m));
+          if (!ok) continue;
+        }
         if (c.lines?.length) {
           for (const l of c.lines) out.push({ ...c, amount: Number(l.amount)||0, qui: l.qui ?? 'shared' });
-        } else out.push(c);
+        } else out.push({ ...c, qui: c.qui ?? 'shared' });
       }
       return out;
     }
@@ -1408,14 +1413,16 @@ async function renderN1Comparison(container, year, users, s, currentResults) {
     for (const r of allRepartitions) { if (r.year === prevYear) repartMap[r.month] = r; }
     const achatMap = {};
     for (const a of allAchats) { if (a.year === prevYear) (achatMap[a.month] ??= []).push(a); }
+    const prevBopsMap = {};
+    for (const op of allBudgetOps) { if (op.year === prevYear) (prevBopsMap[op.month] ??= []).push(op); }
 
     const prevResults = [];
     for (let m = 1; m <= 12; m++) {
       const md  = prevMap[m] ?? null;
-      const chg = chargesForMonth(m);
+      const chg = chargesForMonthYear(m, prevYear);
       const ach = achatMap[m]  ?? [];
       const rp  = repartMap[m] ?? { year: prevYear, month: m, mode: defaultRepartMode, pcts: {} };
-      prevResults.push(md ? calcMonth(md, chg, ach, rp, users) : null);
+      prevResults.push(md ? calcMonth(md, chg, ach, rp, users, prevBopsMap[m] ?? []) : null);
     }
 
     const metrics = [
@@ -1537,21 +1544,35 @@ async function _renderEvolution(container, year, users) {
   if (!el) return;
   el.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
 
-  const [allCharges, allAchats, allRepts] = await Promise.all([
-    getAllCharges(), getAllAchats(), getAllRepartitions(),
+  const [allCharges, allAchats, allRepts, allBudgetOps] = await Promise.all([
+    getAllCharges(), getAllAchats(), getAllRepartitions(), getAllBudgetOps(),
   ]);
   const prevYear = year - 1;
 
   const getYearData = async (y) => {
     const months = await getMonthsByYear(y);
+    const bopsMap = {};
+    for (const op of allBudgetOps) { if (op.year === y) (bopsMap[op.month] ??= []).push(op); }
     const results = [];
     for (let m = 1; m <= 12; m++) {
       const md  = months.find(x => x.month === m);
-      const chg = allCharges.filter(c => c.active);
+      const chg = [];
+      for (const c of allCharges) {
+        if (!c.active) continue;
+        if (c.year != null && c.month != null) {
+          if (c.year !== y || c.month !== m) continue;
+        } else {
+          const ok = c.months === 'all' || (Array.isArray(c.months) && c.months.includes(m));
+          if (!ok) continue;
+        }
+        if (c.lines?.length) {
+          for (const l of c.lines) chg.push({ ...c, amount: Number(l.amount)||0, qui: l.qui ?? 'shared' });
+        } else chg.push({ ...c, qui: c.qui ?? 'shared' });
+      }
       const ach = allAchats.filter(a => a.year === y && a.month === m);
       const rep = allRepts.find(r => r.year === y && r.month === m);
       if (!md) { results.push(null); continue; }
-      results.push(calcMonth(md, chg, ach, rep, users));
+      results.push(calcMonth(md, chg, ach, rep, users, bopsMap[m] ?? []));
     }
     return results;
   };
