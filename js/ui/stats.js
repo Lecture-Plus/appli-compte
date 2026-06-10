@@ -281,16 +281,19 @@ async function loadAndRender(container, year, month, users, s) {
   }
   const hasSavingsData = Object.keys(mSavingsMap).length > 0;
 
-  // Résultats augmentés : txEpargne.total patched avec la vraie valeur si dispo
-  const augResults = hasSavingsData
-    ? results.map((r, i) => {
-        if (!r) return null;
-        const m   = i + 1;
-        const rev = (r.revenus?.total ?? 0) + (r.primes?.total ?? 0) + (r.aides?.total ?? 0);
-        const realTx = rev > 0 ? (mSavingsMap[m] ?? 0) / rev : 0;
-        return { ...r, txEpargne: { ...r.txEpargne, total: realTx } };
-      })
-    : results;
+  // Résultats augmentés : txEpargne.total patché mois par mois
+  // Si savings_ops existent pour ce mois → taux réel (versements/revenus)
+  // Sinon → fallback reste-à-vivre (solde/revenus) inchangé
+  const augResults = results.map((r, i) => {
+    if (!r) return null;
+    const m = i + 1;
+    if (mSavingsMap[m] !== undefined) {
+      const rev = (r.revenus?.total ?? 0) + (r.primes?.total ?? 0) + (r.aides?.total ?? 0);
+      const realTx = rev > 0 ? mSavingsMap[m] / rev : 0;
+      return { ...r, txEpargne: { ...r.txEpargne, total: realTx } };
+    }
+    return r; // pas de données épargne ce mois → garde le taux de reste-à-vivre
+  });
 
   // displayResults dérivé des augResults
   const augDisplayResults = singleMonth
