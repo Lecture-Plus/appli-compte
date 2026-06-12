@@ -259,9 +259,10 @@ async function _renderResume(container, s, users) {
   // ── Guide d'initialisation (persiste jusqu'aux 3 étapes complètes) ──
   const allSavConfirmed = await getAllSavingsConfirmed();
   const guideDone1 = users.some(u => (md?.users?.[String(u.id)]?.revenus || 0) > 0);
-  const guideDone2 = allBudgetOps.length > 0;
+  const guideDone2 = charges.length > 0;
+  const guideDoneOpt = customBudgets.length > 0;   // optionnel
   const guideDone3 = allSavConfirmed.length > 0;
-  const allGuideDone = guideDone1 && guideDone2 && guideDone3;
+  const allGuideDone = guideDone1 && guideDone2 && guideDone3; // optionnel exclu
   // localStorage seulement pour mémoriser le clic sur "Découvrir" (jamais auto)
   const guideDismissed = localStorage.getItem('compta-guide-dismissed') === '1';
   const showBravo = allGuideDone && !guideDismissed;
@@ -274,7 +275,7 @@ async function _renderResume(container, s, users) {
     <div class="guide-card">
       <div style="font-size:1.5rem;margin-bottom:8px;">👋</div>
       <div class="guide-card-title">Bienvenue sur Compta+ !</div>
-      <div class="guide-card-sub">Voici comment démarrer en 3 étapes simples :</div>
+      <div class="guide-card-sub">Voici comment démarrer en 4 étapes :</div>
       <div class="guide-steps-list">
         <button class="guide-step ${guideDone1 ? 'done' : ''}" id="gs-step1" type="button">
           <div class="guide-step-num ${guideDone1 ? 'done' : ''}">${guideDone1 ? '✓' : '1'}</div>
@@ -287,24 +288,33 @@ async function _renderResume(container, s, users) {
         <button class="guide-step ${guideDone2 ? 'done' : ''}" id="gs-step2" type="button">
           <div class="guide-step-num ${guideDone2 ? 'done' : ''}">${guideDone2 ? '✓' : '2'}</div>
           <div class="guide-step-body">
-            <div class="guide-step-title">📊 Suivre vos budgets</div>
-            <div class="guide-step-sub">${guideDone2 ? 'Premiers budgets enregistrés ✓' : 'Courses, loisirs et dépenses au quotidien'}</div>
+            <div class="guide-step-title">📋 Saisir les charges du mois</div>
+            <div class="guide-step-sub">${guideDone2 ? 'Charges enregistrées ✓' : 'Loyer, abonnements, assurances… toutes vos dépenses fixes'}</div>
           </div>
           ${!guideDone2 ? '<span class="guide-step-arrow">›</span>' : ''}
         </button>
+        <button class="guide-step ${guideDoneOpt ? 'done' : ''}" id="gs-step-opt" type="button">
+          <div class="guide-step-num ${guideDoneOpt ? 'done' : ''}">${guideDoneOpt ? '✓' : '3'}</div>
+          <div class="guide-step-body">
+            <div class="guide-step-title">📊 Configurer vos budgets <span style="font-size:0.72rem;font-weight:400;color:var(--text-3);">(optionnel)</span></div>
+            <div class="guide-step-sub">${guideDoneOpt ? 'Budgets configurés ✓' : 'Définissez vos enveloppes de dépenses : courses, loisirs, sorties…'}</div>
+          </div>
+          ${!guideDoneOpt ? '<span class="guide-step-arrow">›</span>' : ''}
+        </button>
         <button class="guide-step ${guideDone3 ? 'done' : ''}" id="gs-step3" type="button">
-          <div class="guide-step-num ${guideDone3 ? 'done' : ''}">${guideDone3 ? '✓' : '3'}</div>
+          <div class="guide-step-num ${guideDone3 ? 'done' : ''}">${guideDone3 ? '✓' : '4'}</div>
           <div class="guide-step-body">
             <div class="guide-step-title">🏦 Déclarer votre épargne</div>
-            <div class="guide-step-sub">${guideDone3 ? 'Épargne déclarée ✓' : 'Confirmez votre solde épargne actuel'}</div>
+            <div class="guide-step-sub">${guideDone3 ? 'Épargne déclarée ✓' : 'Confirmez votre solde épargne actuel pour commencer le suivi'}</div>
           </div>
           ${!guideDone3 ? '<span class="guide-step-arrow">›</span>' : ''}
         </button>
       </div>
     </div>`;
-    if (!guideDone1) el.querySelector('#gs-step1')?.addEventListener('click', () => navigateTo('argent', { tab: 'saisie' }));
-    if (!guideDone2) el.querySelector('#gs-step2')?.addEventListener('click', () => navigateTo('argent', { tab: 'budgets' }));
-    if (!guideDone3) el.querySelector('#gs-step3')?.addEventListener('click', () => navigateTo('savings'));
+    if (!guideDone1)   el.querySelector('#gs-step1')?.addEventListener('click', () => navigateTo('argent', { tab: 'saisie' }));
+    if (!guideDone2)   el.querySelector('#gs-step2')?.addEventListener('click', () => navigateTo('argent', { tab: 'saisie' }));
+    if (!guideDoneOpt) el.querySelector('#gs-step-opt')?.addEventListener('click', () => navigateTo('argent', { tab: 'budgets' }));
+    if (!guideDone3)   el.querySelector('#gs-step3')?.addEventListener('click', () => navigateTo('savings'));
     return;
   }
 
