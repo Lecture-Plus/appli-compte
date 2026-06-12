@@ -17,7 +17,7 @@ import { eur, pct, nomMois, addMonth, escHtml,
          getCategoryInfo }                             from '../utils.js';
 import { showChargeModal,
          showChargesTemplatesModal }                   from './charges.js';
-import { emit }                                        from '../events.js';
+import { emit, on }                                    from '../events.js';
 
 let _md       = null;
 let _repCfg   = null;
@@ -228,10 +228,6 @@ export async function render(container) {
       </div>
       <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
         <span id="save-indicator" class="save-indicator hidden">✓ Sauvegardé</span>
-        <button class="btn btn-outline btn-sm" id="btn-complete" style="display:flex;align-items:center;gap:5px;">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14"><path d="M20 6L9 17l-5-5"/></svg>
-          <span id="btn-complete-text">${_md.isComplete ? '✅ Complet' : 'Marquer complet'}</span>
-        </button>
       </div>
     </div>
     `}
@@ -401,32 +397,13 @@ export async function render(container) {
     showToast(`Données de ${nomMois(prevM.month)} ${prevM.year} copiées ✅`, 'success');
   });
 
-  // ── Marquer complet ──
-  container.querySelector('#btn-complete')?.addEventListener('click', async () => {
+  // ── Marquer complet (déclenché depuis argent.js via EventBus) ──
+  on('month:complete', async () => {
+    if (!document.contains(container)) return;
     syncFormToState(container);
-    if (_md.isComplete) {
-      _md.isComplete = false;
-      await saveMonthlyData(_md);
-      showToast('Mois marqué comme en cours', 'success');
-      const btn = container.querySelector('#btn-complete');
-      const txt = container.querySelector('#btn-complete-text');
-      if (btn) btn.style.color = '';
-      if (txt) txt.textContent = 'Marquer complet';
-    } else {
-      await _showEndOfMonthWizard(container, month, year);
-      if (_md.isComplete) {
-        const btn = container.querySelector('#btn-complete');
-        const txt = container.querySelector('#btn-complete-text');
-        if (btn) btn.style.color = 'var(--success)';
-        if (txt) txt.textContent = '✅ Complet';
-      }
-    }
+    await _showEndOfMonthWizard(container, month, year);
+    if (_md.isComplete) emit('month:complete:done');
   });
-
-  if (_md.isComplete) {
-    const btn = container.querySelector('#btn-complete');
-    if (btn) btn.style.color = 'var(--success)';
-  }
 
   // ── Charges du mois ──
   _renderSaisieChargesList(container);

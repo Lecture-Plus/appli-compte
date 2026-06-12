@@ -18,8 +18,13 @@ let _lastRevInput  = 0;
 let _revDoneTimer  = null;
 
 // ── Suivi des charges (pour la barre de progression) ──
-let _chgValidated  = false;  // true quand "Valider les charges" a été cliqué
-let _chgHasData    = false;  // true dès qu'une charge est ajoutée (active)
+let _chgValidated  = false;
+let _chgHasData    = false;
+
+// ── Persistance _chgValidated en localStorage par mois ──
+function _chgKey() { const { year, month } = State; return `compta-chg-ok-${year}-${month}`; }
+function _loadChgState() { _chgValidated = localStorage.getItem(_chgKey()) === '1'; }
+function _saveChgState() { localStorage.setItem(_chgKey(), '1'); }
 
 // ── Barre de progression partagée Saisie / Budgets ──
 async function _renderSharedProgress(container) {
@@ -140,23 +145,81 @@ export async function render(container, params = {}) {
   if (_arTab === 'depenses') _arTab = 'budgets';
 
   // Réinitialiser l'état charges au changement de mois
-  _chgValidated = false;
-  _chgHasData   = false;
+  _loadChgState();
+  _chgHasData   = _chgValidated; // si déjà validé, hasData aussi
   _prevChgState = '';
 
   const { year, month } = State;
   container.innerHTML = `
     <div id="argent-shared-progress"></div>
-    <div class="tabs" id="argent-tabs" style="margin-bottom:0;">
-      <button class="tab-btn ${_arTab === 'saisie'   ? 'active' : ''}" data-artab="saisie">📝 Saisie mensuelle</button>
-      <button class="tab-btn ${_arTab === 'budgets'  ? 'active' : ''}" data-artab="budgets">📊 Budgets</button>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;">
+      <div class="tabs" id="argent-tabs" style="margin-bottom:0;flex:1;">
+        <button class="tab-btn ${_arTab === 'saisie'   ? 'active' : ''}" data-artab="saisie">📝 Saisie mensuelle</button>
+        <button class="tab-btn ${_arTab === 'budgets'  ? 'active' : ''}" data-artab="budgets">📊 Budgets</button>
+      </div>
+      <button id="argent-btn-complete" class="btn btn-primary btn-sm" style="white-space:nowrap;flex-shrink:0;display:flex;align-items:center;gap:5px;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14"><path d="M20 6L9 17l-5-5"/></svg>
+        Valider le mois
+      </button>
     </div>
-    <div id="argent-body" style="margin-top:12px;"></div>
+    <div id="argent-body" style="margin-top:0;"></div>
   `;
 
   _renderSharedProgress(container);
 
-  const renderTab = () => {
+  // ── Bouton "Valider le mois" ──
+  const btnComplete = container.querySelector('#argent-btn-complete');
+  if (btnComplete) {
+    const refreshCompleteBtn = async () => {
+      const { year, month } = State;
+      const db = await import('../db.js');
+      const mdNow = await db.getMonthlyData(year, month);
+      const isDone = mdNow?.isComplete;
+      btnComplete.innerHTML = isDone
+        ? `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14"><path d="M20 6L9 17l-5-5"/></svg> ✅ Mois complet`
+        : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14"><path d="M20 6L9 17l-5-5"/></svg> Valider le mois`;
+      btnComplete.className = 'btn btn-sm';
+      btnComplete.style.cssText = isDone
+        ? 'white-space:nowrap;flex-shrink:0;display:flex;align-items:center;gap:5px;color:var(--success);background:var(--success-bg);border:none;'
+        : 'white-space:nowrap;flex-shrink:0;display:flex;align-items:center;gap:5px;background:var(--primary);color:#fff;border:none;';
+    };
+    refreshCompleteBtn();
+    btnComplete.addEventListener('click', async () => {
+      const { year, month } = State;
+      const db = await import('../db.js');
+      const mdNow = await db.getMonthlyData(year, month);
+      if (mdNow?.isComplete) {
+        mdNow.isComplete = false;
+        await db.saveMonthlyData(mdNow);
+        const { showToast } = await import('../utils.js');
+        showToast('Mois marqué comme en cours', 'success');
+        _chgValidated = false;
+        localStorage.removeItem(_chgKey());
+        _prevChgState = '';
+        _renderSharedProgress(container);
+        refreshCompleteBtn();
+        return;
+      }
+      // Valider toutes les étapes + déclencher wizard
+      _chgValidated = true;
+      _saveChgState();
+      _chgHasData = true;
+      _renderSharedProgress(container);
+      // Basculer sur saisie pour le wizard
+      if (_arTab !== 'saisie') {
+        const tabSaisie = container.querySelector('[data-artab="saisie"]');
+        if (tabSaisie) tabSaisie.click();
+        await new Promise(r => setTimeout(r, 250));
+      }
+      const { emit: emitEv } = await import('../events.js');
+      emitEv('month:complete');
+      const unsub = on('month:complete:done', () => {
+        unsub();
+        refreshCompleteBtn();
+        _renderSharedProgress(container);
+      });
+    });
+  }
     const body = container.querySelector('#argent-body');
     if (!body) return;
     if (_arTab === 'saisie')   saisieModule.render(body);
