@@ -100,35 +100,6 @@ export async function render(container) {
 
     ${_isEmptyMonth && _hasPrevData ? `<div id="prefill-banner" style="background:var(--primary-bg);border-left:3px solid var(--primary);border-radius:var(--radius);padding:10px 14px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;gap:8px;"><div><div style="font-weight:600;font-size:0.82rem;color:var(--primary);">Pré-remplir depuis ${nomMois(prevM.month)} ${prevM.year} ?</div><div style="font-size:0.72rem;color:var(--text-3);margin-top:2px;">Revenus et budgets copiés — modifiez si besoin.</div></div><button class="btn btn-primary btn-sm" id="btn-prefill" style="flex-shrink:0;">Copier</button></div>` : ''}
 
-    <!-- Barre de progression (4 étapes) -->
-    ${(() => {
-      const hasRev = _users.some(u => (_md.users?.[String(u.id)]?.revenus || 0) > 0);
-      const hasChg = _chargesCache.length > 0;
-      const isDone = _md.isComplete;
-      const revState  = hasRev ? 'done' : 'active';
-      const chgState  = hasChg ? 'done' : (hasRev  ? 'active' : '');
-      const budgState = '';
-      const doneState = isDone ? 'done' : '';
-      return `<div class="saisie-progress" id="saisie-progress-bar">
-        <button type="button" class="saisie-prog-step ${revState} saisie-prog-nav" data-prog-target="accord-revenus" style="background:none;border:none;cursor:pointer;">
-          <div class="saisie-prog-dot ${revState}">${hasRev ? '✓' : '1'}</div>
-          <div class="saisie-prog-label">Revenus</div>
-        </button>
-        <button type="button" class="saisie-prog-step ${chgState} saisie-prog-nav" data-prog-target="accord-charges" style="background:none;border:none;cursor:pointer;">
-          <div class="saisie-prog-dot ${chgState}">${hasChg ? '✓' : '2'}</div>
-          <div class="saisie-prog-label">Charges</div>
-        </button>
-        <button type="button" class="saisie-prog-step ${budgState} saisie-prog-nav" data-prog-target="budgets" style="background:none;border:none;cursor:pointer;">
-          <div class="saisie-prog-dot ${budgState}">3</div>
-          <div class="saisie-prog-label">Budgets</div>
-        </button>
-        <button type="button" class="saisie-prog-step ${doneState} saisie-prog-nav" data-prog-target="accord-recap" style="background:none;border:none;cursor:pointer;">
-          <div class="saisie-prog-dot ${doneState}">${isDone ? '✓' : '4'}</div>
-          <div class="saisie-prog-label">Valider</div>
-        </button>
-      </div>`;
-    })()}
-
     <!-- Accordion 1: Revenus (ouvert par défaut) -->
     <details class="settings-group" open id="accord-revenus">
       <summary class="settings-group-title">
@@ -266,56 +237,6 @@ export async function render(container) {
 
   _saveInd = container.querySelector('#save-indicator');
 
-  // ── Mise à jour de la barre de progression ──
-  function _updateProgressBar() {
-    const hasRevNow = _users.some(u => (_md.users?.[String(u.id)]?.revenus || 0) > 0);
-    const hasChgNow = !!container.querySelector('#saisie-charges-list .list-item');
-    const isDoneNow = _md.isComplete;
-    const steps = container.querySelectorAll('.saisie-prog-step');
-    const dots  = container.querySelectorAll('.saisie-prog-dot');
-    const labels = container.querySelectorAll('.saisie-prog-label');
-    const states = [
-      hasRevNow ? 'done' : 'active',
-      hasChgNow ? 'done' : (hasRevNow ? 'active' : ''),
-      '',
-      isDoneNow ? 'done' : '',
-    ];
-    const texts = [
-      hasRevNow ? '✓' : '1',
-      hasChgNow ? '✓' : '2',
-      '3',
-      isDoneNow ? '✓' : '4',
-    ];
-    steps.forEach((s, i) => { s.className = `saisie-prog-step ${states[i]} saisie-prog-nav`; s.style.cssText = 'background:none;border:none;cursor:pointer;'; });
-    dots.forEach((d, i)  => { d.className = `saisie-prog-dot ${states[i]}`; d.textContent = texts[i]; });
-    labels.forEach((l, i) => {
-      l.className = 'saisie-prog-label';
-    });
-  }
-
-  // ── Navigation par clic sur les étapes de la barre ──
-  container.querySelectorAll('.saisie-prog-nav').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const target = btn.dataset.progTarget;
-      if (target === 'budgets') {
-        // Naviguer vers l'onglet Budgets via le parent argent.js
-        const tabBudgets = document.querySelector('[data-artab="budgets"]');
-        if (tabBudgets) tabBudgets.click();
-        return;
-      }
-      // Fermer tous les accordéons puis ouvrir celui ciblé
-      ['accord-revenus', 'accord-charges', 'accord-recap'].forEach(id => {
-        const el = container.querySelector(`#${id}`);
-        if (el) el.removeAttribute('open');
-      });
-      const targetEl = container.querySelector(`#${target}`);
-      if (targetEl) {
-        targetEl.setAttribute('open', '');
-        targetEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }
-    });
-  });
-
   // Mise à jour immédiate de l'aperçu
   updatePreview(container);
   _updateModeOptions(container);
@@ -385,10 +306,8 @@ export async function render(container) {
     input.addEventListener('input', () => {
       syncFormToState(container);
       updatePreview(container);
-      _updateProgressBar();
       debouncedSave();
       if (_repCfg.mode === 'equitable') _updateModeOptions(container);
-      // Auto-avance si le champ modifié est un revenu
       if (input.id.startsWith('rev-')) _scheduleAutoAdvance();
     });
   });
@@ -505,7 +424,7 @@ export async function render(container) {
   // ── Charges du mois ──
   _renderSaisieChargesList(container);
   container.querySelector('#btn-add-charge')?.addEventListener('click', () => {
-    showChargeModal(null, () => { _renderSaisieChargesList(container); updatePreview(container); _updateProgressBar(); });
+    showChargeModal(null, () => { _renderSaisieChargesList(container); updatePreview(container); });
   });
   container.querySelector('#btn-import-charges')?.addEventListener('click', () => {
     _showImportChargesOptions(container);
@@ -548,7 +467,6 @@ function _renderSaisieChargesList(container) {
         _chargesCache = await getChargesForMonth(State.month, State.year);
         _renderSaisieChargesList(container);
         updatePreview(container);
-        _updateProgressBar();
       });
     });
   });
