@@ -303,7 +303,7 @@ async function _renderResume(container, s, users) {
             <span style="color:var(--text-3);"> · </span>
             <span style="color:var(--danger);">${eur(kpi.depenses.total)} dépensés</span>
           </div>
-          ${users.length > 1 ? `<div style="font-size:0.67rem;color:var(--text-3);margin-top:3px;">${users.map(u => `${escHtml(u.name)}: ${eur(kpi.solde.byUser?.[u.id] ?? 0)}`).join(' · ')}</div>` : ''}          ${(()=>{ const n = _buildNarrative(kpi, s, _daysLeft, _isCurrentMonth); return n ? `<div style="margin-top:7px;font-size:0.74rem;color:var(--text-2);line-height:1.5;">${n}</div>` : ''; })()}
+          ${users.length > 1 ? `<div style="font-size:0.72rem;color:var(--text-3);margin-top:3px;">${users.map(u => `${escHtml(u.name)}: ${eur(kpi.solde.byUser?.[u.id] ?? 0)}`).join(' · ')}</div>` : ''}          ${(()=>{ const n = _buildNarrative(kpi, s, _daysLeft, _isCurrentMonth); return n ? `<div style="margin-top:7px;font-size:0.74rem;color:var(--text-2);line-height:1.5;">${n}</div>` : ''; })()}
         </div>
         <div id="dash-score-area" style="display:flex;flex-direction:column;align-items:center;gap:2px;flex-shrink:0;cursor:pointer;" title="Score budgétaire (épargne, solde, courses, loisirs) — Cliquer pour le détail">
           <svg width="58" height="58" viewBox="0 0 56 56" style="overflow:visible;cursor:help;">
@@ -314,12 +314,12 @@ async function _renderResume(container, s, users) {
             <text x="28" y="33" text-anchor="middle" fill="${scoreHex}"
               style="font-family:Inter,sans-serif;font-size:13px;font-weight:900;">${score}</text>
           </svg>
-          <div style="font-size:0.55rem;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:0.06em;">Score</div>
+          <div style="font-size:0.68rem;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:0.06em;">Score</div>
         </div>
       </div>
       <div style="display:flex;align-items:center;justify-content:space-between;margin-top:10px;gap:8px;">
         <span class="completeness-badge ${badgeClass}">${badgeIcon} ${badgeText}</span>
-        ${kpi.primes.total > 0 ? `<span class="chip warning" style="font-size:0.62rem;">+${eur(kpi.primes.total)} primes</span>` : ''}
+        ${kpi.primes.total > 0 ? `<span class="chip warning" style="font-size:0.68rem;">+${eur(kpi.primes.total)} primes</span>` : ''}
       </div>
     </div>
 

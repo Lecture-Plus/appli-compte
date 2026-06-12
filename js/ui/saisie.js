@@ -100,32 +100,37 @@ export async function render(container) {
 
     ${_isEmptyMonth && _hasPrevData ? `<div id="prefill-banner" style="background:var(--primary-bg);border-left:3px solid var(--primary);border-radius:var(--radius);padding:10px 14px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;gap:8px;"><div><div style="font-weight:600;font-size:0.82rem;color:var(--primary);">Pré-remplir depuis ${nomMois(prevM.month)} ${prevM.year} ?</div><div style="font-size:0.72rem;color:var(--text-3);margin-top:2px;">Revenus et budgets copiés — modifiez si besoin.</div></div><button class="btn btn-primary btn-sm" id="btn-prefill" style="flex-shrink:0;">Copier</button></div>` : ''}
 
-    <!-- Barre de progression -->
+    <!-- Barre de progression (4 étapes) -->
     ${(() => {
       const hasRev = _users.some(u => (_md.users?.[String(u.id)]?.revenus || 0) > 0);
       const hasChg = _chargesCache.length > 0;
       const isDone = _md.isComplete;
-      const revState = hasRev ? 'done' : 'active';
-      const chgState = hasChg ? 'done' : (hasRev ? 'active' : '');
+      const revState  = hasRev ? 'done' : 'active';
+      const chgState  = hasChg ? 'done' : (hasRev  ? 'active' : '');
+      const budgState = '';
       const doneState = isDone ? 'done' : '';
-      return `<div class="saisie-progress">
-        <div class="saisie-prog-step ${revState}">
+      return `<div class="saisie-progress" id="saisie-progress-bar">
+        <button type="button" class="saisie-prog-step ${revState} saisie-prog-nav" data-prog-target="accord-revenus" style="background:none;border:none;cursor:pointer;">
           <div class="saisie-prog-dot ${revState}">${hasRev ? '✓' : '1'}</div>
           <div class="saisie-prog-label">Revenus</div>
-        </div>
-        <div class="saisie-prog-step ${chgState}">
+        </button>
+        <button type="button" class="saisie-prog-step ${chgState} saisie-prog-nav" data-prog-target="accord-charges" style="background:none;border:none;cursor:pointer;">
           <div class="saisie-prog-dot ${chgState}">${hasChg ? '✓' : '2'}</div>
           <div class="saisie-prog-label">Charges</div>
-        </div>
-        <div class="saisie-prog-step ${doneState}">
-          <div class="saisie-prog-dot ${doneState}">${isDone ? '✓' : '3'}</div>
-          <div class="saisie-prog-label">Validation</div>
-        </div>
+        </button>
+        <button type="button" class="saisie-prog-step ${budgState} saisie-prog-nav" data-prog-target="budgets" style="background:none;border:none;cursor:pointer;">
+          <div class="saisie-prog-dot ${budgState}">3</div>
+          <div class="saisie-prog-label">Budgets</div>
+        </button>
+        <button type="button" class="saisie-prog-step ${doneState} saisie-prog-nav" data-prog-target="accord-recap" style="background:none;border:none;cursor:pointer;">
+          <div class="saisie-prog-dot ${doneState}">${isDone ? '✓' : '4'}</div>
+          <div class="saisie-prog-label">Valider</div>
+        </button>
       </div>`;
     })()}
 
-    <!-- Accordion 1: Revenus -->
-    <details class="settings-group" open>
+    <!-- Accordion 1: Revenus (ouvert par défaut) -->
+    <details class="settings-group" open id="accord-revenus">
       <summary class="settings-group-title">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
         💰 Revenus ${nomMois(month)}
@@ -165,36 +170,41 @@ export async function render(container) {
           </div>
         </div>
         ${!modeHidden ? `
-        <div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border);">
-          <div style="font-size:0.78rem;font-weight:700;color:var(--text-2);margin-bottom:8px;">⚖️ Répartition des charges</div>
-          <div class="tabs" id="mode-tabs">
-            <button class="tab-btn ${_repCfg.mode === 'separe'       ? 'active' : ''}" data-mode="separe">Séparé</button>
-            <button class="tab-btn ${_repCfg.mode === 'fixe'         ? 'active' : ''}" data-mode="fixe">Fixe %</button>
-            <button class="tab-btn ${_repCfg.mode === 'equitable'    ? 'active' : ''}" data-mode="equitable">Équitable</button>
-            <button class="tab-btn ${_repCfg.mode === 'personnalise' ? 'active' : ''}" data-mode="personnalise">🎛 Perso</button>
+        <details class="settings-group" style="margin-top:12px;border:1px solid var(--border);border-radius:var(--radius-sm);" id="accord-repartition">
+          <summary class="settings-group-title" style="padding:10px 12px;font-size:0.82rem;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+            ⚖️ Répartition des charges
+          </summary>
+          <div class="settings-group-body" style="padding:10px 12px;">
+            <div class="tabs" id="mode-tabs">
+              <button class="tab-btn ${_repCfg.mode === 'separe'       ? 'active' : ''}" data-mode="separe">Séparé</button>
+              <button class="tab-btn ${_repCfg.mode === 'fixe'         ? 'active' : ''}" data-mode="fixe">Fixe %</button>
+              <button class="tab-btn ${_repCfg.mode === 'equitable'    ? 'active' : ''}" data-mode="equitable">Équitable</button>
+              <button class="tab-btn ${_repCfg.mode === 'personnalise' ? 'active' : ''}" data-mode="personnalise">🎛 Perso</button>
+            </div>
+            <div id="mode-options" class="form-grid-${Math.min(N, 4)}" style="margin-top:8px;${_repCfg.mode !== 'fixe' ? 'display:none;' : ''}">
+              ${_users.map(u => `
+                <div class="form-group">
+                  <label class="form-label" style="display:flex;align-items:center;gap:6px;">
+                    <span style="background:${escHtml(u.color||'#6C63FF')};width:12px;height:12px;border-radius:50%;display:inline-block;"></span>
+                    ${escHtml(u.name)} (%)
+                  </label>
+                  <div class="input-wrap">
+                    <input type="number" class="form-input input-euro pct-field" data-uid="${u.id}"
+                      min="0" max="100" step="1" value="${_repCfg.pcts?.[u.id] ?? Math.round(100/_users.length)}">
+                    <span class="input-suffix">%</span>
+                  </div>
+                </div>`).join('')}
+            </div>
+            <div id="equitable-info" style="margin-top:8px;${_repCfg.mode !== 'equitable' ? 'display:none;' : ''}"></div>
+            <div id="mode-desc" style="font-size:0.78rem;color:var(--text-3);margin-top:6px;">${getModeDesc(_repCfg.mode)}</div>
           </div>
-          <div id="mode-options" class="form-grid-${Math.min(N, 4)}" style="margin-top:8px;${_repCfg.mode !== 'fixe' ? 'display:none;' : ''}">
-            ${_users.map(u => `
-              <div class="form-group">
-                <label class="form-label" style="display:flex;align-items:center;gap:6px;">
-                  <span style="background:${escHtml(u.color||'#6C63FF')};width:12px;height:12px;border-radius:50%;display:inline-block;"></span>
-                  ${escHtml(u.name)} (%)
-                </label>
-                <div class="input-wrap">
-                  <input type="number" class="form-input input-euro pct-field" data-uid="${u.id}"
-                    min="0" max="100" step="1" value="${_repCfg.pcts?.[u.id] ?? Math.round(100/_users.length)}">
-                  <span class="input-suffix">%</span>
-                </div>
-              </div>`).join('')}
-          </div>
-          <div id="equitable-info" style="margin-top:8px;${_repCfg.mode !== 'equitable' ? 'display:none;' : ''}"></div>
-          <div id="mode-desc" style="font-size:0.78rem;color:var(--text-3);margin-top:6px;">${getModeDesc(_repCfg.mode)}</div>
-        </div>` : ''}
+        </details>` : ''}
       </div>
     </details>
 
-    <!-- Accordion 2: Charges du mois -->
-    <details class="settings-group" open>
+    <!-- Accordion 2: Charges du mois (fermé par défaut) -->
+    <details class="settings-group" id="accord-charges"${_chargesCache.length > 0 ? ' open' : ''}>
       <summary class="settings-group-title">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
         🏠 Charges du mois
@@ -217,11 +227,11 @@ export async function render(container) {
       </div>
     </details>
 
-    <!-- Accordion 3: Récapitulatif prévisionnel -->
-    <details class="settings-group">
+    <!-- Accordion 3: Récapitulatif prévisionnel (fermé par défaut) -->
+    <details class="settings-group" id="accord-recap">
       <summary class="settings-group-title">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
-        📋 Récapitulatif prévisionnel
+        📋 Récapitulatif &amp; validation
       </summary>
       <div class="settings-group-desc">Aperçu du solde théorique basé sur vos saisies. Utilisez <strong>Marquer complet</strong> en bas quand tout est renseigné.</div>
       <div class="settings-group-body">
@@ -255,6 +265,56 @@ export async function render(container) {
   if (N === 0) return;
 
   _saveInd = container.querySelector('#save-indicator');
+
+  // ── Mise à jour de la barre de progression ──
+  function _updateProgressBar() {
+    const hasRevNow = _users.some(u => (_md.users?.[String(u.id)]?.revenus || 0) > 0);
+    const hasChgNow = !!container.querySelector('#saisie-charges-list .list-item');
+    const isDoneNow = _md.isComplete;
+    const steps = container.querySelectorAll('.saisie-prog-step');
+    const dots  = container.querySelectorAll('.saisie-prog-dot');
+    const labels = container.querySelectorAll('.saisie-prog-label');
+    const states = [
+      hasRevNow ? 'done' : 'active',
+      hasChgNow ? 'done' : (hasRevNow ? 'active' : ''),
+      '',
+      isDoneNow ? 'done' : '',
+    ];
+    const texts = [
+      hasRevNow ? '✓' : '1',
+      hasChgNow ? '✓' : '2',
+      '3',
+      isDoneNow ? '✓' : '4',
+    ];
+    steps.forEach((s, i) => { s.className = `saisie-prog-step ${states[i]} saisie-prog-nav`; s.style.cssText = 'background:none;border:none;cursor:pointer;'; });
+    dots.forEach((d, i)  => { d.className = `saisie-prog-dot ${states[i]}`; d.textContent = texts[i]; });
+    labels.forEach((l, i) => {
+      l.className = 'saisie-prog-label';
+    });
+  }
+
+  // ── Navigation par clic sur les étapes de la barre ──
+  container.querySelectorAll('.saisie-prog-nav').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const target = btn.dataset.progTarget;
+      if (target === 'budgets') {
+        // Naviguer vers l'onglet Budgets via le parent argent.js
+        const tabBudgets = document.querySelector('[data-artab="budgets"]');
+        if (tabBudgets) tabBudgets.click();
+        return;
+      }
+      // Fermer tous les accordéons puis ouvrir celui ciblé
+      ['accord-revenus', 'accord-charges', 'accord-recap'].forEach(id => {
+        const el = container.querySelector(`#${id}`);
+        if (el) el.removeAttribute('open');
+      });
+      const targetEl = container.querySelector(`#${target}`);
+      if (targetEl) {
+        targetEl.setAttribute('open', '');
+        targetEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    });
+  });
 
   // Mise à jour immédiate de l'aperçu
   updatePreview(container);
@@ -304,12 +364,32 @@ export async function render(container) {
     ...Array.from(container.querySelectorAll('.pct-field')),
   ];
 
+  // ── Auto-avance : après 5s d'inactivité sur les revenus, ouvrir Charges ──
+  let _autoAdvanceTimer = null;
+  function _scheduleAutoAdvance() {
+    if (_autoAdvanceTimer) clearTimeout(_autoAdvanceTimer);
+    const hasRevNow = _users.some(u => (_md.users?.[String(u.id)]?.revenus || 0) > 0);
+    if (!hasRevNow) return;
+    const accordCharges = container.querySelector('#accord-charges');
+    if (!accordCharges || accordCharges.hasAttribute('open')) return;
+    _autoAdvanceTimer = setTimeout(() => {
+      const hasRevCheck = _users.some(u => (_md.users?.[String(u.id)]?.revenus || 0) > 0);
+      if (hasRevCheck && accordCharges && !accordCharges.hasAttribute('open')) {
+        accordCharges.setAttribute('open', '');
+        accordCharges.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }, 5000);
+  }
+
   fieldSelectors.forEach(input => {
     input.addEventListener('input', () => {
       syncFormToState(container);
       updatePreview(container);
+      _updateProgressBar();
       debouncedSave();
       if (_repCfg.mode === 'equitable') _updateModeOptions(container);
+      // Auto-avance si le champ modifié est un revenu
+      if (input.id.startsWith('rev-')) _scheduleAutoAdvance();
     });
   });
 
@@ -425,7 +505,7 @@ export async function render(container) {
   // ── Charges du mois ──
   _renderSaisieChargesList(container);
   container.querySelector('#btn-add-charge')?.addEventListener('click', () => {
-    showChargeModal(null, () => { _renderSaisieChargesList(container); updatePreview(container); });
+    showChargeModal(null, () => { _renderSaisieChargesList(container); updatePreview(container); _updateProgressBar(); });
   });
   container.querySelector('#btn-import-charges')?.addEventListener('click', () => {
     _showImportChargesOptions(container);
@@ -468,6 +548,7 @@ function _renderSaisieChargesList(container) {
         _chargesCache = await getChargesForMonth(State.month, State.year);
         _renderSaisieChargesList(container);
         updatePreview(container);
+        _updateProgressBar();
       });
     });
   });
