@@ -316,7 +316,7 @@ async function loadAndRender(container, year, month, users, s) {
   renderChartRevDep(displayResults);
   renderChartRevPrimes(displayResults, users);
   await renderChartEpargne(augDisplayResults, year, allSavingsOps, allSavingsConfirmed, curYear, curMonth);
-  await renderChartSavingsBalance(year, curYear, curMonth, users);
+  await renderChartSavingsBalance(year, curYear, curMonth, users, allSavingsConfirmed);
   const yearBudgetOps = singleMonth ? (bopsMap[month] ?? []) : Object.values(bopsMap).flat();
   renderChartRepartition(yearKPI, yearBudgetOps, s);
   renderChartChargesCat(chargesByMonth);
@@ -564,15 +564,17 @@ async function renderChartEpargne(displayResults, year, allOpsParam = null, allC
     return mOps.reduce((s, op) => s + (Number(op.amount) || 0), 0);
   });
 
-  // ── Courbe cumulée = solde réel total à la fin de chaque mois ──
-  // Inclut initial_balance : même logique que "Évolution du solde épargne".
+  // ── Courbe cumulée = solde CONFIRMÉ par mois (source de vérité) ──
+  // Les ops rétroactives (adjustment) ne sont PAS fiables pour reconstruire l'historique.
+  // savings_confirmed[year][month].amount = montant exact confirmé par l'utilisateur.
+  const confByMonth = {};
+  for (const c of allConf) {
+    if (c.year === year) confByMonth[c.month] = c.amount;
+  }
   const cumulee = Array.from({ length: 12 }, (_, i) => {
     const m = i + 1;
     if (isFuture(m)) return null;
-    const bal = allOps
-      .filter(o => o.year < year || (o.year === year && o.month <= m))
-      .reduce((s, o) => s + (Number(o.amount) || 0), 0);
-    return bal !== 0 ? bal : null;
+    return m in confByMonth ? (confByMonth[m] || null) : null;
   });
 
   // ── Taux d'épargne (0..1 → affiché en %) ──
@@ -677,21 +679,18 @@ async function renderChartEpargne(displayResults, year, allOpsParam = null, allC
   _charts.push(chart);
 }
 
-async function renderChartSavingsBalance(year, curYear, curMonth, users = []) {
+async function renderChartSavingsBalance(year, curYear, curMonth, users = [], allConfirmedParam = null) {
   const canvas = document.getElementById('chart-savings-balance');
   if (!canvas) return;
 
-  const ops = await getAllSavingsOperations();
-
-  // Compare (year, month) pairs
-  const cmp = (y1, m1, y2, m2) => y1 !== y2 ? y1 - y2 : m1 - m2;
-
-  // Solde cumulé à la fin du mois (tY, tM) = somme de toutes les ops jusqu'à ce mois.
-  // Règle : si aucune op n'existe pour ce mois ou avant → 0 (null sur le graphique).
-  // Même logique que le calcul par utilisateur (confirmé correct par l'utilisateur).
-  const balanceAt = (tY, tM) => ops
-    .filter(o => cmp(o.year, o.month, tY, tM) <= 0)
-    .reduce((s, o) => s + (Number(o.amount) || 0), 0);
+  // Source de vérité : savings_confirmed (immunisé aux biais des ops rétroactives)
+  // Un cumsum de savings_operations est faux dès qu'une confirmation rétroactive crée
+  // un adjustment dans le passé APRES qu'une initial_balance ait été posée dans le futur.
+  const allConf = allConfirmedParam ?? await getAllSavingsConfirmed();
+  const confMap = {};
+  for (const c of allConf) {
+    if (c.year === year) confMap[c.month] = c;
+  }
 
   const pointsByMonth = [];
   const userPoints = {};
@@ -703,13 +702,12 @@ async function renderChartSavingsBalance(year, curYear, curMonth, users = []) {
       users.forEach(u => userPoints[String(u.id)].push(null));
       continue;
     }
-    pointsByMonth.push(balanceAt(year, m) || null);
+    const conf = confMap[m];
+    pointsByMonth.push(conf ? (conf.amount || null) : null);
     users.forEach(u => {
-      // Par utilisateur : somme cumulative de toutes ses ops jusqu'au mois (pas de confirmed par user)
-      const uBal = ops
-        .filter(o => String(o.userId) === String(u.id) && cmp(o.year, o.month, year, m) <= 0)
-        .reduce((s, o) => s + (Number(o.amount) || 0), 0);
-      userPoints[String(u.id)].push(uBal || null);
+      const perUser = conf?.perUserAmounts ?? {};
+      const uBal = perUser[String(u.id)];
+      userPoints[String(u.id)].push(uBal != null ? (uBal || null) : null);
     });
   }
 
