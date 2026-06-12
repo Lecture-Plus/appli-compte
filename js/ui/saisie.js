@@ -454,12 +454,15 @@ function _renderSaisieChargesList(container) {
       const id = Number(item.dataset.cid);
       const charges = await getAllCharges();
       const charge = charges.find(c => c.id === id);
-      if (charge) showChargeModal(charge, async () => {
-        _chargesCache = await getChargesForMonth(State.month, State.year);
-        _renderSaisieChargesList(container);
-        updatePreview(container);
-        emit('charges:updated');
-      });
+      if (charge) {
+        emit('charges:invalidate');
+        showChargeModal(charge, async () => {
+          _chargesCache = await getChargesForMonth(State.month, State.year);
+          _renderSaisieChargesList(container);
+          updatePreview(container);
+          emit('charges:updated');
+        });
+      }
     });
   });
 }

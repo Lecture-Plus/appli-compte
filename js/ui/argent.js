@@ -39,10 +39,16 @@ async function _renderSharedProgress(container) {
   ]);
   const hasRevData  = users.some(u => (md?.users?.[String(u.id)]?.revenus || 0) > 0);
   const isRevRecent = _lastRevInput > 0 && (Date.now() - _lastRevInput) < 3000;
-  const revState  = hasRevData && !isRevRecent ? 'done'
-                  : hasRevData || isRevRecent  ? 'active' : '';
+  // Mois complet → revenus forcément done
+  const revState  = (md?.isComplete || (hasRevData && !isRevRecent)) ? 'done'
+                  : (hasRevData || isRevRecent) ? 'active' : '';
   const hasChg  = charges.length > 0;
-  if (hasChg) _chgHasData = true; // persistance si charges supprimées après validation
+  if (hasChg) _chgHasData = true;
+  // Si le mois est marqué complet, forcer les charges validées + persister
+  if (md?.isComplete && !_chgValidated) {
+    _chgValidated = true;
+    _saveChgState();
+  }
   const chgState = _chgValidated ? 'done'
                  : (_chgHasData || hasChg) ? 'active' : (revState === 'done' ? 'active' : '');
   const hasBudg = budgetOps.length > 0;
@@ -126,16 +132,24 @@ let _prevChgState   = '';
 function _subscribeChargesUpdated(container) {
   if (_chgUnsubscribe) _chgUnsubscribe();
   const unsub1 = on('charges:updated', () => {
-    if (!document.contains(container)) { unsub1(); unsub2(); _chgUnsubscribe = null; return; }
+    if (!document.contains(container)) { unsub1(); unsub2(); unsub3(); _chgUnsubscribe = null; return; }
     _chgHasData = true;
     _renderSharedProgress(container);
   });
   const unsub2 = on('charges:validated', () => {
-    if (!document.contains(container)) { unsub1(); unsub2(); _chgUnsubscribe = null; return; }
+    if (!document.contains(container)) { unsub1(); unsub2(); unsub3(); _chgUnsubscribe = null; return; }
     _chgValidated = true;
+    _saveChgState(); // persister immédiatement
     _renderSharedProgress(container);
   });
-  _chgUnsubscribe = () => { unsub1(); unsub2(); };
+  const unsub3 = on('charges:invalidate', () => {
+    if (!document.contains(container)) { unsub1(); unsub2(); unsub3(); _chgUnsubscribe = null; return; }
+    _chgValidated = false;
+    localStorage.removeItem(_chgKey());
+    _prevChgState = '';
+    _renderSharedProgress(container);
+  });
+  _chgUnsubscribe = () => { unsub1(); unsub2(); unsub3(); };
 }
 
 export async function render(container, params = {}) {
