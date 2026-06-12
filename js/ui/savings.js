@@ -488,35 +488,23 @@ async function showConfirmModal(users, onSave) {
   const N = users.length;
 
   // ── Calcul du solde à la fin du mois (tY, tM) ──
-  // Utilise calcSavingsBalance avec les ops filtrées jusqu'au mois cible.
-  // Cela garantit la cohérence avec l'affichage principal (ancre savings_confirmed incluse).
-  const balanceForMonth = (tY, tM) => {
-    const opsUpTo = allOps.filter(o => o.year < tY || (o.year === tY && o.month <= tM));
-    return calcSavingsBalance(latest, opsUpTo).balance;
-  };
+  // Somme cumulative de TOUTES les ops jusqu'à ce mois (incluant initial_balance) —
+  // identique à la logique du graphique "Évolution du solde".
+  // NB : on n'utilise PAS calcSavingsBalance ici car son ancre provoque du double-comptage
+  //      lors des confirmations rétroactives.
+  const balanceForMonth = (tY, tM) =>
+    allOps
+      .filter(o => o.year < tY || (o.year === tY && o.month <= tM))
+      .reduce((s, o) => s + (Number(o.amount) || 0), 0);
 
-  // Solde par user à la fin du mois (tY, tM) — applique la même logique d'ancre par user
-  const userBalancesForMonth = (tY, tM) => {
-    const opsUpTo    = allOps.filter(o => o.year < tY || (o.year === tY && o.month <= tM));
-    const cY         = latest?.year  ?? -1;
-    const cM         = latest?.month ?? -1;
-    const confirmedTs = latest?.confirmedAt ? new Date(latest.confirmedAt).getTime() : null;
-    return users.map(u => {
-      const uid      = String(u.id);
-      const uOpsUpTo = opsUpTo.filter(o => String(o.userId) === uid);
-      if (!latest) {
-        return { user: u, balance: uOpsUpTo.reduce((s, o) => s + (Number(o.amount) || 0), 0) };
-      }
-      const baseU      = Number(latest.perUserAmounts?.[uid]) || 0;
-      const uOpsSince  = uOpsUpTo.filter(op => {
-        if (op.year > cY || (op.year === cY && op.month > cM)) return true;
-        if (op.year < cY || (op.year === cY && op.month < cM)) return false;
-        if (confirmedTs && op.createdAt) return new Date(op.createdAt).getTime() > confirmedTs;
-        return (op.day || 1) > (latest.confirmedDay || 1);
-      });
-      return { user: u, balance: baseU + uOpsSince.reduce((s, o) => s + (Number(o.amount) || 0), 0) };
-    });
-  };
+  // Solde par user à la fin du mois — même logique, filtré par userId
+  const userBalancesForMonth = (tY, tM) => users.map(u => {
+    const uid = String(u.id);
+    const bal = allOps
+      .filter(o => String(o.userId) === uid && (o.year < tY || (o.year === tY && o.month <= tM)))
+      .reduce((s, o) => s + (Number(o.amount) || 0), 0);
+    return { user: u, balance: bal };
+  });
 
   const _monthOptions = MOIS.map((m, i) =>
     `<option value="${i + 1}" ${i + 1 === todayM ? 'selected' : ''}>${m}</option>`).join('');

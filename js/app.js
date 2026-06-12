@@ -45,6 +45,10 @@ let _currentCleanup = null;
 export async function navigateTo(page, params = {}) {
   if (!PAGES[page]) page = 'dashboard';
 
+  // Fermer toute modal ouverte (filet de sécurité si un await a échoué avant closeModal)
+  const _ov = document.getElementById('modal-overlay');
+  if (_ov && !_ov.classList.contains('hidden')) closeModal();
+
   if (_currentCleanup) { try { _currentCleanup(); } catch (e) {} }
 
   State.page = page;
