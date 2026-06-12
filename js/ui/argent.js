@@ -220,6 +220,8 @@ export async function render(container, params = {}) {
       });
     });
   }
+
+  const renderTab = () => {
     const body = container.querySelector('#argent-body');
     if (!body) return;
     if (_arTab === 'saisie')   saisieModule.render(body);
