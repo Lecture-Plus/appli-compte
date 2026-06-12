@@ -8,6 +8,7 @@ import { getActiveUsers, getMonthlyData, getChargesForMonth,
          getBudgetOpsForMonth }                               from '../db.js';
 import { State }                                              from '../app.js';
 import { nomMois }                                            from '../utils.js';
+import { on }                                                 from '../events.js';
 
 // tabs: saisie | budgets
 let _arTab = 'saisie';
@@ -16,9 +17,10 @@ let _arTab = 'saisie';
 let _lastRevInput  = 0;
 let _revDoneTimer  = null;
 
-// ── Auto-avance charges → Budgets ──
-let _prevHasChg       = false;
-let _chgAutoAdvTimer  = null;
+// ── Suivi des charges (pour la barre de progression) ──
+let _lastChgAdded  = 0;
+let _chgDoneTimer  = null;
+let _prevChgState  = '';   // 'done' | 'active' | ''
 
 // ── Barre de progression partagée Saisie / Budgets ──
 async function _renderSharedProgress(container) {
@@ -32,31 +34,32 @@ async function _renderSharedProgress(container) {
     getBudgetOpsForMonth(year, month),
   ]);
   const hasRevData  = users.some(u => (md?.users?.[String(u.id)]?.revenus || 0) > 0);
-  const isRevRecent = _lastRevInput > 0 && (Date.now() - _lastRevInput) < 5000;
-  // "done" = données enregistrées + 5s d'inactivité ; "active" = en cours de saisie ou données partielles
+  const isRevRecent = _lastRevInput > 0 && (Date.now() - _lastRevInput) < 3000;
   const revState  = hasRevData && !isRevRecent ? 'done'
                   : hasRevData || isRevRecent  ? 'active' : '';
   const hasChg  = charges.length > 0;
+  const isChgRecent = _lastChgAdded > 0 && (Date.now() - _lastChgAdded) < 3000;
+  const chgState = hasChg && !isChgRecent ? 'done'
+                 : hasChg || isChgRecent  ? 'active' : (revState === 'done' ? 'active' : '');
   const hasBudg = budgetOps.length > 0;
   const isDone  = md?.isComplete;
 
-  // ── Auto-avance : quand charges passent de 0 à ≥1, basculer vers Budgets après 5s ──
-  if (hasChg && !_prevHasChg && _arTab === 'saisie') {
-    if (_chgAutoAdvTimer) clearTimeout(_chgAutoAdvTimer);
-    _chgAutoAdvTimer = setTimeout(() => {
+  // ── Auto-avance : quand chgState passe à 'done', basculer vers Budgets ──
+  if (chgState === 'done' && _prevChgState !== 'done' && _arTab === 'saisie') {
+    setTimeout(() => {
       if (!document.contains(container)) return;
       const tabBudgets = container.querySelector('[data-artab="budgets"]');
       if (tabBudgets && _arTab !== 'budgets') tabBudgets.click();
-    }, 5000);
+    }, 200);
   }
-  _prevHasChg = hasChg;
+  _prevChgState = chgState;
   const states = [
     revState,
-    hasChg  ? 'done' : (revState === 'done' ? 'active' : ''),
-    hasBudg ? 'done' : (_arTab === 'budgets' ? 'active' : (hasChg ? 'active' : '')),
+    chgState,
+    hasBudg ? 'done' : (_arTab === 'budgets' ? 'active' : (chgState === 'done' ? 'active' : '')),
     isDone  ? 'done' : '',
   ];
-  const texts = [states[0] === 'done' ? '✓' : '1', hasChg ? '✓' : '2', hasBudg ? '✓' : '3', isDone ? '✓' : '4'];
+  const texts = [states[0] === 'done' ? '✓' : '1', chgState === 'done' ? '✓' : '2', hasBudg ? '✓' : '3', isDone ? '✓' : '4'];
   const labels = ['Revenus', 'Charges', 'Budgets', 'Valider'];
   bar.innerHTML = `<div class="saisie-progress" id="saisie-progress-bar">
     ${states.map((s, i) => `
@@ -100,16 +103,40 @@ function _watchSaisieInputs(container) {
   const body = container.querySelector('#argent-body');
   if (!body) return;
   body.querySelectorAll('input[id^="rev-"]').forEach(input => {
-    if (input.dataset.progressWatched) return; // éviter les doublons
+    if (input.dataset.progressWatched) return;
     input.dataset.progressWatched = '1';
     input.addEventListener('input', () => {
       _lastRevInput = Date.now();
-      _renderSharedProgress(container); // passage immédiat en 'active'
+      _renderSharedProgress(container);
       if (_revDoneTimer) clearTimeout(_revDoneTimer);
       _revDoneTimer = setTimeout(() => {
-        _renderSharedProgress(container); // passage en 'done' après 5s
-      }, 5000);
+        _renderSharedProgress(container);
+      }, 3000);
     });
+  });
+}
+
+// ── Gestion de l'événement charges:updated ──
+let _chgUnsubscribe = null;
+function _subscribeChargesUpdated(container) {
+  if (_chgUnsubscribe) _chgUnsubscribe(); // désabonner précédent
+  _chgUnsubscribe = on('charges:updated', () => {
+    if (!document.contains(container)) { if (_chgUnsubscribe) { _chgUnsubscribe(); _chgUnsubscribe = null; } return; }
+    _lastChgAdded = Date.now();
+    _renderSharedProgress(container); // affiche 'active' immédiatement
+    if (_chgDoneTimer) clearTimeout(_chgDoneTimer);
+    // Planifier le passage à 'done' en vérifiant que aucun modal n'est ouvert
+    const tryDone = () => {
+      const modalOpen = !document.getElementById('modal-overlay')?.classList.contains('hidden');
+      if (modalOpen) {
+        _chgDoneTimer = setTimeout(tryDone, 500); // réessayer dans 500ms
+      } else {
+        _chgDoneTimer = setTimeout(() => {
+          _renderSharedProgress(container);
+        }, 3000);
+      }
+    };
+    tryDone();
   });
 }
 
@@ -139,7 +166,10 @@ export async function render(container, params = {}) {
     // Rafraîchir la barre + attacher les watchers après rendu de l'onglet
     setTimeout(() => {
       _renderSharedProgress(container);
-      if (_arTab === 'saisie') _watchSaisieInputs(container);
+      if (_arTab === 'saisie') {
+        _watchSaisieInputs(container);
+        _subscribeChargesUpdated(container);
+      }
     }, 200);
   };
 

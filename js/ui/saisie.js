@@ -17,6 +17,7 @@ import { eur, pct, nomMois, addMonth, escHtml,
          getCategoryInfo }                             from '../utils.js';
 import { showChargeModal,
          showChargesTemplatesModal }                   from './charges.js';
+import { emit }                                        from '../events.js';
 
 let _md       = null;
 let _repCfg   = null;
@@ -302,7 +303,7 @@ export async function render(container) {
         accordCharges.setAttribute('open', '');
         accordCharges.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }
-    }, 5000);
+    }, 3000);
   }
 
   fieldSelectors.forEach(input => {
@@ -427,7 +428,11 @@ export async function render(container) {
   // ── Charges du mois ──
   _renderSaisieChargesList(container);
   container.querySelector('#btn-add-charge')?.addEventListener('click', () => {
-    showChargeModal(null, () => { _renderSaisieChargesList(container); updatePreview(container); });
+    showChargeModal(null, () => {
+      _renderSaisieChargesList(container);
+      updatePreview(container);
+      emit('charges:updated');
+    });
   });
   container.querySelector('#btn-import-charges')?.addEventListener('click', () => {
     _showImportChargesOptions(container);
@@ -470,6 +475,7 @@ function _renderSaisieChargesList(container) {
         _chargesCache = await getChargesForMonth(State.month, State.year);
         _renderSaisieChargesList(container);
         updatePreview(container);
+        emit('charges:updated');
       });
     });
   });
@@ -498,6 +504,7 @@ function _showImportChargesOptions(container) {
       _chargesCache = await getChargesForMonth(month, year);
       _renderSaisieChargesList(container);
       updatePreview(container);
+      emit('charges:updated');
     });
   });
   document.getElementById('imp-prev-month')?.addEventListener('click', async () => {
@@ -523,6 +530,7 @@ function _showImportChargesOptions(container) {
     _renderSaisieChargesList(container);
     updatePreview(container);
     closeModal();
+    emit('charges:updated');
     showToast(`${prevCharges.length} charge(s) importée(s) ✅`, 'success');
   });
 }
