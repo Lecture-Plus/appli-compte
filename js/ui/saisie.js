@@ -296,6 +296,9 @@ export async function render(container) {
     _autoAdvanceTimer = setTimeout(() => {
       const hasRevCheck = _users.some(u => (_md.users?.[String(u.id)]?.revenus || 0) > 0);
       if (hasRevCheck && accordCharges && !accordCharges.hasAttribute('open')) {
+        // Fermer l'accordéon revenus avant d'ouvrir charges
+        const accordRev = container.querySelector('#accord-revenus');
+        if (accordRev) accordRev.removeAttribute('open');
         accordCharges.setAttribute('open', '');
         accordCharges.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }

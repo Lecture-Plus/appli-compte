@@ -8,7 +8,7 @@ import { getMonthlyData, getChargesForMonth,
          getAllSettings, getMonthsByYear,
          computeCurrentSavingsBalance,
          getAllSavingsOperations, saveSavingsOperation,
-         deleteSavingsOperation,
+         deleteSavingsOperation, getAllSavingsConfirmed,
          getAllCharges, getAllBudgetOps,
          getBudgetOpsForMonth, saveBudgetOp,
          getActiveUsers, setSetting }                                  from '../db.js';
@@ -257,18 +257,19 @@ async function _renderResume(container, s, users) {
     });
 
   // ── Guide d'initialisation (persiste jusqu'aux 3 étapes complètes) ──
+  const allSavConfirmed = await getAllSavingsConfirmed();
   const guideDone1 = users.some(u => (md?.users?.[String(u.id)]?.revenus || 0) > 0);
   const guideDone2 = allBudgetOps.length > 0;
-  const guideDone3 = allSavOps.length > 0;
+  const guideDone3 = allSavConfirmed.length > 0;
   const allGuideDone = guideDone1 && guideDone2 && guideDone3;
-  const guideEverDone = localStorage.getItem('compta-guide-done') === '1';
-  if (allGuideDone && !guideEverDone) localStorage.setItem('compta-guide-done', '1');
-  const showBravo = allGuideDone && !guideEverDone;
+  // localStorage seulement pour mémoriser le clic sur "Découvrir" (jamais auto)
+  const guideDismissed = localStorage.getItem('compta-guide-dismissed') === '1';
+  const showBravo = allGuideDone && !guideDismissed;
 
   const el = container.querySelector('#dash-content');
 
   // ── Guide en cours : seule la guide card visible jusqu'aux 3 étapes ──
-  if (!guideEverDone && !allGuideDone) {
+  if (!guideDismissed && !allGuideDone) {
     el.innerHTML = `
     <div class="guide-card">
       <div style="font-size:1.5rem;margin-bottom:8px;">👋</div>
@@ -525,7 +526,7 @@ async function _renderResume(container, s, users) {
 
   // ── Bravo card : dismiss → mémoriser + rafraîchir ──
   el.querySelector('#btn-bravo-dismiss')?.addEventListener('click', async () => {
-    localStorage.setItem('compta-guide-done', '1');
+    localStorage.setItem('compta-guide-dismissed', '1');
     await _renderResume(container, s, users);
   });
 
