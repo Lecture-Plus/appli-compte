@@ -256,49 +256,71 @@ async function _renderResume(container, s, users) {
       return !ud || (!(ud.revenus) && !(ud.primes) && !(ud.aides));
     });
 
+  // ── Guide d'initialisation (persiste jusqu'aux 3 étapes complètes) ──
+  const guideDone1 = users.some(u => (md?.users?.[String(u.id)]?.revenus || 0) > 0);
+  const guideDone2 = allBudgetOps.length > 0;
+  const guideDone3 = allSavOps.length > 0;
+  const allGuideDone = guideDone1 && guideDone2 && guideDone3;
+  const guideEverDone = localStorage.getItem('compta-guide-done') === '1';
+  if (allGuideDone && !guideEverDone) localStorage.setItem('compta-guide-done', '1');
+  const showBravo = allGuideDone && !guideEverDone;
+
   const el = container.querySelector('#dash-content');
 
-  // ── Premier lancement : guide uniquement, tout le reste masqué ──
-  if (isFirstUse) {
+  // ── Guide en cours : seule la guide card visible jusqu'aux 3 étapes ──
+  if (!guideEverDone && !allGuideDone) {
     el.innerHTML = `
     <div class="guide-card">
       <div style="font-size:1.5rem;margin-bottom:8px;">👋</div>
       <div class="guide-card-title">Bienvenue sur Compta+ !</div>
       <div class="guide-card-sub">Voici comment démarrer en 3 étapes simples :</div>
       <div class="guide-steps-list">
-        <button class="guide-step" id="gs-step1" type="button">
-          <div class="guide-step-num">1</div>
+        <button class="guide-step ${guideDone1 ? 'done' : ''}" id="gs-step1" type="button">
+          <div class="guide-step-num ${guideDone1 ? 'done' : ''}">${guideDone1 ? '✓' : '1'}</div>
           <div class="guide-step-body">
             <div class="guide-step-title">💰 Saisir les revenus</div>
-            <div class="guide-step-sub">Renseignez vos revenus et charges de ce mois</div>
+            <div class="guide-step-sub">${guideDone1 ? 'Revenus renseignés ✓' : 'Renseignez vos revenus et charges de ce mois'}</div>
           </div>
-          <span class="guide-step-arrow">›</span>
+          ${!guideDone1 ? '<span class="guide-step-arrow">›</span>' : ''}
         </button>
-        <button class="guide-step" id="gs-step2" type="button">
-          <div class="guide-step-num">2</div>
+        <button class="guide-step ${guideDone2 ? 'done' : ''}" id="gs-step2" type="button">
+          <div class="guide-step-num ${guideDone2 ? 'done' : ''}">${guideDone2 ? '✓' : '2'}</div>
           <div class="guide-step-body">
             <div class="guide-step-title">📊 Suivre vos budgets</div>
-            <div class="guide-step-sub">Courses, loisirs et dépenses au quotidien</div>
+            <div class="guide-step-sub">${guideDone2 ? 'Premiers budgets enregistrés ✓' : 'Courses, loisirs et dépenses au quotidien'}</div>
           </div>
-          <span class="guide-step-arrow">›</span>
+          ${!guideDone2 ? '<span class="guide-step-arrow">›</span>' : ''}
         </button>
-        <button class="guide-step" id="gs-step3" type="button">
-          <div class="guide-step-num">3</div>
+        <button class="guide-step ${guideDone3 ? 'done' : ''}" id="gs-step3" type="button">
+          <div class="guide-step-num ${guideDone3 ? 'done' : ''}">${guideDone3 ? '✓' : '3'}</div>
           <div class="guide-step-body">
             <div class="guide-step-title">🏦 Déclarer votre épargne</div>
-            <div class="guide-step-sub">Confirmez votre solde épargne actuel</div>
+            <div class="guide-step-sub">${guideDone3 ? 'Épargne déclarée ✓' : 'Confirmez votre solde épargne actuel'}</div>
           </div>
-          <span class="guide-step-arrow">›</span>
+          ${!guideDone3 ? '<span class="guide-step-arrow">›</span>' : ''}
         </button>
       </div>
     </div>`;
-    el.querySelector('#gs-step1')?.addEventListener('click', () => navigateTo('argent', { tab: 'saisie' }));
-    el.querySelector('#gs-step2')?.addEventListener('click', () => navigateTo('argent', { tab: 'budgets' }));
-    el.querySelector('#gs-step3')?.addEventListener('click', () => navigateTo('savings'));
+    if (!guideDone1) el.querySelector('#gs-step1')?.addEventListener('click', () => navigateTo('argent', { tab: 'saisie' }));
+    if (!guideDone2) el.querySelector('#gs-step2')?.addEventListener('click', () => navigateTo('argent', { tab: 'budgets' }));
+    if (!guideDone3) el.querySelector('#gs-step3')?.addEventListener('click', () => navigateTo('savings'));
     return;
   }
 
   el.innerHTML = `
+    ${showBravo ? `
+    <div class="guide-card" style="border-left:3px solid var(--success);margin-bottom:16px;">
+      <div style="font-size:2rem;margin-bottom:8px;">🎉</div>
+      <div class="guide-card-title" style="color:var(--success);">Configuration complète !</div>
+      <div class="guide-card-sub" style="line-height:1.65;margin-top:6px;">
+        Bravo — vos revenus, vos budgets et votre épargne sont bien renseignés.<br><br>
+        Compta+ peut maintenant vous offrir un suivi fiable et personnalisé de vos finances.
+        Pour en tirer le meilleur parti, revenez chaque mois mettre à jour votre saisie mensuelle :
+        vous bénéficierez d'un historique précis, de projections budgétaires et de conseils
+        adaptés à votre situation réelle.
+      </div>
+      <button class="btn btn-sm btn-primary" id="btn-bravo-dismiss" style="margin-top:14px;font-size:0.82rem;padding:9px 20px;">Découvrir mon tableau de bord →</button>
+    </div>` : ''}
     <!-- ── HERO compact + score ring ── -->
     <div class="hero-card" style="margin-bottom:12px;">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;">
@@ -501,10 +523,11 @@ async function _renderResume(container, s, users) {
     );
   });
 
-  // ── Guide premier lancement : navigation vers les étapes ──
-  el.querySelector('#gs-step1')?.addEventListener('click', () => navigateTo('argent', { tab: 'saisie' }));
-  el.querySelector('#gs-step2')?.addEventListener('click', () => navigateTo('argent', { tab: 'budgets' }));
-  el.querySelector('#gs-step3')?.addEventListener('click', () => navigateTo('savings'));
+  // ── Bravo card : dismiss → mémoriser + rafraîchir ──
+  el.querySelector('#btn-bravo-dismiss')?.addEventListener('click', async () => {
+    localStorage.setItem('compta-guide-done', '1');
+    await _renderResume(container, s, users);
+  });
 
   el.querySelector('#btn-go-saisie')?.addEventListener('click', () => navigateTo('argent', { tab: 'saisir' }));
   el.querySelector('#btn-add-achat')?.addEventListener('click', () => {

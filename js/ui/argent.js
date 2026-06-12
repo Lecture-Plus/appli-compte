@@ -13,8 +13,12 @@ import { nomMois }                                            from '../utils.js'
 let _arTab = 'saisie';
 
 // ── Suivi de l'activité revenus (pour la barre de progression) ──
-let _lastRevInput  = 0;   // timestamp du dernier input sur un champ revenu
-let _revDoneTimer  = null; // timer 5s avant de passer en 'done'
+let _lastRevInput  = 0;
+let _revDoneTimer  = null;
+
+// ── Auto-avance charges → Budgets ──
+let _prevHasChg       = false;
+let _chgAutoAdvTimer  = null;
 
 // ── Barre de progression partagée Saisie / Budgets ──
 async function _renderSharedProgress(container) {
@@ -35,6 +39,17 @@ async function _renderSharedProgress(container) {
   const hasChg  = charges.length > 0;
   const hasBudg = budgetOps.length > 0;
   const isDone  = md?.isComplete;
+
+  // ── Auto-avance : quand charges passent de 0 à ≥1, basculer vers Budgets après 5s ──
+  if (hasChg && !_prevHasChg && _arTab === 'saisie') {
+    if (_chgAutoAdvTimer) clearTimeout(_chgAutoAdvTimer);
+    _chgAutoAdvTimer = setTimeout(() => {
+      if (!document.contains(container)) return;
+      const tabBudgets = container.querySelector('[data-artab="budgets"]');
+      if (tabBudgets && _arTab !== 'budgets') tabBudgets.click();
+    }, 5000);
+  }
+  _prevHasChg = hasChg;
   const states = [
     revState,
     hasChg  ? 'done' : (revState === 'done' ? 'active' : ''),

@@ -875,6 +875,8 @@ svg { display: block; }
 }
 .guide-step:hover  { border-color: rgba(124,92,252,0.3); box-shadow: var(--shadow-sm); transform: translateY(-1px); }
 .guide-step:active { transform: scale(0.98); }
+.guide-step.done   { border-color: var(--success); background: var(--success-bg); opacity: 0.85; cursor: default; pointer-events: none; }
+.guide-step.done .guide-step-title { color: var(--success); }
 .guide-step-num {
   width: 30px; height: 30px; border-radius: 50%;
   background: var(--primary-bg); color: var(--primary);
@@ -955,13 +957,13 @@ svg { display: block; }
   transition: all var(--transition);
 }
 .saisie-prog-dot.done   { background: var(--success-bg); border-color: var(--success); color: var(--success); }
-.saisie-prog-dot.active { background: var(--primary-bg); border-color: var(--primary); color: var(--primary); box-shadow: 0 0 0 3px rgba(124,92,252,0.12); }
+.saisie-prog-dot.active { background: var(--warning-bg); border-color: var(--warning); color: var(--warning); box-shadow: 0 0 0 3px rgba(255,176,32,0.15); }
 .saisie-prog-label {
   font-size: 0.62rem; font-weight: 600; color: var(--text-3);
   text-align: center; white-space: nowrap;
 }
 .saisie-prog-step.done   .saisie-prog-label { color: var(--success); }
-.saisie-prog-step.active .saisie-prog-label { color: var(--primary); font-weight: 700; }
+.saisie-prog-step.active .saisie-prog-label { color: var(--warning); font-weight: 700; }
 
 /* ─── Nav subtitle (desktop sidebar) ─── */
 .nav-subtitle {
