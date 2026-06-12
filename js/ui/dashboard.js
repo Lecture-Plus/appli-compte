@@ -260,7 +260,7 @@ async function _renderResume(container, s, users) {
   const allSavConfirmed = await getAllSavingsConfirmed();
   const guideDone1 = users.some(u => (md?.users?.[String(u.id)]?.revenus || 0) > 0);
   const guideDone2 = charges.length > 0;
-  const guideDoneOpt = customBudgets.length > 0;   // optionnel
+  const guideDoneOpt = allBudgetOps.length > 0;   // optionnel — ops du mois courant
   const guideDone3 = allSavConfirmed.length > 0;
   const allGuideDone = guideDone1 && guideDone2 && guideDone3; // optionnel exclu
   // localStorage seulement pour mémoriser le clic sur "Découvrir" (jamais auto)
