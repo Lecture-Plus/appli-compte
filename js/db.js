@@ -614,6 +614,8 @@ export async function getLatestSavingsConfirmed() {
   })[0];
 }
 
+export async function getAllSavingsConfirmed()           { return _getAll('savings_confirmed'); }
+
 export async function computeCurrentSavingsBalance() {
   const latest = await getLatestSavingsConfirmed();
   const allOps = await getAllSavingsOperations();

@@ -8,7 +8,7 @@ import { getMonthsByYear, getAllCharges,
          getAchatsForMonth, getRepartition, getBudgetOpsForMonth,
          getAllSettings, getAvailableYears,
          getActiveUsers, getAllUsers,
-         getAllSavingsOperations, getLatestSavingsConfirmed, getAllRepartitions,
+         getAllSavingsOperations, getLatestSavingsConfirmed, getAllSavingsConfirmed, getAllRepartitions,
          getAllAchats, getAllBudgetOps }                     from '../db.js';
 import { calcMonth, calcYear, calcSavingsBalance, calcBudgetScore } from '../calculs.js';
 import { resolveLineAmount, resolveChargeAmount }           from '../db.js';
@@ -195,13 +195,14 @@ export async function render(container) {
 
 async function loadAndRender(container, year, month, users, s) {
   // Charger toutes les données en parallèle
-  const [monthsData, allChargesRaw, allAchats, allRepartitions, allBudgetOpsYear, allSavingsOps] = await Promise.all([
+  const [monthsData, allChargesRaw, allAchats, allRepartitions, allBudgetOpsYear, allSavingsOps, allSavingsConfirmed] = await Promise.all([
     getMonthsByYear(year),
     getAllCharges(),
     getAllAchats(),
     getAllRepartitions(),
     getAllBudgetOps(),
     getAllSavingsOperations(),
+    getAllSavingsConfirmed(),
   ]);
   const bopsMap = {};
   for (const op of allBudgetOpsYear) { if (op.year === year) { (bopsMap[op.month] ??= []).push(op); } }
@@ -314,7 +315,7 @@ async function loadAndRender(container, year, month, users, s) {
   destroyCharts();
   renderChartRevDep(displayResults);
   renderChartRevPrimes(displayResults, users);
-  await renderChartEpargne(augDisplayResults, year, allSavingsOps);
+  await renderChartEpargne(augDisplayResults, year, allSavingsOps, allSavingsConfirmed);
   await renderChartSavingsBalance(year, curYear, curMonth, users);
   const yearBudgetOps = singleMonth ? (bopsMap[month] ?? []) : Object.values(bopsMap).flat();
   renderChartRepartition(yearKPI, yearBudgetOps, s);
@@ -517,33 +518,59 @@ function renderChartRevPrimes(displayResults, users = []) {
   _charts.push(chart);
 }
 
-async function renderChartEpargne(displayResults, year, allOpsParam = null) {
+async function renderChartEpargne(displayResults, year, allOpsParam = null, allConfirmedParam = null) {
   const canvas = document.getElementById('chart-epargne');
   if (!canvas) return;
 
-  // Versements réels depuis savings_operations
-  // initial_balance = solde de départ (ne compte PAS comme versement dans les stats)
-  // adjustment/add/withdraw = flux réels (comptent dans les barres et la cumulée)
-  const allOps = allOpsParam ?? await getAllSavingsOperations();
+  const allOps  = allOpsParam  ?? await getAllSavingsOperations();
+  const allConf = allConfirmedParam ?? [];
+
+  // Trier les confirmations par (année, mois) croissant
+  const sortedConf = [...allConf].sort((a, b) =>
+    a.year !== b.year ? a.year - b.year : a.month - b.month
+  );
+
+  // Construction des deltas de confirmation :
+  // Pour chaque paire consécutive (curr → next) :
+  //   delta = next.amount − curr.amount, attribué au mois de CURR (le mois source)
+  // Exemple : Jan=2100, Fév=2850 → delta 750 affiché dans la barre de Janvier.
+  // Le mois NEXT devient un mois "destination" : sa barre reste null (déjà compté).
+  const confDeltaMap = {};       // clé "YYYY-M" → delta (affiché dans la barre de ce mois)
+  const confDestSet  = new Set();// mois destination → barre null pour éviter le double-comptage
+  for (let i = 0; i < sortedConf.length - 1; i++) {
+    const curr = sortedConf[i];
+    const next = sortedConf[i + 1];
+    confDeltaMap[`${curr.year}-${curr.month}`] = next.amount - curr.amount;
+    confDestSet.add(`${next.year}-${next.month}`);
+  }
+
+  // Flux réels hors initial_balance — fallback pour les mois sans confirmation
   const yearOpsFlow = allOps.filter(op => op.year === year && op.type !== 'initial_balance');
 
-  // Épargne mensuelle réelle : flux du mois hors initial_balance
+  // ── Barres mensuelles ──
+  // Priorité : delta de confirmation (mois source)
+  // Exclusion : mois destination (couvert par le delta du mois source)
+  // Fallback  : ops directes (versements/retraits sans confirmation)
   const mensuelle = Array.from({ length: 12 }, (_, i) => {
-    const m = i + 1;
+    const m   = i + 1;
     if (displayResults[i] === null) return null;
+    const key = `${year}-${m}`;
+    if (key in confDeltaMap)  return confDeltaMap[key];  // delta source → afficher dans ce mois
+    if (confDestSet.has(key)) return null;               // mois destination → ne pas double-compter
     const mOps = yearOpsFlow.filter(op => op.month === m);
-    if (!mOps.length) return null; // aucune op ce mois → ne pas afficher 0
+    if (!mOps.length) return null;
     return mOps.reduce((s, op) => s + (Number(op.amount) || 0), 0);
   });
 
-  // Épargne cumulée sur l'année (flux uniquement, hors initial_balance)
-  let cum = 0;
+  // ── Courbe cumulée = solde réel total à la fin de chaque mois ──
+  // Inclut initial_balance : même logique que "Évolution du solde épargne".
   const cumulee = displayResults.map((r, i) => {
     if (r === null) return null;
-    const m = i + 1;
-    const mFlow = yearOpsFlow.filter(op => op.month === m).reduce((s, op) => s + (Number(op.amount) || 0), 0);
-    cum += mFlow;
-    return yearOpsFlow.some(op => op.month <= m) ? cum : null;
+    const m   = i + 1;
+    const bal = allOps
+      .filter(o => o.year < year || (o.year === year && o.month <= m))
+      .reduce((s, o) => s + (Number(o.amount) || 0), 0);
+    return bal !== 0 ? bal : null;
   });
 
   // Taux d'épargne (0..1 → affiché en %)
@@ -561,7 +588,7 @@ async function renderChartEpargne(displayResults, year, allOpsParam = null) {
       datasets: [
         {
           type: 'line',
-          label: 'Épargne cumulée',
+          label: 'Solde épargne',
           data: cumulee,
           borderColor: '#6C63FF',
           backgroundColor: 'rgba(108,99,255,0.15)',
