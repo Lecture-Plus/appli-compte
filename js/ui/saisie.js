@@ -100,12 +100,37 @@ export async function render(container) {
 
     ${_isEmptyMonth && _hasPrevData ? `<div id="prefill-banner" style="background:var(--primary-bg);border-left:3px solid var(--primary);border-radius:var(--radius);padding:10px 14px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;gap:8px;"><div><div style="font-weight:600;font-size:0.82rem;color:var(--primary);">Pré-remplir depuis ${nomMois(prevM.month)} ${prevM.year} ?</div><div style="font-size:0.72rem;color:var(--text-3);margin-top:2px;">Revenus et budgets copiés — modifiez si besoin.</div></div><button class="btn btn-primary btn-sm" id="btn-prefill" style="flex-shrink:0;">Copier</button></div>` : ''}
 
+    <!-- Barre de progression -->
+    ${(() => {
+      const hasRev = _users.some(u => (_md.users?.[String(u.id)]?.revenus || 0) > 0);
+      const hasChg = _chargesCache.length > 0;
+      const isDone = _md.isComplete;
+      const revState = hasRev ? 'done' : 'active';
+      const chgState = hasChg ? 'done' : (hasRev ? 'active' : '');
+      const doneState = isDone ? 'done' : '';
+      return `<div class="saisie-progress">
+        <div class="saisie-prog-step ${revState}">
+          <div class="saisie-prog-dot ${revState}">${hasRev ? '✓' : '1'}</div>
+          <div class="saisie-prog-label">Revenus</div>
+        </div>
+        <div class="saisie-prog-step ${chgState}">
+          <div class="saisie-prog-dot ${chgState}">${hasChg ? '✓' : '2'}</div>
+          <div class="saisie-prog-label">Charges</div>
+        </div>
+        <div class="saisie-prog-step ${doneState}">
+          <div class="saisie-prog-dot ${doneState}">${isDone ? '✓' : '3'}</div>
+          <div class="saisie-prog-label">Validation</div>
+        </div>
+      </div>`;
+    })()}
+
     <!-- Accordion 1: Revenus -->
     <details class="settings-group" open>
       <summary class="settings-group-title">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
         💰 Revenus ${nomMois(month)}
       </summary>
+      <div class="settings-group-desc">Salaires, aides (CAF, APL…) et primes — saisissez les montants de <strong>${nomMois(month)}</strong>.</div>
       <div class="settings-group-body">
         <div class="form-grid-${Math.min(N, 4)}" style="margin-bottom:10px;">
           ${_users.map(u => inputField(`rev-${u.id}`, u, _md.users[String(u.id)]?.revenus, '€')).join('')}
@@ -174,6 +199,7 @@ export async function render(container) {
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
         🏠 Charges du mois
       </summary>
+      <div class="settings-group-desc">Loyer, abonnements, crédits et toute charge fixe prélevée ce mois-ci. Importez vos charges récurrentes depuis <strong>Réglages → Charges types</strong>.</div>
       <div class="settings-group-body">
         <div style="display:flex;gap:8px;margin-bottom:12px;">
           <button class="btn btn-sm btn-outline" id="btn-import-charges">📥 Importer</button>
@@ -185,7 +211,7 @@ export async function render(container) {
             <div style="font-weight:700;font-size:0.82rem;">⚡ Imprévus</div>
             <button class="btn btn-sm btn-secondary" id="btn-add-imprevu">+ Ajouter</button>
           </div>
-          <p style="font-size:0.75rem;color:var(--text-3);margin:0 0 6px;">Dépenses non planifiées (panne, urgence…). Pour les achats ponctuels importants, utilisez <strong>Ce mois → Budgets</strong>.</p>
+          <p style="font-size:0.75rem;color:var(--text-3);margin:0 0 6px;">Dépenses non planifiées (panne, urgence…). Pour les achats ponctuels importants, utilisez <strong>Saisie → Budgets</strong>.</p>
           <div id="imprevu-list"></div>
         </div>
       </div>
@@ -197,6 +223,7 @@ export async function render(container) {
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
         📋 Récapitulatif prévisionnel
       </summary>
+      <div class="settings-group-desc">Aperçu du solde théorique basé sur vos saisies. Utilisez <strong>Marquer complet</strong> en bas quand tout est renseigné.</div>
       <div class="settings-group-body">
         <div id="saisie-prev-table" style="margin-bottom:10px;"></div>
         <div class="form-group">

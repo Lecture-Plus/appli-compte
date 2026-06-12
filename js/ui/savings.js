@@ -119,6 +119,15 @@ async function _renderEconomies(el, container) {
       }
     </div>
 
+    ${!latest && allOps.length === 0 ? `
+    <div class="hint-box" style="margin-bottom:12px;">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18" style="color:var(--primary);flex-shrink:0;"><circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg>
+      <div>
+        <strong>Comment démarrer ?</strong><br>
+        Cliquez sur <strong>Confirmer le solde</strong> ci-dessous pour enregistrer le montant actuel de votre épargne. C'est la première étape — l'app pourra ensuite calculer vos versements mensuels.
+      </div>
+    </div>` : ''}
+
     <!-- Soldes par user -->
     ${users.length > 1 ? `
     <div style="display:grid;grid-template-columns:${users.map(() => '1fr').join(' ')};gap:8px;margin-bottom:12px;">

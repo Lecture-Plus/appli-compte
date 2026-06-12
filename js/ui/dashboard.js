@@ -248,14 +248,56 @@ async function _renderResume(container, s, users) {
   const _daysLeft  = _isCurrentMonth
     ? (new Date(year, month, 0).getDate() - _today.getDate() + 1)
     : new Date(year, month, 0).getDate();
+
+  // ── Détection premier lancement : mois vide + pas encore de charges ni de budget ──
+  const isFirstUse = status === 'empty' && charges.length === 0 && allBudgetOps.length === 0
+    && users.every(u => {
+      const ud = md?.users?.[String(u.id)];
+      return !ud || (!(ud.revenus) && !(ud.primes) && !(ud.aides));
+    });
+
   const el = container.querySelector('#dash-content');
   el.innerHTML = `
+    ${isFirstUse ? `
+    <!-- ── Guide premier lancement ── -->
+    <div class="guide-card">
+      <div style="font-size:1.5rem;margin-bottom:8px;">👋</div>
+      <div class="guide-card-title">Bienvenue sur Compta+ !</div>
+      <div class="guide-card-sub">Voici comment démarrer en 3 étapes simples :</div>
+      <div class="guide-steps-list">
+        <button class="guide-step" id="gs-step1" type="button">
+          <div class="guide-step-num">1</div>
+          <div class="guide-step-body">
+            <div class="guide-step-title">💰 Saisir les revenus</div>
+            <div class="guide-step-sub">Renseignez vos revenus et charges de ce mois</div>
+          </div>
+          <span class="guide-step-arrow">›</span>
+        </button>
+        <button class="guide-step" id="gs-step2" type="button">
+          <div class="guide-step-num">2</div>
+          <div class="guide-step-body">
+            <div class="guide-step-title">📊 Suivre vos budgets</div>
+            <div class="guide-step-sub">Courses, loisirs et dépenses au quotidien</div>
+          </div>
+          <span class="guide-step-arrow">›</span>
+        </button>
+        <button class="guide-step" id="gs-step3" type="button">
+          <div class="guide-step-num">3</div>
+          <div class="guide-step-body">
+            <div class="guide-step-title">🏦 Déclarer votre épargne</div>
+            <div class="guide-step-sub">Confirmez votre solde épargne actuel</div>
+          </div>
+          <span class="guide-step-arrow">›</span>
+        </button>
+      </div>
+    </div>` : ''}
+
     <!-- ── HERO compact + score ring ── -->
     <div class="hero-card" style="margin-bottom:12px;">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;">
         <div style="flex:1;min-width:0;">
           <div class="hero-label">Solde de ${nomMois(month)} ${year}</div>
-          <div class="hero-amount" style="color:${soldeColor};">${eur(kpi.solde.total)}</div>
+          <div class="hero-amount" style="color:${soldeColor};">${isFirstUse ? '<span class="amount-placeholder">— pas encore renseigné</span>' : eur(kpi.solde.total)}</div>
           <div class="hero-meta">
             <span>${eur(kpi.revenus.total + (kpi.aides?.total ?? 0))} revenus</span>
             <span style="color:var(--text-3);"> · </span>
@@ -451,6 +493,11 @@ async function _renderResume(container, s, users) {
       `<button class="btn btn-primary" onclick="document.getElementById('modal-close').click()">OK</button>`
     );
   });
+
+  // ── Guide premier lancement : navigation vers les étapes ──
+  el.querySelector('#gs-step1')?.addEventListener('click', () => navigateTo('argent', { tab: 'saisie' }));
+  el.querySelector('#gs-step2')?.addEventListener('click', () => navigateTo('argent', { tab: 'budgets' }));
+  el.querySelector('#gs-step3')?.addEventListener('click', () => navigateTo('savings'));
 
   el.querySelector('#btn-go-saisie')?.addEventListener('click', () => navigateTo('argent', { tab: 'saisir' }));
   el.querySelector('#btn-add-achat')?.addEventListener('click', () => {

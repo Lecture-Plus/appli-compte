@@ -825,3 +825,192 @@ svg { display: block; }
   #app-content { overflow: visible !important; }
   .hero-card { box-shadow: none !important; }
 }
+
+/* ═══════════════════════════════════════════════════════════
+   UX v3 — Hiérarchie visuelle, guidage, lisibilité
+   ═══════════════════════════════════════════════════════════ */
+
+/* ─── Fix lisibilité : tailles minimales ─── */
+/* Les labels < 0.68rem sont illisibles sur mobile → on uniformise */
+.hero-mini-label  { font-size: 0.68rem; }
+.hero-label       { font-size: 0.7rem; }
+.kpi-label        { font-size: 0.7rem; }
+.card-title       { font-size: 0.74rem; }
+.section-label    { font-size: 0.72rem; }
+
+/* ─── Guide de démarrage (premier lancement) ─── */
+.guide-card {
+  background: linear-gradient(140deg, var(--bg-card) 0%, rgba(124,92,252,0.04) 100%);
+  border: 1.5px solid rgba(124,92,252,0.22);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  margin-bottom: 14px;
+  position: relative;
+  overflow: hidden;
+}
+.guide-card::after {
+  content: '';
+  position: absolute;
+  top: -50px; right: -50px;
+  width: 150px; height: 150px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(124,92,252,0.10), transparent 70%);
+  pointer-events: none;
+}
+.guide-card-title {
+  font-size: 1.05rem; font-weight: 800; letter-spacing: -0.025em; margin-bottom: 3px;
+}
+.guide-card-sub {
+  font-size: 0.8rem; color: var(--text-2); margin-bottom: 16px; line-height: 1.5;
+}
+.guide-steps-list { display: flex; flex-direction: column; gap: 8px; }
+.guide-step {
+  display: flex; align-items: center; gap: 12px;
+  padding: 11px 13px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: border-color var(--transition), box-shadow var(--transition), transform var(--transition);
+  text-align: left;
+}
+.guide-step:hover  { border-color: rgba(124,92,252,0.3); box-shadow: var(--shadow-sm); transform: translateY(-1px); }
+.guide-step:active { transform: scale(0.98); }
+.guide-step-num {
+  width: 30px; height: 30px; border-radius: 50%;
+  background: var(--primary-bg); color: var(--primary);
+  font-size: 0.82rem; font-weight: 800;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.guide-step-num.done { background: var(--success-bg); color: var(--success); }
+.guide-step-body { flex: 1; min-width: 0; }
+.guide-step-title { font-size: 0.86rem; font-weight: 700; }
+.guide-step-sub   { font-size: 0.72rem; color: var(--text-3); margin-top: 2px; line-height: 1.4; }
+.guide-step-arrow { color: var(--text-3); font-size: 1rem; flex-shrink: 0; transition: transform var(--transition); }
+.guide-step:hover .guide-step-arrow { transform: translateX(3px); }
+
+/* ─── Descriptions de sections dans les réglages ─── */
+.settings-group-desc {
+  font-size: 0.77rem; color: var(--text-3); line-height: 1.55;
+  padding: 10px 16px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-2);
+}
+/* Badge "Essentiel" pour les sections prioritaires */
+.badge-essential {
+  display: inline-flex; align-items: center; gap: 3px;
+  padding: 2px 7px; border-radius: 99px;
+  font-size: 0.62rem; font-weight: 800;
+  background: var(--primary-bg); color: var(--primary);
+  border: 1px solid rgba(124,92,252,0.18);
+  text-transform: uppercase; letter-spacing: 0.05em;
+  vertical-align: middle; margin-left: 6px;
+}
+.badge-optional {
+  display: inline-flex; align-items: center; gap: 3px;
+  padding: 2px 7px; border-radius: 99px;
+  font-size: 0.62rem; font-weight: 700;
+  background: var(--bg-2); color: var(--text-3);
+  border: 1px solid var(--border);
+  text-transform: uppercase; letter-spacing: 0.05em;
+  vertical-align: middle; margin-left: 6px;
+}
+
+/* ─── Aide contextuelle (hint box) ─── */
+.hint-box {
+  display: flex; gap: 8px; align-items: flex-start;
+  background: var(--primary-bg);
+  border: 1px solid rgba(124,92,252,0.15);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  font-size: 0.78rem; color: var(--text-2); line-height: 1.5;
+  margin-top: 8px;
+}
+.hint-box svg { flex-shrink: 0; margin-top: 1px; }
+.hint-box.success { background: var(--success-bg); border-color: rgba(0,212,160,0.18); }
+.hint-box.warning { background: var(--warning-bg); border-color: rgba(255,176,32,0.18); }
+.hint-box.neutral { background: var(--bg-2); border-color: var(--border); }
+
+/* ─── Indicateur de progression (saisie) ─── */
+.saisie-progress {
+  display: flex; align-items: center; gap: 0;
+  background: var(--bg-card); border-radius: var(--radius-lg);
+  padding: 10px 14px; margin-bottom: 12px;
+  border: 1px solid var(--border); box-shadow: var(--shadow-sm);
+}
+.saisie-prog-step {
+  flex: 1; display: flex; flex-direction: column; align-items: center;
+  gap: 4px; position: relative;
+}
+.saisie-prog-step::before {
+  content: ''; position: absolute;
+  top: 13px; left: calc(50% + 15px); right: calc(-50% + 15px);
+  height: 2px; background: var(--border); z-index: 0;
+}
+.saisie-prog-step:last-child::before { display: none; }
+.saisie-prog-dot {
+  width: 26px; height: 26px; border-radius: 50%;
+  border: 2px solid var(--border); background: var(--bg-2);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.7rem; font-weight: 700; position: relative; z-index: 1;
+  transition: all var(--transition);
+}
+.saisie-prog-dot.done   { background: var(--success-bg); border-color: var(--success); color: var(--success); }
+.saisie-prog-dot.active { background: var(--primary-bg); border-color: var(--primary); color: var(--primary); box-shadow: 0 0 0 3px rgba(124,92,252,0.12); }
+.saisie-prog-label {
+  font-size: 0.62rem; font-weight: 600; color: var(--text-3);
+  text-align: center; white-space: nowrap;
+}
+.saisie-prog-step.done   .saisie-prog-label { color: var(--success); }
+.saisie-prog-step.active .saisie-prog-label { color: var(--primary); font-weight: 700; }
+
+/* ─── Nav subtitle (desktop sidebar) ─── */
+.nav-subtitle {
+  font-size: 0.68rem; color: var(--text-3); font-weight: 400;
+  display: none;
+}
+@media (min-width: 768px) {
+  .nav-subtitle { display: block; }
+  .nav-item { flex-direction: column; align-items: flex-start; gap: 1px; }
+  .nav-item .nav-label-wrap { display: flex; flex-direction: column; gap: 0; }
+  /* Override: on desktop keep nav-item row layout but allow subtitle below label */
+  .nav-item {
+    flex-direction: row !important;
+    align-items: center !important;
+    gap: 12px !important;
+  }
+  .nav-item .nav-label-wrap { display: flex; flex-direction: column; gap: 1px; flex: 1; }
+  .nav-item span:not(.nav-badge):not(.nav-subtitle) { font-size: 0.88rem; }
+}
+
+/* ─── Section primaire (header avec contexte) ─── */
+.section-ctx-header {
+  display: flex; align-items: center; gap: 10px;
+  margin-bottom: 14px; padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+}
+.section-ctx-icon {
+  width: 38px; height: 38px; border-radius: var(--radius-sm);
+  background: var(--primary-bg);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.1rem; flex-shrink: 0;
+}
+.section-ctx-title { font-size: 0.95rem; font-weight: 800; letter-spacing: -0.02em; }
+.section-ctx-sub   { font-size: 0.74rem; color: var(--text-3); margin-top: 1px; line-height: 1.4; }
+
+/* ─── Solde vide (placeholder montant) ─── */
+.amount-placeholder {
+  color: var(--text-3); font-style: italic; font-weight: 500;
+  font-size: 0.9rem;
+}
+
+/* ─── Score ring tooltip ─── */
+.score-detail-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 7px 0; border-bottom: 1px solid var(--border); font-size: 0.82rem;
+}
+.score-detail-row:last-child { border-bottom: none; }
+.score-detail-label { color: var(--text-2); font-weight: 500; }
+.score-detail-pts   { font-weight: 800; }
+.score-detail-bar   { height: 4px; border-radius: 99px; background: var(--bg-2); margin-top: 3px; overflow: hidden; }
+.score-detail-fill  { height: 100%; border-radius: 99px; background: var(--primary); transition: width 0.6s cubic-bezier(0.4,0,0.2,1); }
+

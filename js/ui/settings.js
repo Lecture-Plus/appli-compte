@@ -35,16 +35,16 @@ function buildHTML(s, users, archived, N) {
     <div class="settings-accordion">
 
     <!-- ══ FOYER ══ -->
-    <details class="settings-group">
+    <details class="settings-group" open>
       <summary class="settings-group-title">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
         Foyer
+        <span class="badge-essential">⭐ Étape 1</span>
       </summary>
+      <div class="settings-group-desc">Ajoutez les membres de votre foyer et choisissez comment répartir les charges entre eux. C'est le premier réglage à faire avant toute saisie.</div>
       <div class="settings-group-body">
 
         <div class="card" style="margin-bottom:10px;">
-          <div class="card-header">
-            <span class="card-title">Utilisateurs du foyer</span>
             <button class="btn btn-sm btn-primary" id="btn-add-user">+ Ajouter</button>
           </div>
           ${users.length === 0
@@ -110,6 +110,7 @@ function buildHTML(s, users, archived, N) {
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
         Apparence &amp; Rappels
       </summary>
+      <div class="settings-group-desc">Personnalisez l'apparence de l'application (clair / sombre) et configurez des rappels mensuels pour ne pas oublier votre saisie.</div>
       <div class="settings-group-body">
 
         <div class="card" style="margin-bottom:10px;">
@@ -182,6 +183,7 @@ function buildHTML(s, users, archived, N) {
         Sauvegarde &amp; Sync
         ${!driveOk ? `<span class="chip" style="font-size:0.63rem;margin-left:6px;background:var(--warning-bg);color:var(--warning);">Drive non configuré</span>` : `<span class="chip success" style="font-size:0.63rem;margin-left:6px;">Drive ✓</span>`}
       </summary>
+      <div class="settings-group-desc">Synchronisez vos données sur plusieurs appareils via Google Drive, ou exportez une sauvegarde locale au format JSON.</div>
       <div class="settings-group-body">
 
         <div class="card" style="margin-bottom:10px;">
@@ -259,7 +261,9 @@ function buildHTML(s, users, archived, N) {
       <summary class="settings-group-title">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.65 1.65 0 0 0 15 19.4a1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
         Avancé
+        <span class="badge-optional">Expert</span>
       </summary>
+      <div class="settings-group-desc">Options avancées : vider le cache ou réinitialiser complètement l'application. ⚠️ Ces actions sont irréversibles.</div>
       <div class="settings-group-body">
 
         <div class="card">
