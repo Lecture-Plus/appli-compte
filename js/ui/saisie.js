@@ -196,6 +196,9 @@ export async function render(container) {
           <p style="font-size:0.75rem;color:var(--text-3);margin:0 0 6px;">Dépenses non planifiées (panne, urgence…). Pour les achats ponctuels importants, utilisez <strong>Saisie → Budgets</strong>.</p>
           <div id="imprevu-list"></div>
         </div>
+        <div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;">
+          <button class="btn btn-primary btn-sm" id="btn-validate-charges" style="padding:9px 20px;font-size:0.84rem;">✅ Valider les charges</button>
+        </div>
       </div>
     </details>
 
@@ -436,6 +439,9 @@ export async function render(container) {
   });
   container.querySelector('#btn-import-charges')?.addEventListener('click', () => {
     _showImportChargesOptions(container);
+  });
+  container.querySelector('#btn-validate-charges')?.addEventListener('click', () => {
+    emit('charges:validated');
   });
 }
 

@@ -18,9 +18,8 @@ let _lastRevInput  = 0;
 let _revDoneTimer  = null;
 
 // ── Suivi des charges (pour la barre de progression) ──
-let _lastChgAdded  = 0;
-let _chgDoneTimer  = null;
-let _prevChgState  = '';   // 'done' | 'active' | ''
+let _chgValidated  = false;  // true quand "Valider les charges" a été cliqué
+let _chgHasData    = false;  // true dès qu'une charge est ajoutée (active)
 
 // ── Barre de progression partagée Saisie / Budgets ──
 async function _renderSharedProgress(container) {
@@ -38,14 +37,14 @@ async function _renderSharedProgress(container) {
   const revState  = hasRevData && !isRevRecent ? 'done'
                   : hasRevData || isRevRecent  ? 'active' : '';
   const hasChg  = charges.length > 0;
-  const isChgRecent = _lastChgAdded > 0 && (Date.now() - _lastChgAdded) < 3000;
-  const chgState = hasChg && !isChgRecent ? 'done'
-                 : hasChg || isChgRecent  ? 'active' : (revState === 'done' ? 'active' : '');
+  if (hasChg) _chgHasData = true; // persistance si charges supprimées après validation
+  const chgState = _chgValidated ? 'done'
+                 : (_chgHasData || hasChg) ? 'active' : (revState === 'done' ? 'active' : '');
   const hasBudg = budgetOps.length > 0;
   const isDone  = md?.isComplete;
 
   // ── Auto-avance : quand chgState passe à 'done', basculer vers Budgets ──
-  if (chgState === 'done' && _prevChgState !== 'done' && _arTab === 'saisie') {
+  if (_chgValidated && _prevChgState !== 'done' && _arTab === 'saisie') {
     setTimeout(() => {
       if (!document.contains(container)) return;
       const tabBudgets = container.querySelector('[data-artab="budgets"]');
@@ -116,28 +115,22 @@ function _watchSaisieInputs(container) {
   });
 }
 
-// ── Gestion de l'événement charges:updated ──
+// ── Gestion des événements charges ──
 let _chgUnsubscribe = null;
+let _prevChgState   = '';
 function _subscribeChargesUpdated(container) {
-  if (_chgUnsubscribe) _chgUnsubscribe(); // désabonner précédent
-  _chgUnsubscribe = on('charges:updated', () => {
-    if (!document.contains(container)) { if (_chgUnsubscribe) { _chgUnsubscribe(); _chgUnsubscribe = null; } return; }
-    _lastChgAdded = Date.now();
-    _renderSharedProgress(container); // affiche 'active' immédiatement
-    if (_chgDoneTimer) clearTimeout(_chgDoneTimer);
-    // Planifier le passage à 'done' en vérifiant que aucun modal n'est ouvert
-    const tryDone = () => {
-      const modalOpen = !document.getElementById('modal-overlay')?.classList.contains('hidden');
-      if (modalOpen) {
-        _chgDoneTimer = setTimeout(tryDone, 500); // réessayer dans 500ms
-      } else {
-        _chgDoneTimer = setTimeout(() => {
-          _renderSharedProgress(container);
-        }, 3000);
-      }
-    };
-    tryDone();
+  if (_chgUnsubscribe) _chgUnsubscribe();
+  const unsub1 = on('charges:updated', () => {
+    if (!document.contains(container)) { unsub1(); unsub2(); _chgUnsubscribe = null; return; }
+    _chgHasData = true;
+    _renderSharedProgress(container);
   });
+  const unsub2 = on('charges:validated', () => {
+    if (!document.contains(container)) { unsub1(); unsub2(); _chgUnsubscribe = null; return; }
+    _chgValidated = true;
+    _renderSharedProgress(container);
+  });
+  _chgUnsubscribe = () => { unsub1(); unsub2(); };
 }
 
 export async function render(container, params = {}) {
@@ -145,6 +138,11 @@ export async function render(container, params = {}) {
   // Guard: anciens noms de tabs
   if (['saisir', 'epargne', 'recurrentes', 'charges'].includes(_arTab)) _arTab = 'saisie';
   if (_arTab === 'depenses') _arTab = 'budgets';
+
+  // Réinitialiser l'état charges au changement de mois
+  _chgValidated = false;
+  _chgHasData   = false;
+  _prevChgState = '';
 
   const { year, month } = State;
   container.innerHTML = `
