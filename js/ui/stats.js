@@ -315,7 +315,7 @@ async function loadAndRender(container, year, month, users, s) {
   destroyCharts();
   renderChartRevDep(displayResults);
   renderChartRevPrimes(displayResults, users);
-  await renderChartEpargne(augDisplayResults, year, allSavingsOps, allSavingsConfirmed);
+  await renderChartEpargne(augDisplayResults, year, allSavingsOps, allSavingsConfirmed, curYear, curMonth);
   await renderChartSavingsBalance(year, curYear, curMonth, users);
   const yearBudgetOps = singleMonth ? (bopsMap[month] ?? []) : Object.values(bopsMap).flat();
   renderChartRepartition(yearKPI, yearBudgetOps, s);
@@ -518,7 +518,7 @@ function renderChartRevPrimes(displayResults, users = []) {
   _charts.push(chart);
 }
 
-async function renderChartEpargne(displayResults, year, allOpsParam = null, allConfirmedParam = null) {
+async function renderChartEpargne(displayResults, year, allOpsParam = null, allConfirmedParam = null, curYear = 0, curMonth = 12) {
   const canvas = document.getElementById('chart-epargne');
   if (!canvas) return;
 
@@ -547,16 +547,18 @@ async function renderChartEpargne(displayResults, year, allOpsParam = null, allC
   // Flux réels hors initial_balance — fallback pour les mois sans confirmation
   const yearOpsFlow = allOps.filter(op => op.year === year && op.type !== 'initial_balance');
 
-  // ── Barres mensuelles ──
+  // ── Barres mensuelles : indépendant du budget (données rétroactives) ──
   // Priorité : delta de confirmation (mois source)
   // Exclusion : mois destination (couvert par le delta du mois source)
   // Fallback  : ops directes (versements/retraits sans confirmation)
+  const isFuture = (m) => curYear > 0 && (year > curYear || (year === curYear && m > curMonth));
+
   const mensuelle = Array.from({ length: 12 }, (_, i) => {
-    const m   = i + 1;
-    if (displayResults[i] === null) return null;
+    const m = i + 1;
+    if (isFuture(m)) return null;
     const key = `${year}-${m}`;
-    if (key in confDeltaMap)  return confDeltaMap[key];  // delta source → afficher dans ce mois
-    if (confDestSet.has(key)) return null;               // mois destination → ne pas double-compter
+    if (key in confDeltaMap)  return confDeltaMap[key];
+    if (confDestSet.has(key)) return null;
     const mOps = yearOpsFlow.filter(op => op.month === m);
     if (!mOps.length) return null;
     return mOps.reduce((s, op) => s + (Number(op.amount) || 0), 0);
@@ -564,17 +566,34 @@ async function renderChartEpargne(displayResults, year, allOpsParam = null, allC
 
   // ── Courbe cumulée = solde réel total à la fin de chaque mois ──
   // Inclut initial_balance : même logique que "Évolution du solde épargne".
-  const cumulee = displayResults.map((r, i) => {
-    if (r === null) return null;
-    const m   = i + 1;
+  const cumulee = Array.from({ length: 12 }, (_, i) => {
+    const m = i + 1;
+    if (isFuture(m)) return null;
     const bal = allOps
       .filter(o => o.year < year || (o.year === year && o.month <= m))
       .reduce((s, o) => s + (Number(o.amount) || 0), 0);
     return bal !== 0 ? bal : null;
   });
 
-  // Taux d'épargne (0..1 → affiché en %)
-  const taux = displayResults.map(r => r ? r.txEpargne.total : null);
+  // ── Taux d'épargne (0..1 → affiché en %) ──
+  // Si un mois n'a pas de revenu de référence → revenus mensuels moyens comme base
+  const avgRevenu = (() => {
+    const withRev = displayResults.filter(r => r && (r.revenus.total + r.primes.total + r.aides.total) > 0);
+    if (!withRev.length) return 0;
+    return withRev.reduce((s, r) => s + r.revenus.total + r.primes.total + r.aides.total, 0) / withRev.length;
+  })();
+
+  const taux = Array.from({ length: 12 }, (_, i) => {
+    const m = i + 1;
+    if (isFuture(m)) return null;
+    const r   = displayResults[i];
+    const rev = r ? (r.revenus.total + r.primes.total + r.aides.total) : 0;
+    if (r && rev > 0) return r.txEpargne.total;
+    // Fallback : versement du mois / revenus moyens
+    const v = mensuelle[i];
+    if (v !== null && v !== undefined && avgRevenu > 0) return v / avgRevenu;
+    return null;
+  });
 
   const textColor = getComputedStyle(document.documentElement).getPropertyValue('--text-2').trim() || '#666';
   const gridColor = getComputedStyle(document.documentElement).getPropertyValue('--border').trim() || 'rgba(0,0,0,0.1)';
