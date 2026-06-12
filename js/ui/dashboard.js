@@ -257,9 +257,10 @@ async function _renderResume(container, s, users) {
     });
 
   const el = container.querySelector('#dash-content');
-  el.innerHTML = `
-    ${isFirstUse ? `
-    <!-- ── Guide premier lancement ── -->
+
+  // ── Premier lancement : guide uniquement, tout le reste masqué ──
+  if (isFirstUse) {
+    el.innerHTML = `
     <div class="guide-card">
       <div style="font-size:1.5rem;margin-bottom:8px;">👋</div>
       <div class="guide-card-title">Bienvenue sur Compta+ !</div>
@@ -290,8 +291,14 @@ async function _renderResume(container, s, users) {
           <span class="guide-step-arrow">›</span>
         </button>
       </div>
-    </div>` : ''}
+    </div>`;
+    el.querySelector('#gs-step1')?.addEventListener('click', () => navigateTo('argent', { tab: 'saisie' }));
+    el.querySelector('#gs-step2')?.addEventListener('click', () => navigateTo('argent', { tab: 'budgets' }));
+    el.querySelector('#gs-step3')?.addEventListener('click', () => navigateTo('savings'));
+    return;
+  }
 
+  el.innerHTML = `
     <!-- ── HERO compact + score ring ── -->
     <div class="hero-card" style="margin-bottom:12px;">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;">

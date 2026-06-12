@@ -12,6 +12,10 @@ import { nomMois }                                            from '../utils.js'
 // tabs: saisie | budgets
 let _arTab = 'saisie';
 
+// ── Suivi de l'activité revenus (pour la barre de progression) ──
+let _lastRevInput  = 0;   // timestamp du dernier input sur un champ revenu
+let _revDoneTimer  = null; // timer 5s avant de passer en 'done'
+
 // ── Barre de progression partagée Saisie / Budgets ──
 async function _renderSharedProgress(container) {
   const bar = container.querySelector('#argent-shared-progress');
@@ -23,17 +27,21 @@ async function _renderSharedProgress(container) {
     getChargesForMonth(month, year),
     getBudgetOpsForMonth(year, month),
   ]);
-  const hasRev  = users.some(u => (md?.users?.[String(u.id)]?.revenus || 0) > 0);
+  const hasRevData  = users.some(u => (md?.users?.[String(u.id)]?.revenus || 0) > 0);
+  const isRevRecent = _lastRevInput > 0 && (Date.now() - _lastRevInput) < 5000;
+  // "done" = données enregistrées + 5s d'inactivité ; "active" = en cours de saisie ou données partielles
+  const revState  = hasRevData && !isRevRecent ? 'done'
+                  : hasRevData || isRevRecent  ? 'active' : '';
   const hasChg  = charges.length > 0;
   const hasBudg = budgetOps.length > 0;
   const isDone  = md?.isComplete;
   const states = [
-    hasRev  ? 'done' : (_arTab === 'saisie'   ? 'active' : ''),
-    hasChg  ? 'done' : (hasRev ? 'active' : ''),
-    hasBudg ? 'done' : (_arTab === 'budgets'  ? 'active' : (hasChg ? 'active' : '')),
+    revState,
+    hasChg  ? 'done' : (revState === 'done' ? 'active' : ''),
+    hasBudg ? 'done' : (_arTab === 'budgets' ? 'active' : (hasChg ? 'active' : '')),
     isDone  ? 'done' : '',
   ];
-  const texts = [hasRev ? '✓' : '1', hasChg ? '✓' : '2', hasBudg ? '✓' : '3', isDone ? '✓' : '4'];
+  const texts = [states[0] === 'done' ? '✓' : '1', hasChg ? '✓' : '2', hasBudg ? '✓' : '3', isDone ? '✓' : '4'];
   const labels = ['Revenus', 'Charges', 'Budgets', 'Valider'];
   bar.innerHTML = `<div class="saisie-progress" id="saisie-progress-bar">
     ${states.map((s, i) => `
@@ -72,6 +80,24 @@ async function _renderSharedProgress(container) {
   });
 }
 
+// ── Observation des champs revenus pour la barre de progression ──
+function _watchSaisieInputs(container) {
+  const body = container.querySelector('#argent-body');
+  if (!body) return;
+  body.querySelectorAll('input[id^="rev-"]').forEach(input => {
+    if (input.dataset.progressWatched) return; // éviter les doublons
+    input.dataset.progressWatched = '1';
+    input.addEventListener('input', () => {
+      _lastRevInput = Date.now();
+      _renderSharedProgress(container); // passage immédiat en 'active'
+      if (_revDoneTimer) clearTimeout(_revDoneTimer);
+      _revDoneTimer = setTimeout(() => {
+        _renderSharedProgress(container); // passage en 'done' après 5s
+      }, 5000);
+    });
+  });
+}
+
 export async function render(container, params = {}) {
   if (params.tab) _arTab = params.tab;
   // Guard: anciens noms de tabs
@@ -95,8 +121,11 @@ export async function render(container, params = {}) {
     if (!body) return;
     if (_arTab === 'saisie')   saisieModule.render(body);
     else                       chargesModule.renderSection(body, 'budgets');
-    // Rafraîchir la barre après rendu de l'onglet
-    setTimeout(() => _renderSharedProgress(container), 200);
+    // Rafraîchir la barre + attacher les watchers après rendu de l'onglet
+    setTimeout(() => {
+      _renderSharedProgress(container);
+      if (_arTab === 'saisie') _watchSaisieInputs(container);
+    }, 200);
   };
 
   container.querySelectorAll('#argent-tabs .tab-btn').forEach(btn => {
