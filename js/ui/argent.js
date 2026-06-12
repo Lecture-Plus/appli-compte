@@ -66,10 +66,10 @@ async function _renderSharedProgress(container) {
   const states = [
     revState,
     chgState,
-    hasBudg ? 'done' : (_arTab === 'budgets' ? 'active' : (chgState === 'done' ? 'active' : '')),
+    (isDone || hasBudg) ? 'done' : (_arTab === 'budgets' ? 'active' : (chgState === 'done' ? 'active' : '')),
     isDone  ? 'done' : '',
   ];
-  const texts = [states[0] === 'done' ? '✓' : '1', chgState === 'done' ? '✓' : '2', hasBudg ? '✓' : '3', isDone ? '✓' : '4'];
+  const texts = [states[0] === 'done' ? '✓' : '1', chgState === 'done' ? '✓' : '2', (isDone || hasBudg) ? '✓' : '3', isDone ? '✓' : '4'];
   const labels = ['Revenus', 'Charges', 'Budgets', 'Valider'];
   bar.innerHTML = `<div class="saisie-progress" id="saisie-progress-bar">
     ${states.map((s, i) => `
@@ -132,24 +132,21 @@ let _prevChgState   = '';
 function _subscribeChargesUpdated(container) {
   if (_chgUnsubscribe) _chgUnsubscribe();
   const unsub1 = on('charges:updated', () => {
-    if (!document.contains(container)) { unsub1(); unsub2(); unsub3(); _chgUnsubscribe = null; return; }
-    _chgHasData = true;
-    _renderSharedProgress(container);
-  });
-  const unsub2 = on('charges:validated', () => {
-    if (!document.contains(container)) { unsub1(); unsub2(); unsub3(); _chgUnsubscribe = null; return; }
-    _chgValidated = true;
-    _saveChgState(); // persister immédiatement
-    _renderSharedProgress(container);
-  });
-  const unsub3 = on('charges:invalidate', () => {
-    if (!document.contains(container)) { unsub1(); unsub2(); unsub3(); _chgUnsubscribe = null; return; }
+    // Une vraie sauvegarde invalide la validation précédente
+    if (!document.contains(container)) { unsub1(); unsub2(); _chgUnsubscribe = null; return; }
     _chgValidated = false;
     localStorage.removeItem(_chgKey());
+    _chgHasData = true;
     _prevChgState = '';
     _renderSharedProgress(container);
   });
-  _chgUnsubscribe = () => { unsub1(); unsub2(); unsub3(); };
+  const unsub2 = on('charges:validated', () => {
+    if (!document.contains(container)) { unsub1(); unsub2(); _chgUnsubscribe = null; return; }
+    _chgValidated = true;
+    _saveChgState();
+    _renderSharedProgress(container);
+  });
+  _chgUnsubscribe = () => { unsub1(); unsub2(); };
 }
 
 export async function render(container, params = {}) {

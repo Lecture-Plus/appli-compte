@@ -455,7 +455,6 @@ function _renderSaisieChargesList(container) {
       const charges = await getAllCharges();
       const charge = charges.find(c => c.id === id);
       if (charge) {
-        emit('charges:invalidate');
         showChargeModal(charge, async () => {
           _chargesCache = await getChargesForMonth(State.month, State.year);
           _renderSaisieChargesList(container);
