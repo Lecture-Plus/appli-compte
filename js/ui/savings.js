@@ -956,26 +956,29 @@ async function _renderSalariale(el, container) {
   const monthsRemaining = Math.max(0,
     (periodEnd.year - year) * 12 + (periodEnd.month - month)
   );
-  // Base mensuelle : versements planifiés en priorité (intention de l'user),
-  // sinon médiane des mois de la période (résistante aux virements ponctuels)
+  // Base mensuelle : versements planifiés (⚙️) en priorité,
+  // sinon médiane des mois récurrents uniquement (salary_savings + monthly),
+  // les ponctuels (extra, charge_auto) sont dans periodContrib mais pas dans la base de projection.
   const plannedTotal = users.reduce((s, u) => s + (Number(planned[String(u.id)]) || 0), 0);
   let avgMonthly;
   if (plannedTotal > 0) {
     avgMonthly = plannedTotal;
-  } else if (periodOps.length > 0) {
-    // Agréger par mois puis prendre la médiane
-    const byMonth = {};
-    for (const op of periodOps) {
-      const k = `${op.year}-${op.month}`;
-      byMonth[k] = (byMonth[k] || 0) + (Number(op.amount) || 0);
-    }
-    const montants = Object.values(byMonth).sort((a, b) => a - b);
-    const mid = Math.floor(montants.length / 2);
-    avgMonthly = montants.length % 2 === 0
-      ? (montants[mid - 1] + montants[mid]) / 2
-      : montants[mid];
   } else {
-    avgMonthly = 0;
+    const recurringOps = periodOps.filter(op => op.type === 'salary_savings' || op.type === 'monthly');
+    if (recurringOps.length > 0) {
+      const byMonth = {};
+      for (const op of recurringOps) {
+        const k = `${op.year}-${op.month}`;
+        byMonth[k] = (byMonth[k] || 0) + (Number(op.amount) || 0);
+      }
+      const montants = Object.values(byMonth).sort((a, b) => a - b);
+      const mid = Math.floor(montants.length / 2);
+      avgMonthly = montants.length % 2 === 0
+        ? (montants[mid - 1] + montants[mid]) / 2
+        : montants[mid];
+    } else {
+      avgMonthly = 0;
+    }
   }
   const projectedExtraContrib = avgMonthly * monthsRemaining;
   const projectedTotalContrib = periodContrib + projectedExtraContrib;
