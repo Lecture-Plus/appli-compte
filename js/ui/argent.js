@@ -197,16 +197,42 @@ async function renderHub(container) {
   // ── KPI ──
   const repCfg = await getRepartition(year, month);
   const s      = await getAllSettings();
+
+  // IL-1 : source unique — fusionner imprévusList dans md.users avant calcMonth
+  // pour que kpi.imprevus et kpi.solde intègrent les deux systèmes d'imprévus.
+  const _imprévusList = md?.imprévusList || [];
+  const mdForCalc = _imprévusList.length ? (() => {
+    const usersData = { ...(md?.users || {}) };
+    for (const imp of _imprévusList) {
+      const amt = Number(imp.amount) || 0;
+      if (!amt) continue;
+      if (!imp.qui || imp.qui === 'shared') {
+        // Répartition équitable entre tous les utilisateurs
+        for (const u of users) {
+          const uid = String(u.id);
+          const ud  = { ...(usersData[uid] || {}) };
+          ud.imprevus = (Number(ud.imprevus) || 0) + amt / (users.length || 1);
+          usersData[uid] = ud;
+        }
+      } else {
+        const uid = String(imp.qui);
+        const ud  = { ...(usersData[uid] || {}) };
+        ud.imprevus = (Number(ud.imprevus) || 0) + amt;
+        usersData[uid] = ud;
+      }
+    }
+    return { ...(md || {}), users: usersData };
+  })() : (md || {});
+
   // Si aucun budgetOp, passer null pour que calcMonth utilise extras/courses de md
-  const kpi    = calcMonth(md || {}, charges, achats, repCfg, users, budgetOps.length ? budgetOps : null);
+  const kpi    = calcMonth(mdForCalc, charges, achats, repCfg, users, budgetOps.length ? budgetOps : null);
 
   const solde      = kpi?.solde?.total || 0;
   const soldeColor = solde >= 0 ? 'var(--success)' : 'var(--danger)';
   const totalRev   = (kpi?.revenus?.total || 0) + (kpi?.aides?.total || 0) + (kpi?.primes?.total || 0);
   const totalChg   = kpi?.charges?.total || 0;
-  // Imprévus : total du champ saisie (ud.imprevus) + items de imprévusList (spoke dépenses)
-  const imprévusListTotal = (md?.imprévusList || []).reduce((s, i) => s + (Number(i.amount) || 0), 0);
-  const totalDep   = (kpi?.achats?.total || 0) + (kpi?.imprevus?.total || 0) + imprévusListTotal;
+  // kpi.imprevus inclut désormais ud.imprevus (saisie.js) + imprévusList (spoke dépenses)
+  const totalDep   = (kpi?.achats?.total || 0) + (kpi?.imprevus?.total || 0);
   const txEp       = kpi?.txEpargne?.total;
 
   // ── Budgets variables — uniquement les customBudgets gérés par le spoke Budgets ──

@@ -1097,7 +1097,10 @@ export function showEditBudgetModal(existing, customBudgets, onSave, users = [],
   const multiUser  = users.length > 1;
   const selIcon    = existing?.icon || '📌';
   const existingAlloc = existing?.allocation || 'shared';
-  const existingAmountByUser = existing?.amountByUser || {};
+  // RF-3 : garantir que les valeurs amountByUser sont des Numbers (données legacy éventuellement des strings)
+  const existingAmountByUser = Object.fromEntries(
+    Object.entries(existing?.amountByUser || {}).map(([k, v]) => [k, Number(v) || 0])
+  );
 
   const PRESET_BUDGETS = [
     { name: 'Restaurant', icon: '🍽️' },

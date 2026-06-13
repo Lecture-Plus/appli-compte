@@ -84,6 +84,10 @@ export async function initDriveSync() {
     if (!backups || !backups.length) {
       if (overlay) overlay.classList.add('hidden');
       setSyncStatus('ok');
+      // RF-5 : si jamais synchronisé, informer l'utilisateur que le Drive est vide
+      const hasNeverSynced = !(await getSetting(DRIVE_SYNC_KEY));
+      if (hasNeverSynced) showToast('Drive configuré ✅ — aucun backup existant. Vos données seront sauvegardées automatiquement.', 'info');
+      _isSyncing = false;
       return false;
     }
 
