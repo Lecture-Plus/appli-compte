@@ -234,6 +234,7 @@ async function _renderResume(container, s, users) {
   const badgeText  = { done: 'Complet', partial: 'En cours', empty: 'Non rempli' }[status];
 
   const soldeColor = kpi.solde.total >= 0 ? 'var(--success)' : 'var(--danger)';
+  const heroStateClass = isFirstUse ? 'hero-v2--neutral' : kpi.solde.total >= 0 ? 'hero-v2--pos' : 'hero-v2--neg';
   const txColor    = kpi.txEpargne.total >= 0.10 ? 'var(--success)' : kpi.txEpargne.total >= 0 ? 'var(--warning)' : 'var(--danger)';
 
   // ── Score budgétaire (mini ring) — BM-1 : source unique de vérité via calcBudgetScore ──
@@ -347,52 +348,34 @@ async function _renderResume(container, s, users) {
   }
 
   el.innerHTML = `
-    <!-- ── HERO compact + score ring ── -->
-    <div class="hero-card" style="margin-bottom:12px;">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;">
-        <div style="flex:1;min-width:0;">
-          <div class="hero-label">Solde de ${nomMois(month)} ${year}</div>
-          <div class="hero-amount" style="color:${soldeColor};">${isFirstUse ? '<span style="font-size:0.82rem;font-weight:600;color:var(--text-3);">Complétez votre saisie pour voir ce chiffre →</span>' : eur(kpi.solde.total)}</div>
-          <div class="hero-meta">
-            <span>${eur(kpi.revenus.total + (kpi.aides?.total ?? 0))} revenus</span>
-            <span style="color:var(--text-3);"> · </span>
-            <span style="color:var(--danger);">${eur(kpi.depenses.total)} dépensés</span>
-          </div>
-          ${users.length > 1 ? `<div style="font-size:0.72rem;color:var(--text-3);margin-top:3px;">${users.map(u => `${escHtml(u.name)}: ${eur(kpi.solde.byUser?.[u.id] ?? 0)}`).join(' · ')}</div>` : ''}          ${(()=>{ const n = _buildNarrative(kpi, s, _daysLeft, _isCurrentMonth); return n ? `<div style="margin-top:7px;font-size:0.74rem;color:var(--text-2);line-height:1.5;">${n}</div>` : ''; })()}
-        </div>
-        <div id="dash-score-area" style="display:flex;flex-direction:column;align-items:center;gap:2px;flex-shrink:0;cursor:pointer;" title="Score budgétaire (épargne, solde, courses, loisirs) — Cliquer pour le détail">
-          <svg width="58" height="58" viewBox="0 0 56 56" style="overflow:visible;cursor:help;">
-            <circle cx="28" cy="28" r="${sR}" stroke-width="5" fill="none" stroke="var(--bg-2)"/>
-            <circle cx="28" cy="28" r="${sR}" stroke-width="5" fill="none"
-              stroke="${scoreHex}" stroke-dasharray="${sCirc.toFixed(2)}" stroke-dashoffset="${sCirc.toFixed(2)}"
-              stroke-linecap="round" transform="rotate(-90 28 28)" id="mini-score-arc"/>
-            <text x="28" y="33" text-anchor="middle" fill="${scoreHex}"
-              style="font-family:Inter,sans-serif;font-size:13px;font-weight:900;">${score}</text>
-          </svg>
-          <div style="font-size:0.68rem;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:0.06em;">Santé budget</div>
-          <div style="font-size:0.6rem;color:var(--text-3);margin-top:1px;">↗ détail</div>
-        </div>
-      </div>
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-top:10px;gap:8px;">
+    <!-- ── HERO ── -->
+    <div class="hero-v2 ${heroStateClass}" style="margin-bottom:14px;">
+      <div class="hero-label">Solde · ${nomMois(month)} ${year}</div>
+      <div class="hero-amount" style="color:${soldeColor};">${isFirstUse ? '<span style="font-size:0.85rem;font-weight:600;color:var(--text-3);">Complétez votre saisie →</span>' : eur(kpi.solde.total)}</div>
+      ${users.length > 1 && !isFirstUse ? `<div class="hero-meta" style="margin-top:6px;">${users.map(u => `${escHtml(u.name.split(' ')[0])} <strong style="color:${(kpi.solde.byUser?.[u.id]??0)>=0?'var(--success)':'var(--danger)'}">${eur(kpi.solde.byUser?.[u.id]??0)}</strong>`).join(' · ')}</div>` : ''}
+      ${!isFirstUse ? `<div class="hero-meta">${eur(kpi.revenus.total + (kpi.aides?.total ?? 0))} revenus · <span style="color:var(--danger);">${eur(kpi.depenses.total)} dépensés</span></div>` : ''}
+      ${(()=>{ const n = _buildNarrative(kpi, s, _daysLeft, _isCurrentMonth); return n ? `<div style="margin-top:7px;font-size:0.74rem;color:var(--text-2);line-height:1.5;">${n}</div>` : ''; })()}
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-top:12px;gap:8px;">
         <span class="completeness-badge ${badgeClass}">${badgeIcon} ${badgeText}</span>
-        ${kpi.primes.total > 0 ? `<span class="chip warning" style="font-size:0.68rem;">+${eur(kpi.primes.total)} primes</span>` : ''}
+        <div id="dash-score-area" style="display:flex;align-items:center;gap:6px;cursor:pointer;" title="Score budgétaire — cliquer pour le détail">
+          <svg width="32" height="32" viewBox="0 0 56 56" style="overflow:visible;">
+            <circle cx="28" cy="28" r="${sR}" stroke-width="5" fill="none" stroke="var(--surface-2)"/>
+            <circle cx="28" cy="28" r="${sR}" stroke-width="5" fill="none" stroke="${scoreHex}" stroke-dasharray="${sCirc.toFixed(2)}" stroke-dashoffset="${sCirc.toFixed(2)}" stroke-linecap="round" transform="rotate(-90 28 28)" id="mini-score-arc"/>
+            <text x="28" y="33" text-anchor="middle" fill="${scoreHex}" style="font-family:Inter,sans-serif;font-size:14px;font-weight:900;">${score}</text>
+          </svg>
+          <div style="font-size:0.72rem;color:var(--text-3);">Score</div>
+        </div>
       </div>
+      ${kpi.primes.total > 0 ? `<div style="margin-top:8px;"><span class="chip warning" style="font-size:0.68rem;">+${eur(kpi.primes.total)} primes</span></div>` : ''}
     </div>
 
-    <!-- ── CTAs adaptatifs ── -->
-    <div id="dash-cta-area" style="margin-bottom:8px;">
-      ${status === 'empty'
-        ? `<button class="btn btn-primary" id="btn-go-saisie" style="width:100%;font-size:0.84rem;padding:13px;white-space:normal;text-align:center;">✏️ Commencer ma saisie du mois →</button>`
-        : status === 'partial'
-          ? `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-              <button class="btn btn-primary" id="btn-go-saisie" style="grid-column:1/-1;font-size:0.82rem;padding:11px;white-space:normal;text-align:center;">✏️ Continuer la saisie mensuelle</button>
-              <button class="btn btn-outline" id="btn-go-craquage" style="font-size:0.78rem;padding:10px 6px;white-space:normal;text-align:center;line-height:1.3;">💸 Craquage<br>et Dépassement</button>
-              <button class="btn btn-outline" id="btn-add-achat" style="font-size:0.78rem;padding:10px 6px;white-space:normal;text-align:center;line-height:1.3;">💳 Dépense<br>ponctuelle</button>
-            </div>`
-          : `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-              <button class="btn btn-outline" id="btn-go-craquage" style="font-size:0.78rem;padding:10px 6px;white-space:normal;text-align:center;line-height:1.3;">💸 Craquage<br>et Dépassement</button>
-              <button class="btn btn-outline" id="btn-add-achat" style="font-size:0.78rem;padding:10px 6px;white-space:normal;text-align:center;line-height:1.3;">💳 Dépense<br>ponctuelle</button>
-            </div>`}
+    <!-- ── Actions contextuelles ── -->
+    <div class="action-chips" id="dash-cta-area" style="margin-bottom:16px;">
+      ${status === 'empty' || status === 'partial'
+        ? `<button class="action-chip primary" id="btn-go-saisie">${status === 'empty' ? '✏️ Commencer la saisie' : '✏️ Continuer la saisie'}</button>`
+        : ''}
+      <button class="action-chip" id="btn-add-achat">💳 Dépense</button>
+      <button class="action-chip" id="btn-go-craquage">💸 Craquage</button>
     </div>
 
     <!-- ── Suivi budgets épinglés ── -->
