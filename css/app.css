@@ -334,6 +334,14 @@ svg     { display: block; }
 .card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
 .card-title  { font-size: var(--fs-xs); font-weight: 700; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.09em; }
 
+/* ─── Accordion cards ─── */
+details.acc-card > summary.acc-summary { list-style: none; cursor: pointer; margin-bottom: 0; }
+details.acc-card > summary.acc-summary::-webkit-details-marker,
+details.acc-card > summary.acc-summary::marker { display: none; }
+.acc-chevron { flex-shrink: 0; color: var(--text-3); transition: transform 0.2s; }
+details.acc-card[open] .acc-chevron { transform: rotate(180deg); }
+details.acc-card[open] > summary.acc-summary { margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
+
 /* ─── 10. KPI Cards ─── */
 .kpi-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .kpi-card {

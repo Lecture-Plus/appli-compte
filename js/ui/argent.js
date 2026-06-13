@@ -633,7 +633,8 @@ async function _renderSpoke(container, body, view) {
   });
 
   body.querySelector('#spoke-validate')?.addEventListener('click', () => {
-    emit('month:complete');
+    _currentView = 'hub';
+    renderHub(container);
   });
 
   const spokeContent = body.querySelector('#spoke-content');

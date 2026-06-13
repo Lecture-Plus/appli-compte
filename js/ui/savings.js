@@ -207,8 +207,8 @@ async function _renderEconomies(el, container) {
     <div style="height:24px;"></div>
 
     <!-- Section : Objectif d'épargne -->
-    <div class="card" style="margin-bottom:12px;">
-      <div class="card-header"><span class="card-title">🎯 Objectif d'épargne</span></div>
+    <details class="card acc-card" style="margin-bottom:12px;">
+      <summary class="card-header acc-summary"><span class="card-title">🎯 Objectif d'épargne</span><svg class="acc-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14"><path d="M6 9l6 6 6-6"/></svg></summary>
       <div class="form-group" style="margin-bottom:10px;">
         <label class="form-label">Libellé de l'objectif</label>
         <input type="text" class="form-input" id="sv-goal-label" value="${escHtml(s.savingsGoalLabel || '')}" placeholder="Ex: Vacances, Apport…">
@@ -255,19 +255,21 @@ async function _renderEconomies(el, container) {
         <p class="form-hint">Sous ce seuil, l'indicateur mensuel passe en rouge.</p>
       </div>
       <button class="btn btn-primary btn-full" id="sv-save-goal">Enregistrer</button>
-    </div>
+    </details>
 
     <!-- Section : Objectifs d'épargne nommés -->
-    <div class="card" style="margin-bottom:12px;">
-      <div class="card-header">
-        <span class="card-title">🎯 Mes objectifs</span>
-        <button class="btn btn-sm btn-primary" id="btn-add-goal">+ Ajouter</button>
+    <details class="card acc-card" style="margin-bottom:12px;">
+      <summary class="card-header acc-summary"><span class="card-title">🎯 Mes objectifs</span><svg class="acc-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14"><path d="M6 9l6 6 6-6"/></svg></summary>
+      <div>
+        <div style="display:flex;justify-content:flex-end;margin-bottom:8px;">
+          <button class="btn btn-sm btn-primary" id="btn-add-goal">+ Ajouter</button>
+        </div>
+        <div id="goals-list"></div>
       </div>
-      <div id="goals-list"></div>
-    </div>
+    </details>
 
     <!-- Section : Projection épargne 12 mois -->
-    <div class="card" style="margin-bottom:12px;">      <div class="card-header"><span class="card-title">🔭 Projection épargne</span></div>
+    <details class="card acc-card" style="margin-bottom:12px;"><summary class="card-header acc-summary"><span class="card-title">🔭 Projection épargne</span><svg class="acc-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14"><path d="M6 9l6 6 6-6"/></svg></summary>
       <p style="font-size:0.78rem;color:var(--text-3);margin-bottom:10px;">Simulez l'impact d'un versement mensuel supplémentaire sur votre épargne.</p>
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
         <label class="form-label" style="margin:0;white-space:nowrap;">Versement mensuel</label>
@@ -278,7 +280,7 @@ async function _renderEconomies(el, container) {
         <button class="btn btn-outline btn-sm" id="proj-calc">Calculer</button>
       </div>
       <div id="proj-result"></div>
-    </div>
+    </details>
   `;
 
   // ── Événements ──
@@ -999,49 +1001,55 @@ async function _renderSalariale(el, container) {
         <span class="chip primary" style="flex-shrink:0;">${nextAbonDate}</span>
         <button class="btn btn-sm btn-outline" id="sal-btn-params" style="flex-shrink:0;padding:4px 8px;font-size:0.7rem;">⚙️ Paramètres</button>
       </div>
-      <div class="progress-wrap" style="margin-bottom:6px;">
-        <div class="progress-labels">
-          <span>Versé cette période : ${eur(periodContrib)}</span>
-          <span style="color:var(--text-3);">${yearAbonRemaining <= 0 ? '✅ Plafond annuel atteint' : `Capacité : ${eur(yearAbonRemaining)} d'abond.`}</span>
+      <div style="margin-bottom:8px;">
+        <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:2px;margin-bottom:6px;">
+          <span style="font-size:0.8rem;color:var(--text-2);">Versé : <strong>${eur(periodContrib)}</strong></span>
+          <span style="font-size:0.78rem;color:var(--text-3);">${yearAbonRemaining <= 0 ? '✅ Plafond atteint' : `Reste : ${eur(yearAbonRemaining)}`}</span>
         </div>
         <div class="progress-track"><div class="progress-bar ${pctPeriod >= 100 || yearAbonRemaining <= 0 ? 'success' : 'primary'}" style="width:${pctPeriod}%;"></div></div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;">
         <div style="background:var(--success-bg);border-radius:var(--radius-sm);padding:10px;text-align:center;">
-          <div style="font-size:0.62rem;color:var(--text-3);font-weight:700;text-transform:uppercase;">Abond. estimé période</div>
+          <div style="font-size:0.72rem;color:var(--text-3);font-weight:700;">Abond. estimé</div>
           <div style="font-size:1rem;font-weight:800;color:var(--success);margin-top:2px;">${eur(estimatedAbonPeriod)}</div>
         </div>
-        <div style="background:var(--bg-secondary);border-radius:var(--radius-sm);padding:10px;text-align:center;">
-          <div style="font-size:0.62rem;color:var(--text-3);font-weight:700;text-transform:uppercase;">Abond. année ${year}</div>
+        <div style="background:var(--bg-2);border-radius:var(--radius-sm);padding:10px;text-align:center;">
+          <div style="font-size:0.72rem;color:var(--text-3);font-weight:700;">Abond. ${year}</div>
           <div style="font-size:1rem;font-weight:800;color:var(--primary);margin-top:2px;">${eur(yearAbonTotal)}</div>
-          <div style="font-size:0.62rem;color:var(--text-3);">/ ${eur(ABON_MAX_CFG)} max</div>
+          <div style="font-size:0.72rem;color:var(--text-3);">/ ${eur(ABON_MAX_CFG)} max</div>
         </div>
       </div>
-      ${yearAbonRemaining > 0 && pctPeriod < 100 ? `<div style="font-size:0.72rem;color:var(--text-3);margin-top:8px;">Il manque ${eur(abonMissing)} de versements pour utiliser tout le plafond restant.</div>` : ''}
+      ${yearAbonRemaining > 0 && pctPeriod < 100 ? `<div style="font-size:0.78rem;color:var(--text-3);margin-top:8px;">Il manque <strong>${eur(abonMissing)}</strong> de versements pour utiliser le plafond restant.</div>` : ''}
     </div>
 
     <!-- Simulation après abondement -->
     ${monthsRemaining > 0 || projectedAbon > 0 ? `
     <div class="card" style="margin-bottom:12px;">
       <div class="card-header"><span class="card-title">🔮 Simulation au ${nextAbonDate}</span></div>
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px;">
-        <div style="background:var(--bg-2);border-radius:var(--radius-sm);padding:10px;text-align:center;">
-          <div style="font-size:0.6rem;color:var(--text-3);font-weight:700;text-transform:uppercase;margin-bottom:4px;">Vos versements</div>
-          <div style="font-size:0.95rem;font-weight:800;color:var(--primary);">${eur(periodContrib + projectedExtraContrib)}</div>
-          <div style="font-size:0.6rem;color:var(--text-3);">+${eur(projectedExtraContrib)} projetés</div>
+      <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:10px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:var(--bg-2);border-radius:var(--radius-sm);">
+          <div>
+            <div style="font-size:0.82rem;font-weight:600;color:var(--text-2);">\ud83d\udcb6 Vos versements</div>
+            <div style="font-size:0.72rem;color:var(--text-3);">+${eur(projectedExtraContrib)} projetés</div>
+          </div>
+          <div style="font-size:1rem;font-weight:800;color:var(--primary);">${eur(periodContrib + projectedExtraContrib)}</div>
         </div>
-        <div style="background:var(--success-bg);border-radius:var(--radius-sm);padding:10px;text-align:center;">
-          <div style="font-size:0.6rem;color:var(--text-3);font-weight:700;text-transform:uppercase;margin-bottom:4px;">Abondement</div>
-          <div style="font-size:0.95rem;font-weight:800;color:var(--success);">${eur(projectedAbon)}</div>
-          <div style="font-size:0.6rem;color:var(--text-3);">${yearAbonRemaining <= 0 ? 'Plafond atteint' : `sur ${eur(yearAbonRemaining)} restants`}</div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:var(--success-bg);border-radius:var(--radius-sm);">
+          <div>
+            <div style="font-size:0.82rem;font-weight:600;color:var(--success);">\ud83c\udfe6 Abondement estimé</div>
+            <div style="font-size:0.72rem;color:var(--text-3);">${yearAbonRemaining <= 0 ? 'Plafond atteint' : `sur ${eur(yearAbonRemaining)} restants`}</div>
+          </div>
+          <div style="font-size:1rem;font-weight:800;color:var(--success);">${eur(projectedAbon)}</div>
         </div>
-        <div style="background:var(--primary-bg);border-radius:var(--radius-sm);padding:10px;text-align:center;">
-          <div style="font-size:0.6rem;color:var(--text-3);font-weight:700;text-transform:uppercase;margin-bottom:4px;">Total estimé</div>
-          <div style="font-size:0.95rem;font-weight:800;color:var(--primary);">${eur(projectedTotal)}</div>
-          <div style="font-size:0.6rem;color:var(--text-3);">actuel + projeté</div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:var(--surface);border:1.5px solid var(--primary);border-radius:var(--radius-sm);">
+          <div>
+            <div style="font-size:0.82rem;font-weight:700;color:var(--primary);">\ud83c\udfaf Total estimé</div>
+            <div style="font-size:0.72rem;color:var(--text-3);">actuel + projeté</div>
+          </div>
+          <div style="font-size:1.05rem;font-weight:800;color:var(--primary);">${eur(projectedTotal)}</div>
         </div>
       </div>
-      <div style="font-size:0.7rem;color:var(--text-3);">Projection sur ${monthsRemaining} mois restants à ${eur(avgMonthly)}/mois de moyenne.</div>
+      <div style="font-size:0.78rem;color:var(--text-3);">Projection sur ${monthsRemaining} mois restants à ${eur(avgMonthly)}/mois de moyenne.</div>
     </div>` : ''}
 
     <!-- Versements planifiés -->
