@@ -875,6 +875,7 @@ details.acc-card[open] > summary.acc-summary { margin-bottom: 12px; padding-bott
 .imprevu-item:hover { transform: translateY(-1px); box-shadow: var(--sh-sm); }
 .trf-preset { padding: 12px; text-align: center; flex-direction: column; gap: 2px; height: auto; border-radius: var(--r-md); transition: all 0.15s; }
 .trf-preset:hover { background: var(--brand-pale); border-color: var(--brand); }
+.ob-color-btn, .color-swatch { transition: transform 0.12s; }
 .ob-color-btn:active, .color-swatch:active { transform: scale(0.88); }
 #drive-banner { animation: bannerIn 0.3s var(--ease); position: relative; z-index: 15; }
 @keyframes bannerIn { from{opacity:0;transform:translateY(-8px);}to{opacity:1;transform:translateY(0);} }

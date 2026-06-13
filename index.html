@@ -318,7 +318,7 @@
       cont.innerHTML = USER_COLORS.map(c => {
         const taken = others.includes(c);
         return `<button type="button" class="ob-color-btn" data-color="${c}" ${taken ? 'disabled' : ''}
-          style="width:28px;height:28px;border-radius:50%;background:${c};border:3px solid ${c === selected ? '#fff' : 'transparent'};box-shadow:${c === selected ? '0 0 0 2px '+c : 'none'};cursor:${taken ? 'not-allowed' : 'pointer'};opacity:${taken ? '0.3' : '1'};flex-shrink:0;"></button>`;
+          style="width:40px;height:40px;border-radius:50%;background:${c};border:3px solid ${c === selected ? '#fff' : 'transparent'};box-shadow:${c === selected ? '0 0 0 2px '+c : 'none'};cursor:${taken ? 'not-allowed' : 'pointer'};opacity:${taken ? '0.3' : '1'};flex-shrink:0;"></button>`;
       }).join('');
       cont.querySelectorAll('.ob-color-btn:not([disabled])').forEach(btn => {
         btn.addEventListener('click', () => {
@@ -357,8 +357,13 @@
 
     document.getElementById('onboarding').classList.remove('hidden');
 
-    _obColorGetters[0] = buildColorPicker('ob-colors-1', USER_COLORS[0], () => [_obColorGetters[1] ? _obColorGetters[1]() : USER_COLORS[1]]);
-    _obColorGetters[1] = buildColorPicker('ob-colors-2', USER_COLORS[1], () => [_obColorGetters[0] ? _obColorGetters[0]() : USER_COLORS[0]]);
+    _obColorGetters[0] = buildColorPicker('ob-colors-1', USER_COLORS[0], () => {
+      const u2vis = document.getElementById('ob-user-2')?.style.display !== 'none';
+      return (u2vis && _obColorGetters[1]) ? [_obColorGetters[1]()] : [];
+    });
+    _obColorGetters[1] = buildColorPicker('ob-colors-2', USER_COLORS[1], () => [
+      _obColorGetters[0] ? _obColorGetters[0]() : USER_COLORS[0]
+    ]);
 
     // ── Intro : boutons pitch ──
     document.getElementById('ob-btn-start-intro')?.addEventListener('click', () => { showStep('create'); });
@@ -369,12 +374,14 @@
       document.getElementById('ob-user-2').style.display = '';
       document.getElementById('ob-add-second').style.display = 'none';
       document.getElementById('ob-name-2')?.focus();
+      document.getElementById('ob-colors-1')?.dispatchEvent(new CustomEvent('ob-rerender'));
     });
     document.getElementById('ob-remove-second')?.addEventListener('click', () => {
       document.getElementById('ob-user-2').style.display = 'none';
       document.getElementById('ob-add-second').style.display = '';
       const inp = document.getElementById('ob-name-2');
       if (inp) inp.value = '';
+      document.getElementById('ob-colors-1')?.dispatchEvent(new CustomEvent('ob-rerender'));
     });
 
     // ── Ajouter une personne supplémentaire (sans limite) ──

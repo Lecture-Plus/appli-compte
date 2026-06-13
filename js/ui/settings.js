@@ -726,7 +726,7 @@ function showUserModal(user, onSave) {
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px;" id="um-colors">
         ${USER_COLORS.map(c => `
           <button type="button" class="color-swatch ${c === u.color ? 'selected' : ''}" data-color="${c}"
-            style="width:32px;height:32px;border-radius:50%;background:${c};border:3px solid ${c === u.color ? '#fff' : 'transparent'};box-shadow:${c === u.color ? '0 0 0 2px '+c : 'none'};cursor:pointer;">
+            style="width:40px;height:40px;border-radius:50%;background:${c};border:3px solid ${c === u.color ? '#fff' : 'transparent'};box-shadow:${c === u.color ? '0 0 0 2px '+c : 'none'};cursor:pointer;">
           </button>`).join('')}
       </div>
     </div>
@@ -737,9 +737,10 @@ function showUserModal(user, onSave) {
 
   let selectedColor = u.color;
 
-  document.querySelectorAll('.color-swatch').forEach(btn => {
+  const colorsEl = document.getElementById('um-colors');
+  colorsEl?.querySelectorAll('.color-swatch').forEach(btn => {
     btn.addEventListener('click', () => {
-      document.querySelectorAll('.color-swatch').forEach(b => {
+      colorsEl.querySelectorAll('.color-swatch').forEach(b => {
         b.style.border = '3px solid transparent';
         b.style.boxShadow = 'none';
       });
