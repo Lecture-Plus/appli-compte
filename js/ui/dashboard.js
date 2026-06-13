@@ -19,6 +19,7 @@ import { eur, pct, nomMois, addMonth, signClass,
          openModal, closeModal }                          from '../utils.js';
 import { showCraquageModal }                              from './saisie.js';
 import { showEditBudgetModal, showAchatModal }             from './charges.js';
+import { on }                                             from '../events.js';
 
 let _activeTab = 'resume';
 let _detailMode = 'reel'; // 'reel' | 'previsionnel'

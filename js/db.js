@@ -645,7 +645,7 @@ export async function getBudgetOpsForMonth(year, month) {
   return _getAllByIndex('budget_ops', 'yearMonth', [year, month]);
 }
 export async function getAllBudgetOps() { return _getAll('budget_ops'); }
-export async function saveBudgetOp(op) { return _put('budget_ops', op); }
+export async function saveBudgetOp(op) { const r = await _put('budget_ops', op); emit('budgetop:saved'); return r; }
 export async function deleteBudgetOp(id) { return _delete('budget_ops', id); }
 
 /* ── Épargne salariale ── */

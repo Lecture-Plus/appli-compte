@@ -228,6 +228,8 @@ export async function render(container, params = {}) {
         _prevChgState = '';
         refreshCompleteBtn();
         _renderSharedProgress(container);
+        // Notifier le dashboard
+        import('../events.js').then(({ emit }) => emit('budgetop:saved'));
       });
     });
   }
