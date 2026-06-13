@@ -789,13 +789,8 @@ async function renderBudgets(container) {
   const pendingCraquages = achats.filter(a => a.category === 'craquage' && a.craquage_source === 'pending');
 
   tc.innerHTML = `
-    <div style="display:flex;align-items:center;justify-content:space-between;margin:8px 0 12px;">
-      <button class="btn btn-outline btn-sm" id="bgt-prev-month">‹</button>
-      <span style="font-weight:700;font-size:0.95rem;">${nomMois(month)} ${year}</span>
-      <div style="display:flex;gap:6px;">
-        <button class="btn btn-sm btn-secondary" id="bgt-manage">⚙️ Gérer</button>
-        <button class="btn btn-outline btn-sm" id="bgt-next-month">›</button>
-      </div>
+    <div style="display:flex;justify-content:flex-end;margin-bottom:14px;">
+      <button class="btn btn-sm btn-secondary" id="bgt-manage">⚙️ Gérer les budgets</button>
     </div>
     ${pendingCraquages.length > 0 ? `
     <div class="card" style="margin-bottom:12px;border:1.5px solid var(--warning);">
@@ -820,8 +815,6 @@ async function renderBudgets(container) {
     </button>
   `;
 
-  tc.querySelector('#bgt-prev-month')?.addEventListener('click', () => { const d=addMonth(year,month,-1); State.year=d.year;State.month=d.month; renderBudgets(container); });
-  tc.querySelector('#bgt-next-month')?.addEventListener('click', () => { const d=addMonth(year,month, 1); State.year=d.year;State.month=d.month; renderBudgets(container); });
   tc.querySelector('#bgt-add-custom')?.addEventListener('click', () => showEditBudgetModal(null, customBudgets, () => renderBudgets(container), users, year, month));
   tc.querySelector('#bgt-manage')?.addEventListener('click', () => _showManageBudgetsModal(customBudgets, () => renderBudgets(container), users));
 

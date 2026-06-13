@@ -1243,6 +1243,16 @@ svg { display: block; }
 }
 .spoke-back:hover  { background: rgba(124,92,252,0.15); }
 .spoke-back:active { transform: scale(0.93); }
+.spoke-next {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 0.8rem; font-weight: 700; color: var(--text-2);
+  background: var(--bg-2); border: 1px solid var(--border);
+  border-radius: 99px; padding: 7px 14px;
+  cursor: pointer; flex-shrink: 0; white-space: nowrap; margin-left: auto;
+  transition: background var(--transition), color var(--transition), transform var(--transition);
+}
+.spoke-next:hover  { background: rgba(124,92,252,0.12); color: var(--primary); border-color: rgba(124,92,252,0.3); }
+.spoke-next:active { transform: scale(0.93); }
 .spoke-title { font-size: 1.05rem; font-weight: 900; letter-spacing: -0.025em; }
 
 /* ─── Animation entrée ─── */

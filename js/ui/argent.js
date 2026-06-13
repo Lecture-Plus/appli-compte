@@ -278,6 +278,26 @@ async function renderHub(container) {
     aPayerPerUser[uId] = chgShare + budgShare + impShare;
   }
 
+  // ── Correction payerViaPerso : la part déjà payée de sa poche est déduite de son à payer ──
+  for (const c of charges) {
+    if (!c.payerViaPerso || c.perso) continue;
+    const amt = Number(c.amount) || 0;
+    if (!amt) continue;
+    const payerUid = String(c.payerViaPerso);
+    if (aPayerPerUser[payerUid] === undefined) continue;
+    const qui = c.qui ? String(c.qui) : 'shared';
+    let payerShare = 0;
+    if (c.splitPcts && typeof c.splitPcts === 'object') {
+      const sumPcts = users.reduce((s, u) => s + (Number(c.splitPcts[String(u.id)]) || 0), 0) || 100;
+      payerShare = amt * ((Number(c.splitPcts[payerUid]) || 0) / sumPcts);
+    } else if (qui !== 'shared' && users.some(u => String(u.id) === qui)) {
+      payerShare = qui === payerUid ? amt : 0;
+    } else {
+      payerShare = amt * _getShareRatio(payerUid);
+    }
+    aPayerPerUser[payerUid] -= payerShare;
+  }
+
   // ── Helpers HTML ──
   function statusBadge(s) {
     const cfg = {
@@ -541,6 +561,8 @@ async function _renderSpoke(container, body, view) {
     budgets:  '📊 Budgets',
     depenses: '💸 Dépenses',
   };
+  const viewOrder = ['revenus', 'charges', 'budgets', 'depenses'];
+  const nextView  = viewOrder[viewOrder.indexOf(view) + 1] ?? null;
 
   body.innerHTML = `
     <div class="spoke-header">
@@ -549,6 +571,7 @@ async function _renderSpoke(container, body, view) {
         Retour
       </button>
       <h2 class="spoke-title">${viewTitles[view] || view}</h2>
+      ${nextView ? `<button class="spoke-next" id="spoke-next" type="button">${viewTitles[nextView].split(' ').slice(1).join(' ')} <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14"><path d="M9 18l6-6-6-6"/></svg></button>` : ''}
     </div>
     <div id="spoke-content" class="argent-subview"></div>
   `;
@@ -559,6 +582,13 @@ async function _renderSpoke(container, body, view) {
     if (btn._budgUnsub) { btn._budgUnsub(); btn._budgUnsub = null; }
     _currentView = 'hub';
     renderHub(container);
+  });
+
+  body.querySelector('#spoke-next')?.addEventListener('click', () => {
+    const btn = body.querySelector('#spoke-back');
+    if (btn?._budgUnsub) { btn._budgUnsub(); btn._budgUnsub = null; }
+    _currentView = nextView;
+    _renderSpoke(container, body, nextView);
   });
 
   const spokeContent = body.querySelector('#spoke-content');
