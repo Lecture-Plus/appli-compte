@@ -129,6 +129,8 @@ function _subscribeChargesEvents(container) {
     if (!document.contains(container)) { _chgUnsubscribe?.(); _chgUnsubscribe = null; return; }
     _setChgValidated(true);
     _renderSharedProgress(container);
+    // Auto-avance vers l'onglet Budgets
+    container.querySelector('[data-artab="budgets"]')?.click();
   });
   _chgUnsubscribe = () => { unsub1(); unsub2(); };
 }
