@@ -259,14 +259,15 @@ async function _renderResume(container, s, users) {
 
   // ── Guide d'initialisation (persiste jusqu'aux 4 étapes complètes) ──
   const allSavConfirmed = await getAllSavingsConfirmed();
-  // Si le mois est validé, toutes les étapes sont considérées comme faites
+  // Étapes 1-3 : validées si le mois est complet OU si la donnée existe
   const monthComplete = md?.isComplete === true;
   const guideDone1   = monthComplete || users.some(u => (md?.users?.[String(u.id)]?.revenus || 0) > 0);
   const guideDone2   = monthComplete || charges.length > 0;
   const guideDoneOpt = monthComplete || allBudgetOps.length > 0;
-  const guideDone3   = monthComplete || allSavConfirmed.length > 0;
-  // Bravo uniquement quand les 4 étapes (y compris budgets) sont faites, ou mois validé
-  const allGuideDone = monthComplete || (guideDone1 && guideDone2 && guideDoneOpt && guideDone3);
+  // Étape 4 (épargne) : jamais forcée par le mois, doit être faite indépendamment
+  const guideDone3   = allSavConfirmed.length > 0;
+  // Bravo uniquement quand les 4 étapes sont toutes validées
+  const allGuideDone = guideDone1 && guideDone2 && guideDoneOpt && guideDone3;
   // localStorage seulement pour mémoriser le clic sur "Découvrir" (jamais auto)
   const guideDismissed = localStorage.getItem('compta-guide-dismissed') === '1';
   const showBravo = allGuideDone && !guideDismissed;
