@@ -956,10 +956,27 @@ async function _renderSalariale(el, container) {
   const monthsRemaining = Math.max(0,
     (periodEnd.year - year) * 12 + (periodEnd.month - month)
   );
-  // Moyenne mensuelle des versements de la période en cours (ou mensuelle planifiée si pas encore de données)
-  const avgMonthly = periodOps.length > 0
-    ? periodContrib / Math.max(1, (year - curPeriod.periodStart.year) * 12 + (month - curPeriod.periodStart.month) + 1)
-    : users.reduce((s, u) => s + (Number(planned[String(u.id)]) || 0), 0);
+  // Base mensuelle : versements planifiés en priorité (intention de l'user),
+  // sinon médiane des mois de la période (résistante aux virements ponctuels)
+  const plannedTotal = users.reduce((s, u) => s + (Number(planned[String(u.id)]) || 0), 0);
+  let avgMonthly;
+  if (plannedTotal > 0) {
+    avgMonthly = plannedTotal;
+  } else if (periodOps.length > 0) {
+    // Agréger par mois puis prendre la médiane
+    const byMonth = {};
+    for (const op of periodOps) {
+      const k = `${op.year}-${op.month}`;
+      byMonth[k] = (byMonth[k] || 0) + (Number(op.amount) || 0);
+    }
+    const montants = Object.values(byMonth).sort((a, b) => a - b);
+    const mid = Math.floor(montants.length / 2);
+    avgMonthly = montants.length % 2 === 0
+      ? (montants[mid - 1] + montants[mid]) / 2
+      : montants[mid];
+  } else {
+    avgMonthly = 0;
+  }
   const projectedExtraContrib = avgMonthly * monthsRemaining;
   const projectedTotalContrib = periodContrib + projectedExtraContrib;
   const projectedAbon         = Math.min(projectedTotalContrib * ABON_RATIO_CFG, yearAbonRemaining);
@@ -1013,7 +1030,7 @@ async function _renderSalariale(el, container) {
       </div>
       ${yearAbonRemaining > 0 && pctPeriod < 100 ? `<div style="font-size:0.78rem;color:var(--text-3);margin-top:8px;">Il manque <strong>${eur(abonMissing)}</strong> de versements pour utiliser le plafond restant.</div>` : ''}
       ${monthsRemaining > 0 ? `<div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;padding:8px 10px;background:var(--bg-2);border-radius:var(--radius-sm);border-top:1px solid var(--border);">
-        <span style="font-size:0.78rem;color:var(--text-3);">🔮 Total estimé à terme<br><span style="font-size:0.7rem;">${monthsRemaining} mois restants · ${eur(avgMonthly)}/mois</span></span>
+        <span style="font-size:0.78rem;color:var(--text-3);">🔮 Total estimé à terme<br><span style="font-size:0.7rem;">${monthsRemaining} mois restants · ${eur(avgMonthly)}/mois ${plannedTotal > 0 ? '(planifié)' : '(médiane)'}</span></span>
         <span style="font-size:1rem;font-weight:800;color:var(--primary);">${eur(projectedTotal)}</span>
       </div>` : ''}
     </div>
