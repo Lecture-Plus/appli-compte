@@ -33,15 +33,17 @@ let _extrasFoyerMode  = localStorage.getItem('extrasFoyerMode')  === '1';
 
 // ── Déclenchement du wizard fin de mois (appelé depuis argent.js) ──
 export async function triggerMonthComplete(body) {
-  // Charger les données si saisie.js n'a jamais été rendu (ex: arrive directement sur Budgets)
-  if (!_md || !_users.length) {
-    const { year, month } = State;
-    [_users, _md] = await Promise.all([
-      getActiveUsers(),
-      getMonthlyData(year, month),
-    ]);
-    if (!_md) _md = { year, month, users: {}, notes: '', isComplete: false };
-  }
+  const { year, month } = State;
+  // Toujours recharger les données fraîches (saisie peut ne jamais avoir été rendu)
+  [_users, _md, _repCfg, _chargesCache, _achatsCache, _budgetOpsCache] = await Promise.all([
+    getActiveUsers(),
+    getMonthlyData(year, month),
+    getRepartition(year, month),
+    getChargesForMonth(month, year),
+    getAchatsForMonth(year, month),
+    getBudgetOpsForMonth(year, month),
+  ]);
+  if (!_md) _md = { year, month, users: {}, notes: '', isComplete: false };
   // Sync uniquement si les inputs saisie sont présents dans le DOM
   if (body?.querySelector?.('[id^="rev-"]')) syncFormToState(body);
   const { month, year } = State;
