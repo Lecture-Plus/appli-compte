@@ -323,9 +323,10 @@ async function _renderResume(container, s, users) {
     return;
   }
 
-  el.innerHTML = `
-    ${showBravo ? `
-    <div class="guide-card" style="border-left:3px solid var(--success);margin-bottom:16px;">
+  // ── Configuration complète : carte Bravo seule, dashboard masqué jusqu'au clic ──
+  if (showBravo) {
+    el.innerHTML = `
+    <div class="guide-card" style="border-left:3px solid var(--success);">
       <div style="font-size:2rem;margin-bottom:8px;">🎉</div>
       <div class="guide-card-title" style="color:var(--success);">Configuration complète !</div>
       <div class="guide-card-sub" style="line-height:1.65;margin-top:6px;">
@@ -336,7 +337,15 @@ async function _renderResume(container, s, users) {
         adaptés à votre situation réelle.
       </div>
       <button class="btn btn-sm btn-primary" id="btn-bravo-dismiss" style="margin-top:14px;font-size:0.82rem;padding:9px 20px;">Découvrir mon tableau de bord →</button>
-    </div>` : ''}
+    </div>`;
+    el.querySelector('#btn-bravo-dismiss').addEventListener('click', async () => {
+      localStorage.setItem('compta-guide-dismissed', '1');
+      await _renderResume(container, s, users);
+    });
+    return;
+  }
+
+  el.innerHTML = `
     <!-- ── HERO compact + score ring ── -->
     <div class="hero-card" style="margin-bottom:12px;">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;">
@@ -537,12 +546,6 @@ async function _renderResume(container, s, users) {
       </div>`,
       `<button class="btn btn-primary" onclick="document.getElementById('modal-close').click()">OK</button>`
     );
-  });
-
-  // ── Bravo card : dismiss → mémoriser + rafraîchir ──
-  el.querySelector('#btn-bravo-dismiss')?.addEventListener('click', async () => {
-    localStorage.setItem('compta-guide-dismissed', '1');
-    await _renderResume(container, s, users);
   });
 
   el.querySelector('#btn-go-saisie')?.addEventListener('click', () => navigateTo('argent', { tab: 'saisir' }));
