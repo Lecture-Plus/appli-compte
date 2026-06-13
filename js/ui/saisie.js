@@ -30,6 +30,8 @@ let _budgetOpsCache = [];
 let _settings = null;
 let _coursesFoyerMode = localStorage.getItem('coursesFoyerMode') === '1';
 let _extrasFoyerMode  = localStorage.getItem('extrasFoyerMode')  === '1';
+// ── Nettoyage du listener month:complete (evite accumulation sur re-render) ──
+let _monthCompleteUnsub = null;
 
 export async function render(container) {
   _users = await getActiveUsers();
@@ -398,7 +400,8 @@ export async function render(container) {
   });
 
   // ── Marquer complet (déclenché depuis argent.js via EventBus) ──
-  on('month:complete', async () => {
+  if (_monthCompleteUnsub) _monthCompleteUnsub();
+  _monthCompleteUnsub = on('month:complete', async () => {
     if (!document.contains(container)) return;
     syncFormToState(container);
     await _showEndOfMonthWizard(container, month, year);

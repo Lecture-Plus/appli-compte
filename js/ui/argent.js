@@ -17,14 +17,15 @@ let _arTab = 'saisie';
 let _lastRevInput  = 0;
 let _revDoneTimer  = null;
 
-// ── Suivi des charges (pour la barre de progression) ──
-let _chgValidated  = false;
-let _chgHasData    = false;
+// ── Suivi des charges ──
+let _chgValidated          = false; // chargé depuis localStorage
+let _chgValidatedThisSession = false; // vrai uniquement si validé DANS cette session
+let _autoAdvanceDone       = false; // empêche double auto-avance charges→budgets
 
-// ── Persistance _chgValidated en localStorage par mois ──
-function _chgKey() { const { year, month } = State; return `compta-chg-ok-${year}-${month}`; }
-function _loadChgState() { _chgValidated = localStorage.getItem(_chgKey()) === '1'; }
-function _saveChgState() { localStorage.setItem(_chgKey(), '1'); }
+// ── Persistance charges en localStorage par mois ──
+function _chgKey()           { const { year, month } = State; return `compta-chg-ok-${year}-${month}`; }
+function _loadChgState()     { _chgValidated = localStorage.getItem(_chgKey()) === '1'; }
+function _setChgValidated(v) { _chgValidated = v; if (v) localStorage.setItem(_chgKey(), '1'); else localStorage.removeItem(_chgKey()); }
 
 // ── Barre de progression partagée Saisie / Budgets ──
 async function _renderSharedProgress(container) {
@@ -43,26 +44,22 @@ async function _renderSharedProgress(container) {
   const revState  = (md?.isComplete || (hasRevData && !isRevRecent)) ? 'done'
                   : (hasRevData || isRevRecent) ? 'active' : '';
   const hasChg  = charges.length > 0;
-  if (hasChg) _chgHasData = true;
   // Si le mois est marqué complet, forcer les charges validées + persister
-  if (md?.isComplete && !_chgValidated) {
-    _chgValidated = true;
-    _saveChgState();
-  }
+  if (md?.isComplete && !_chgValidated) _setChgValidated(true);
   const chgState = _chgValidated ? 'done'
-                 : (_chgHasData || hasChg) ? 'active' : (revState === 'done' ? 'active' : '');
+                 : hasChg ? 'active' : (revState === 'done' ? 'active' : '');
   const hasBudg = budgetOps.length > 0;
   const isDone  = md?.isComplete;
 
-  // ── Auto-avance : quand chgState passe à 'done', basculer vers Budgets ──
-  if (_chgValidated && _prevChgState !== 'done' && _arTab === 'saisie') {
+  // ── Auto-avance : charges viennent d'être validées DANS cette session ──
+  if (_chgValidatedThisSession && !_autoAdvanceDone && _arTab === 'saisie') {
+    _autoAdvanceDone = true;
     setTimeout(() => {
       if (!document.contains(container)) return;
       const tabBudgets = container.querySelector('[data-artab="budgets"]');
       if (tabBudgets && _arTab !== 'budgets') tabBudgets.click();
     }, 200);
   }
-  _prevChgState = chgState;
   const states = [
     revState,
     chgState,
@@ -128,22 +125,20 @@ function _watchSaisieInputs(container) {
 
 // ── Gestion des événements charges ──
 let _chgUnsubscribe = null;
-let _prevChgState   = '';
-function _subscribeChargesUpdated(container) {
+function _subscribeChargesEvents(container) {
   if (_chgUnsubscribe) _chgUnsubscribe();
   const unsub1 = on('charges:updated', () => {
-    // Une vraie sauvegarde invalide la validation précédente
-    if (!document.contains(container)) { unsub1(); unsub2(); _chgUnsubscribe = null; return; }
-    _chgValidated = false;
-    localStorage.removeItem(_chgKey());
-    _chgHasData = true;
-    _prevChgState = '';
+    if (!document.contains(container)) { _chgUnsubscribe?.(); _chgUnsubscribe = null; return; }
+    // Sauvegarde réelle → invalide la validation précédente
+    _setChgValidated(false);
+    _chgValidatedThisSession = false;
+    _autoAdvanceDone = false;
     _renderSharedProgress(container);
   });
   const unsub2 = on('charges:validated', () => {
-    if (!document.contains(container)) { unsub1(); unsub2(); _chgUnsubscribe = null; return; }
-    _chgValidated = true;
-    _saveChgState();
+    if (!document.contains(container)) { _chgUnsubscribe?.(); _chgUnsubscribe = null; return; }
+    _setChgValidated(true);
+    _chgValidatedThisSession = true;
     _renderSharedProgress(container);
   });
   _chgUnsubscribe = () => { unsub1(); unsub2(); };
@@ -155,10 +150,12 @@ export async function render(container, params = {}) {
   if (['saisir', 'epargne', 'recurrentes', 'charges'].includes(_arTab)) _arTab = 'saisie';
   if (_arTab === 'depenses') _arTab = 'budgets';
 
-  // Réinitialiser l'état charges au changement de mois
+  // Réinitialiser l'état par session
   _loadChgState();
-  _chgHasData   = _chgValidated; // si déjà validé, hasData aussi
-  _prevChgState = '';
+  _chgValidatedThisSession = false;         // pas validé dans cette session
+  _autoAdvanceDone         = _chgValidated; // si déjà validé sur le disque, pas d'auto-avance
+  _lastRevInput = 0;
+  if (_revDoneTimer) { clearTimeout(_revDoneTimer); _revDoneTimer = null; }
 
   const { year, month } = State;
   container.innerHTML = `
@@ -176,6 +173,8 @@ export async function render(container, params = {}) {
     <div id="argent-body" style="margin-top:0;"></div>
   `;
 
+  // Abonner immédiatement aux événements charges (tous onglets)
+  _subscribeChargesEvents(container);
   _renderSharedProgress(container);
 
   // ── Bouton "Valider le mois" ──
@@ -204,9 +203,9 @@ export async function render(container, params = {}) {
         await db.saveMonthlyData(mdNow);
         const { showToast } = await import('../utils.js');
         showToast('Mois marqué comme en cours', 'success');
-        _chgValidated = false;
-        localStorage.removeItem(_chgKey());
-        _prevChgState = '';
+        _setChgValidated(false);
+        _chgValidatedThisSession = false;
+        _autoAdvanceDone = false;
         _renderSharedProgress(container);
         refreshCompleteBtn();
         return;
@@ -222,10 +221,8 @@ export async function render(container, params = {}) {
       const unsub = on('month:complete:done', () => {
         unsub();
         // Wizard terminé : forcer toutes les étapes done + rafraîchir
-        _chgValidated = true;
-        _saveChgState();
-        _chgHasData = true;
-        _prevChgState = '';
+        _setChgValidated(true);
+        _chgValidatedThisSession = false; // wizard ≠ action user "valider charges"
         refreshCompleteBtn();
         _renderSharedProgress(container);
         // Notifier le dashboard
@@ -244,7 +241,6 @@ export async function render(container, params = {}) {
       _renderSharedProgress(container);
       if (_arTab === 'saisie') {
         _watchSaisieInputs(container);
-        _subscribeChargesUpdated(container);
       }
     }, 200);
   };
