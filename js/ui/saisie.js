@@ -130,7 +130,7 @@ export async function render(container, opts = {}) {
           ${_users.map(u => inputField(`rev-${u.id}`, u, _md.users[String(u.id)]?.revenus, '€')).join('')}
         </div>
         <div style="margin-bottom:8px;">
-          <button class="btn btn-sm btn-outline" id="btn-toggle-aides" style="font-size:0.72rem;">⬇ Aides &amp; primes</button>
+          <button class="btn btn-sm btn-outline" id="btn-toggle-aides" style="font-size:0.72rem;">➕ Aides &amp; primes (CAF, APL…)</button>
         </div>
         <div id="aides-primes-section" style="display:none;padding-top:10px;border-top:1px solid var(--border);">
           <div style="font-size:0.75rem;font-weight:600;color:var(--text-3);margin-bottom:8px;">Aides (CAF, APL, allocations…)</div>
@@ -207,14 +207,14 @@ export async function render(container, opts = {}) {
         <div id="saisie-charges-list"></div>
         <div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--border);">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
-            <div style="font-weight:700;font-size:0.82rem;">⚡ Imprévus</div>
+            <div style="font-weight:700;font-size:0.82rem;">🚨 Dépenses imprévues</div>
             <button class="btn btn-sm btn-secondary" id="btn-add-imprevu">+ Ajouter</button>
           </div>
-          <p style="font-size:0.75rem;color:var(--text-3);margin:0 0 6px;">Dépenses non planifiées (panne, urgence…). Pour les achats ponctuels importants, utilisez <strong>Saisie → Budgets</strong>.</p>
+          <p style="font-size:0.75rem;color:var(--text-3);margin:0 0 6px;">Dépense inattendue survenue ce mois (panne, urgence, soin…). Pour les achats ponctuels, utilisez l'onglet <strong>Budgets</strong>.</p>
           <div id="imprevu-list"></div>
         </div>
         <div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;">
-          <button class="btn btn-primary btn-sm" id="btn-validate-charges" style="padding:9px 20px;font-size:0.84rem;">✅ Valider les charges</button>
+          <button class="btn btn-primary btn-sm" id="btn-validate-charges" style="padding:9px 20px;font-size:0.84rem;">✓ Confirmer les charges</button>
         </div>
       </div>
     </details>
@@ -265,7 +265,7 @@ export async function render(container, opts = {}) {
     if (!sec || !btn) return;
     const open = sec.style.display !== 'none';
     sec.style.display = open ? 'none' : '';
-    btn.textContent = open ? '⬇ Aides & primes' : '⬆ Masquer';
+    btn.textContent = open ? '➕ Aides & primes (CAF, APL…)' : '⬆ Masquer';
   });
 
   // ── Navigation mois ──
@@ -453,8 +453,18 @@ function _renderSaisieChargesList(container) {
     el.innerHTML = `<div style="text-align:center;padding:16px 8px 8px;">
       <div style="font-size:1.4rem;margin-bottom:6px;">🏠</div>
       <div style="font-size:0.82rem;font-weight:600;margin-bottom:4px;">Aucune charge ce mois-ci</div>
-      <div style="font-size:0.72rem;color:var(--text-3);line-height:1.5;">Cliquez sur <strong>📥 Importer</strong> pour copier vos charges habituelles ou sur <strong>+ Ajouter</strong> pour en créer une.</div>
+      <div style="font-size:0.72rem;color:var(--text-3);line-height:1.65;margin-bottom:8px;">
+        <strong>📥 Importer</strong> copie vos charges récurrentes (loyer, EDF, abonnements…) en un clic.<br>
+        <strong>+ Ajouter</strong> crée une charge pour ce mois uniquement.
+      </div>
+      <div style="font-size:0.72rem;color:var(--primary);line-height:1.5;">
+        💡 Pas encore de charges récurrentes configurées ?<br>
+        <span id="goto-recurrentes-empty" style="text-decoration:underline;cursor:pointer;">Accéder à mes charges récurrentes →</span>
+      </div>
     </div>`;
+    el.querySelector('#goto-recurrentes-empty')?.addEventListener('click', () => {
+      import('../app.js').then(({ navigateTo }) => navigateTo('charges'));
+    });
     return;
   }
   const byCat = {};
@@ -838,7 +848,7 @@ function showImprévuModal(container, month, year) {
     _users.map(u => `<option value="${u.id}" ${_users.length === 1 ? 'selected' : ''}>${escHtml(u.name)}</option>`).join('')
   );
 
-  openModal('⚡ Ajouter un imprévu', `
+  openModal('🚨 Dépense inattendue', `
     <p style="font-size:0.82rem;color:var(--text-2);margin-bottom:14px;">
       Dépense non prévue survenue ce mois-ci (panne, urgence, soin…)
     </p>
@@ -1297,8 +1307,9 @@ async function _showEndOfMonthWizard(container, month, year) {
     </div>`;
 
   openModal(`✅ Clôturer ${nomMois(month)} ${year}`, step1,
-    `<button class="btn btn-outline" id="wiz-cancel">Annuler</button>
-     <button class="btn btn-primary" id="wiz-confirm">Marquer complet ✅</button>`
+    `<div style="font-size:0.72rem;color:var(--text-3);margin-bottom:10px;text-align:center;padding:0 4px;">Les données restent modifiables après clôture.</div>
+     <button class="btn btn-outline" id="wiz-cancel">Annuler</button>
+     <button class="btn btn-primary" id="wiz-confirm">✅ Clôturer ce mois</button>`
   );
 
   document.getElementById('wiz-cancel')?.addEventListener('click', closeModal);

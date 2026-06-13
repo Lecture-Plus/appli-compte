@@ -157,7 +157,7 @@ export async function render(container, params = {}) {
       </div>
       <button id="argent-btn-complete" class="btn btn-primary btn-sm" style="white-space:nowrap;flex-shrink:0;display:flex;align-items:center;gap:5px;">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14"><path d="M20 6L9 17l-5-5"/></svg>
-        Valider le mois
+        📌 Clôturer le mois
       </button>
     </div>
     <div id="argent-body" style="margin-top:0;"></div>
@@ -183,8 +183,8 @@ export async function render(container, params = {}) {
       const mdNow = await db.getMonthlyData(year, month);
       const isDone = mdNow?.isComplete;
       btnComplete.innerHTML = isDone
-        ? `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14"><path d="M20 6L9 17l-5-5"/></svg> ✅ Mois complet`
-        : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14"><path d="M20 6L9 17l-5-5"/></svg> Valider le mois`;
+        ? `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14"><path d="M20 6L9 17l-5-5"/></svg> ✅ Mois clôturé`
+        : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14"><path d="M20 6L9 17l-5-5"/></svg> 📌 Clôturer le mois`;
       btnComplete.className = 'btn btn-sm';
       btnComplete.style.cssText = isDone
         ? 'white-space:nowrap;flex-shrink:0;display:flex;align-items:center;gap:5px;color:var(--success);background:var(--success-bg);border:none;'

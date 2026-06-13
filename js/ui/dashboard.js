@@ -295,7 +295,7 @@ async function _renderResume(container, s, users) {
           <div class="guide-step-num ${guideDone2 ? 'done' : ''}">${guideDone2 ? '✓' : '2'}</div>
           <div class="guide-step-body">
             <div class="guide-step-title">📋 Saisir les charges du mois</div>
-            <div class="guide-step-sub">${guideDone2 ? 'Charges enregistrées ✓' : 'Loyer, abonnements, assurances… toutes vos dépenses fixes'}</div>
+            <div class="guide-step-sub">${guideDone2 ? 'Charges importées ✓' : 'Importez ou ajoutez les dépenses fixes du mois (loyer, EDF, abonnements…)'}</div>
           </div>
           ${!guideDone2 ? '<span class="guide-step-arrow">›</span>' : ''}
         </button>
@@ -352,7 +352,7 @@ async function _renderResume(container, s, users) {
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;">
         <div style="flex:1;min-width:0;">
           <div class="hero-label">Solde de ${nomMois(month)} ${year}</div>
-          <div class="hero-amount" style="color:${soldeColor};">${isFirstUse ? '<span class="amount-placeholder">— pas encore renseigné</span>' : eur(kpi.solde.total)}</div>
+          <div class="hero-amount" style="color:${soldeColor};">${isFirstUse ? '<span style="font-size:0.82rem;font-weight:600;color:var(--text-3);">Complétez votre saisie pour voir ce chiffre →</span>' : eur(kpi.solde.total)}</div>
           <div class="hero-meta">
             <span>${eur(kpi.revenus.total + (kpi.aides?.total ?? 0))} revenus</span>
             <span style="color:var(--text-3);"> · </span>
@@ -369,7 +369,8 @@ async function _renderResume(container, s, users) {
             <text x="28" y="33" text-anchor="middle" fill="${scoreHex}"
               style="font-family:Inter,sans-serif;font-size:13px;font-weight:900;">${score}</text>
           </svg>
-          <div style="font-size:0.68rem;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:0.06em;">Score</div>
+          <div style="font-size:0.68rem;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:0.06em;">Santé budget</div>
+          <div style="font-size:0.6rem;color:var(--text-3);margin-top:1px;">↗ détail</div>
         </div>
       </div>
       <div style="display:flex;align-items:center;justify-content:space-between;margin-top:10px;gap:8px;">
@@ -381,19 +382,15 @@ async function _renderResume(container, s, users) {
     <!-- ── CTAs adaptatifs ── -->
     <div id="dash-cta-area" style="margin-bottom:8px;">
       ${status === 'empty'
-        ? `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-            <button class="btn btn-primary" id="btn-go-saisie" style="grid-column:1/-1;font-size:0.82rem;padding:11px;white-space:normal;text-align:center;">✏️ Compléter la saisie mensuelle</button>
-            <button class="btn btn-outline" id="btn-go-craquage" style="font-size:0.82rem;padding:11px;">💥 Craquage</button>
-            <button class="btn btn-outline" id="btn-add-achat" style="font-size:0.82rem;padding:11px;">💳 Dépense</button>
-          </div>`
+        ? `<button class="btn btn-primary" id="btn-go-saisie" style="width:100%;font-size:0.84rem;padding:13px;white-space:normal;text-align:center;">✏️ Commencer ma saisie du mois →</button>`
         : status === 'partial'
           ? `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-              <button class="btn btn-primary" id="btn-go-saisie" style="grid-column:1/-1;font-size:0.82rem;padding:11px;white-space:normal;text-align:center;">✏️ Compléter la saisie mensuelle</button>
-              <button class="btn btn-outline" id="btn-go-craquage" style="font-size:0.82rem;padding:11px;">💥 Craquage</button>
+              <button class="btn btn-primary" id="btn-go-saisie" style="grid-column:1/-1;font-size:0.82rem;padding:11px;white-space:normal;text-align:center;">✏️ Continuer la saisie mensuelle</button>
+              <button class="btn btn-outline" id="btn-go-craquage" style="font-size:0.82rem;padding:11px;">💸 Achat impulsif</button>
               <button class="btn btn-outline" id="btn-add-achat" style="font-size:0.82rem;padding:11px;">💳 Dépense</button>
             </div>`
           : `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-              <button class="btn btn-outline" id="btn-go-craquage" style="font-size:0.82rem;padding:11px;">💥 Craquage</button>
+              <button class="btn btn-outline" id="btn-go-craquage" style="font-size:0.82rem;padding:11px;">💸 Achat impulsif</button>
               <button class="btn btn-outline" id="btn-add-achat" style="font-size:0.82rem;padding:11px;">💳 Dépense</button>
             </div>`
       }
@@ -549,7 +546,7 @@ async function _renderResume(container, s, users) {
     );
   });
 
-  el.querySelector('#btn-go-saisie')?.addEventListener('click', () => navigateTo('argent', { tab: 'saisir' }));
+  el.querySelector('#btn-go-saisie')?.addEventListener('click', () => navigateTo('argent', { tab: 'saisie' }));
   el.querySelector('#btn-add-achat')?.addEventListener('click', () => {
     showAchatModal(null, async () => { await _renderResume(container, s, users); });
   });

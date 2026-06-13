@@ -39,7 +39,6 @@ function buildHTML(s, users, archived, N) {
       <summary class="settings-group-title">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
         Foyer
-        <span class="badge-essential">⭐ Étape 1</span>
       </summary>
       <div class="settings-group-desc">Ajoutez les membres de votre foyer et choisissez comment répartir les charges entre eux. C'est le premier réglage à faire avant toute saisie.</div>
       <div class="settings-group-body">

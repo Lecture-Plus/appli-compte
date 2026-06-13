@@ -172,8 +172,40 @@
   <img src="icons/icon.svg" width="80" height="80" style="border-radius:20px;margin-bottom:24px;" alt="Compta+">
   <h1 style="font-size:1.5rem;font-weight:800;letter-spacing:-0.03em;margin-bottom:8px;">Compta+</h1>
 
+  <!-- ── Étape 0 : Pitch (REFONTE 1) ── -->
+  <div id="ob-step-intro" style="width:100%;max-width:340px;display:flex;flex-direction:column;gap:16px;align-items:center;text-align:center;">
+    <div style="font-size:0.95rem;color:var(--text-2);line-height:1.65;max-width:300px;">
+      Suivez vos finances en quelques minutes par mois — revenus, charges et épargne en un coup d'œil.
+    </div>
+    <div style="width:100%;text-align:left;display:flex;flex-direction:column;gap:10px;">
+      <div style="display:flex;align-items:flex-start;gap:12px;padding:12px 14px;background:var(--bg-card);border-radius:var(--radius-sm);border:1px solid var(--border);">
+        <span style="font-size:1.2rem;">💰</span>
+        <div>
+          <div style="font-size:0.85rem;font-weight:700;margin-bottom:2px;">Vos revenus en 1 minute</div>
+          <div style="font-size:0.75rem;color:var(--text-3);">Salaires, aides CAF, APL — saisis une fois par mois</div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:flex-start;gap:12px;padding:12px 14px;background:var(--bg-card);border-radius:var(--radius-sm);border:1px solid var(--border);">
+        <span style="font-size:1.2rem;">📊</span>
+        <div>
+          <div style="font-size:0.85rem;font-weight:700;margin-bottom:2px;">Ce qu'il vous reste à dépenser</div>
+          <div style="font-size:0.75rem;color:var(--text-3);">Loyer, abonnements, budgets — tout calculé automatiquement</div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:flex-start;gap:12px;padding:12px 14px;background:var(--bg-card);border-radius:var(--radius-sm);border:1px solid var(--border);">
+        <span style="font-size:1.2rem;">📈</span>
+        <div>
+          <div style="font-size:0.85rem;font-weight:700;margin-bottom:2px;">Votre épargne qui progresse</div>
+          <div style="font-size:0.75rem;color:var(--text-3);">Suivi des économies et tendances mois par mois</div>
+        </div>
+      </div>
+    </div>
+    <button class="btn btn-primary btn-lg" id="ob-btn-start-intro" style="width:100%;margin-top:4px;">Commencer 🚀</button>
+    <button class="btn btn-outline btn-full" id="ob-existing-intro" style="font-size:0.875rem;">☁️ J'ai déjà un espace</button>
+  </div>
+
   <!-- ── Étape 1 : Nouveau profil ── -->
-  <div id="ob-step-create" style="width:100%;max-width:340px;display:flex;flex-direction:column;gap:14px;">
+  <div id="ob-step-create" style="width:100%;max-width:340px;display:none;flex-direction:column;gap:14px;">
     <p style="color:var(--text-2);max-width:300px;margin:0 auto 4px;">
       Bienvenue ! Commençons par créer votre profil.
     </p>
@@ -310,7 +342,7 @@
   }
 
   function showStep(name) {
-    ['create','drive','whoami'].forEach(s => {
+    ['intro','create','drive','whoami'].forEach(s => {
       const el = document.getElementById(`ob-step-${s}`);
       if (el) el.style.display = s === name ? 'flex' : 'none';
     });
@@ -327,6 +359,10 @@
 
     _obColorGetters[0] = buildColorPicker('ob-colors-1', USER_COLORS[0], () => [_obColorGetters[1] ? _obColorGetters[1]() : USER_COLORS[1]]);
     _obColorGetters[1] = buildColorPicker('ob-colors-2', USER_COLORS[1], () => [_obColorGetters[0] ? _obColorGetters[0]() : USER_COLORS[0]]);
+
+    // ── Intro : boutons pitch ──
+    document.getElementById('ob-btn-start-intro')?.addEventListener('click', () => { showStep('create'); });
+    document.getElementById('ob-existing-intro')?.addEventListener('click', () => { showStep('drive'); });
 
     // ── Bouton "Ajouter une 2e personne" ──
     document.getElementById('ob-add-second')?.addEventListener('click', () => {
