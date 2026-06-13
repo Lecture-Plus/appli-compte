@@ -1123,15 +1123,37 @@ export function showEditBudgetModal(existing, customBudgets, onSave, users = [],
       </div><hr style="margin-bottom:14px;border-color:var(--border);">`
     : '';
 
-  const allocSection = multiUser ? `
-    <div class="form-group" style="margin-bottom:12px;">
-      <label class="form-label">Répartition</label>
-      <div style="display:flex;flex-direction:column;gap:6px;">
-        <label style="display:flex;align-items:center;gap:8px;font-size:0.84rem;cursor:pointer;"><input type="radio" name="bgt-alloc" value="shared" ${existingAlloc==='shared'?'checked':''}> 🏠 Budget commun — plafond unique pour le foyer</label>
-        <label style="display:flex;align-items:center;gap:8px;font-size:0.84rem;cursor:pointer;"><input type="radio" name="bgt-alloc" value="equal"  ${existingAlloc==='equal' ?'checked':''}> ⚖️ Parts égales — même montant par personne</label>
-        <label style="display:flex;align-items:center;gap:8px;font-size:0.84rem;cursor:pointer;"><input type="radio" name="bgt-alloc" value="custom" ${existingAlloc==='custom'?'checked':''}> 🎯 Personnalisé — montant différent par personne</label>
+  const allocSection = `
+    <div class="form-group" style="margin-bottom:16px;">
+      <label class="form-label">Répartition du budget</label>
+      <div class="alloc-opts">
+        <label class="alloc-opt">
+          <input type="radio" name="bgt-alloc" value="shared" ${existingAlloc==='shared'?'checked':''}>
+          <span class="alloc-opt-inner">
+            <span class="alloc-opt-emoji">🏠</span>
+            <span class="alloc-opt-text"><strong>Budget commun</strong><small>Plafond unique pour le foyer</small></span>
+            <span class="alloc-opt-check">✓</span>
+          </span>
+        </label>
+        ${multiUser ? `
+        <label class="alloc-opt">
+          <input type="radio" name="bgt-alloc" value="equal" ${existingAlloc==='equal'?'checked':''}>
+          <span class="alloc-opt-inner">
+            <span class="alloc-opt-emoji">⚖️</span>
+            <span class="alloc-opt-text"><strong>Parts égales</strong><small>Même montant par personne</small></span>
+            <span class="alloc-opt-check">✓</span>
+          </span>
+        </label>
+        <label class="alloc-opt">
+          <input type="radio" name="bgt-alloc" value="custom" ${existingAlloc==='custom'?'checked':''}>
+          <span class="alloc-opt-inner">
+            <span class="alloc-opt-emoji">🎯</span>
+            <span class="alloc-opt-text"><strong>Personnalisé</strong><small>Montant différent par personne</small></span>
+            <span class="alloc-opt-check">✓</span>
+          </span>
+        </label>` : ''}
       </div>
-    </div>` : '';
+    </div>`;
 
   const sharedAmountLabel = !multiUser ? 'Montant mensuel (€)' : existingAlloc === 'equal' ? 'Montant par personne (€)' : 'Montant total mensuel (€)';
   const amountSection = `
