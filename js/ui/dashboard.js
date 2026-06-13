@@ -392,7 +392,7 @@ async function _renderResume(container, s, users) {
           : `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
               <button class="btn btn-outline" id="btn-go-craquage" style="font-size:0.82rem;padding:11px;">💸 Craquage et Dépassement</button>
               <button class="btn btn-outline" id="btn-add-achat" style="font-size:0.82rem;padding:11px;">💳 Dépense ponctuelle</button>
-            </div>`
+            </div>`}
     </div>
 
     <!-- ── Suivi budgets épinglés ── -->
