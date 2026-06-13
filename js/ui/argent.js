@@ -333,7 +333,8 @@ async function renderHub(container) {
     } else {
       payerShare = amt * _getShareRatio(payerUid);
     }
-    aPayerPerUser[payerUid] -= payerShare;
+    // Déduire le montant TOTAL (pas seulement la part du payeur)
+    aPayerPerUser[payerUid] -= amt;
   }
 
   // ── Helpers HTML ──
@@ -609,7 +610,7 @@ async function _renderSpoke(container, body, view) {
         Retour
       </button>
       <h2 class="spoke-title">${viewTitles[view] || view}</h2>
-      ${nextView ? `<button class="spoke-next" id="spoke-next" type="button">${viewTitles[nextView].split(' ').slice(1).join(' ')} <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14"><path d="M9 18l6-6-6-6"/></svg></button>` : ''}
+      ${nextView ? `<button class="spoke-next" id="spoke-next" type="button">Suivant <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14"><path d="M9 18l6-6-6-6"/></svg></button>` : ''}
     </div>
     <div id="spoke-content" class="argent-subview"></div>
   `;

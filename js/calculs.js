@@ -255,10 +255,10 @@ export function calcMonth(monthData, charges, achats, repartCfg, users, budgetOp
       }
     }
 
-    // Réduire l'aPayer du payeur de sa part (il l'a déjà payée de sa poche)
-    aPayerU[payerUid] -= payerShare;
-    // Garder la trace pour le calcul des dépenses (sa part reste dans ses dépenses)
-    chgViaPersoU[payerUid] += payerShare;
+    // Réduire l'aPayer du payeur du montant TOTAL (il a payé toute la charge de sa poche)
+    aPayerU[payerUid] -= amt;
+    // Garder la trace pour le calcul des dépenses (montant total payé en direct)
+    chgViaPersoU[payerUid] += amt;
   }
 
   // ── Solde = (revenus + primes + aides) − aPayer ──

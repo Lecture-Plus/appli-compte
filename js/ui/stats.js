@@ -1341,7 +1341,7 @@ async function renderMonthCompare(container, year, month, users, s, allChargesRa
   const el = container.querySelector('#stats-month-compare');
   if (!el) return;
   const prevYear = year - 1;
-  const mLabel   = MOIS[month - 1];
+  const mLabel   = MOIS_COURT[month - 1];
 
   try {
     const prevMonthsData = await getMonthsByYear(prevYear);
@@ -1440,9 +1440,9 @@ function renderScoreBudgetaire(container, result, s) {
   const offset = C - (total / 100) * C;
 
   el.innerHTML = `
-    <div style="display:flex;align-items:center;gap:18px;padding:6px 0 10px;">
+    <div style="display:flex;align-items:flex-start;gap:14px;padding:6px 0 10px;flex-wrap:wrap;">
       <div class="score-ring-wrap">
-        <svg width="110" height="110" viewBox="0 0 110 110">
+        <svg width="90" height="90" viewBox="0 0 110 110">
           <circle class="score-ring-bg" cx="55" cy="55" r="${R}" stroke-width="9"/>
           <circle class="score-ring-arc"
             cx="55" cy="55" r="${R}" stroke-width="9"
@@ -1459,7 +1459,7 @@ function renderScoreBudgetaire(container, result, s) {
         </svg>
         <div style="font-size:0.72rem;font-weight:800;color:${dashColor};margin-top:-4px;">${scoreLabel}</div>
       </div>
-      <div style="flex:1;display:flex;flex-direction:column;gap:9px;">
+      <div style="flex:1;min-width:175px;display:flex;flex-direction:column;gap:9px;">
         ${criteria.map(c => {
           const pct = Math.round(c.pts / c.max * 100);
           const barCls = c.pts === c.max ? 'success' : c.pts >= c.max / 2 ? 'warning' : 'danger';
@@ -1546,6 +1546,7 @@ async function renderN1Comparison(container, year, users, s, currentResults, all
     const curTotals    = metrics.map(([, fn]) => months.reduce((s, i) => s + (currentResults[i] ? fn(currentResults[i]) : 0), 0));
 
     el.innerHTML = `
+      <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
       <table class="data-table">
         <thead><tr><th>Catégorie</th><th style="text-align:right">${prevYear}</th><th style="text-align:right">${year}</th><th style="text-align:right">Évolution</th></tr></thead>
         <tbody>
@@ -1567,6 +1568,7 @@ async function renderN1Comparison(container, year, users, s, currentResults, all
           }).join('')}
         </tbody>
       </table>
+      </div>
     `;
   } catch (e) {
     el.innerHTML = `<p style="font-size:0.78rem;color:var(--text-3);">Impossible de charger les données ${prevYear}.</p>`;
@@ -1583,8 +1585,8 @@ function chartOptions({ stacked = false } = {}) {
       tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${eur(ctx.raw)}` } },
     },
     scales: {
-      x: { stacked, grid: { color: gridColor }, ticks: { color: textColor, font: { size: 10 } } },
-      y: { stacked, grid: { color: gridColor }, ticks: { color: textColor, font: { size: 10 }, callback: v => eur(v).replace(/\s€/, '') + '€' } },
+      x: { stacked, grid: { color: gridColor }, ticks: { color: textColor, font: { size: 9 }, maxRotation: 0, autoSkip: true, autoSkipPadding: 4 } },
+      y: { stacked, grid: { color: gridColor }, ticks: { color: textColor, font: { size: 9 }, callback: v => eur(v).replace(/\s€/, '') + '€' } },
     },
   };
 }
@@ -1775,6 +1777,7 @@ async function _renderEvolution(container, year, users) {
           tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${eur(ctx.raw ?? 0)}` } },
         },
         scales: {
+          x: { ticks: { font: { size: 9 }, maxRotation: 0, autoSkip: true } },
           y: { ticks: { callback: v => eur(v) } },
         },
       },
