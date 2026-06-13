@@ -6,7 +6,7 @@ import * as saisieModule  from './saisie.js';
 import * as chargesModule from './charges.js';
 import { getActiveUsers, getMonthlyData, getChargesForMonth,
          getBudgetOpsForMonth }                               from '../db.js';
-import { State }                                              from '../app.js';
+import { State, navigateTo }                                  from '../app.js';
 import { nomMois }                                            from '../utils.js';
 import { on }                                                 from '../events.js';
 
@@ -18,9 +18,8 @@ let _lastRevInput  = 0;
 let _revDoneTimer  = null;
 
 // ── Suivi des charges ──
-let _chgValidated          = false; // chargé depuis localStorage
-let _chgValidatedThisSession = false; // vrai uniquement si validé DANS cette session
-let _autoAdvanceDone       = false; // empêche double auto-avance charges→budgets
+let _chgValidated   = false; // chargé depuis localStorage
+let _pendingSection = null;  // section à ouvrir au prochain rendu saisie
 
 // ── Persistance charges en localStorage par mois ──
 function _chgKey()           { const { year, month } = State; return `compta-chg-ok-${year}-${month}`; }
@@ -51,15 +50,7 @@ async function _renderSharedProgress(container) {
   const hasBudg = budgetOps.length > 0;
   const isDone  = md?.isComplete;
 
-  // ── Auto-avance : charges viennent d'être validées DANS cette session ──
-  if (_chgValidatedThisSession && !_autoAdvanceDone && _arTab === 'saisie') {
-    _autoAdvanceDone = true;
-    setTimeout(() => {
-      if (!document.contains(container)) return;
-      const tabBudgets = container.querySelector('[data-artab="budgets"]');
-      if (tabBudgets && _arTab !== 'budgets') tabBudgets.click();
-    }, 200);
-  }
+
   const states = [
     revState,
     chgState,
@@ -132,14 +123,11 @@ function _subscribeChargesEvents(container) {
     if (!document.contains(container)) { _chgUnsubscribe?.(); _chgUnsubscribe = null; return; }
     // Sauvegarde réelle → invalide la validation précédente
     _setChgValidated(false);
-    _chgValidatedThisSession = false;
-    _autoAdvanceDone = false;
     _renderSharedProgress(container);
   });
   const unsub2 = on('charges:validated', () => {
     if (!document.contains(container)) { _chgUnsubscribe?.(); _chgUnsubscribe = null; return; }
     _setChgValidated(true);
-    _chgValidatedThisSession = true;
     _renderSharedProgress(container);
   });
   _chgUnsubscribe = () => { unsub1(); unsub2(); };
@@ -153,8 +141,7 @@ export async function render(container, params = {}) {
 
   // Réinitialiser l'état par session
   _loadChgState();
-  _chgValidatedThisSession = false;         // pas validé dans cette session
-  _autoAdvanceDone         = _chgValidated; // si déjà validé sur le disque, pas d'auto-avance
+  _pendingSection = params.section || null;
   _lastRevInput = 0;
   if (_revDoneTimer) { clearTimeout(_revDoneTimer); _revDoneTimer = null; }
 
@@ -212,8 +199,6 @@ export async function render(container, params = {}) {
         const { showToast } = await import('../utils.js');
         showToast('Mois marqué comme en cours', 'success');
         _setChgValidated(false);
-        _chgValidatedThisSession = false;
-        _autoAdvanceDone = false;
         _renderSharedProgress(container);
         refreshCompleteBtn();
         return;
@@ -225,7 +210,6 @@ export async function render(container, params = {}) {
         unsub();
         // Wizard terminé : forcer toutes les étapes done + rafraîchir
         _setChgValidated(true);
-        _chgValidatedThisSession = false; // wizard ≠ action user "valider charges"
         refreshCompleteBtn();
         _renderSharedProgress(container);
         // Notifier le dashboard
@@ -237,8 +221,28 @@ export async function render(container, params = {}) {
   const renderTab = () => {
     const body = container.querySelector('#argent-body');
     if (!body) return;
-    if (_arTab === 'saisie')   saisieModule.render(body);
-    else                       chargesModule.renderSection(body, 'budgets');
+    if (_arTab === 'saisie') {
+      saisieModule.render(body, { section: _pendingSection });
+      _pendingSection = null;
+    } else {
+      // ── Lien vers la gestion des charges récurrentes (inaccessible sinon sur mobile) ──
+      body.innerHTML = '';
+      const linkDiv = document.createElement('div');
+      linkDiv.innerHTML = `
+        <button id="btn-go-recurrentes" style="display:flex;align-items:center;gap:10px;width:100%;padding:12px 14px;margin-bottom:12px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);text-align:left;cursor:pointer;color:var(--text);">
+          <span style="font-size:1.1rem;">📋</span>
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:0.86rem;font-weight:700;">Charges récurrentes</div>
+            <div style="font-size:0.72rem;color:var(--text-3);">Loyer, abonnements, assurances…</div>
+          </div>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14"><path d="M9 18l6-6-6-6"/></svg>
+        </button>`;
+      body.appendChild(linkDiv);
+      linkDiv.querySelector('#btn-go-recurrentes')?.addEventListener('click', () => navigateTo('charges'));
+      const budgDiv = document.createElement('div');
+      body.appendChild(budgDiv);
+      chargesModule.renderSection(budgDiv, 'budgets');
+    }
     // Rafraîchir la barre + attacher les watchers après rendu de l'onglet
     setTimeout(() => {
       _renderSharedProgress(container);

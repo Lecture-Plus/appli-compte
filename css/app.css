@@ -965,6 +965,14 @@ svg { display: block; }
 .saisie-prog-step.done   .saisie-prog-label { color: var(--success); }
 .saisie-prog-step.active .saisie-prog-label { color: var(--warning); font-weight: 700; }
 
+/* Barre progression : compacte sur mobile */
+@media (max-width: 767px) {
+  .saisie-progress { padding: 8px 8px; }
+  .saisie-prog-dot { width: 22px; height: 22px; font-size: 0.62rem; }
+  .saisie-prog-label { font-size: 0.55rem; }
+  .saisie-prog-step::before { top: 11px; left: calc(50% + 13px); right: calc(-50% + 13px); }
+}
+
 /* ─── Nav subtitle (desktop sidebar) ─── */
 .nav-subtitle {
   font-size: 0.68rem; color: var(--text-3); font-weight: 400;

@@ -317,8 +317,8 @@ async function _renderResume(container, s, users) {
         </button>
       </div>
     </div>`;
-    if (!guideDone1)   el.querySelector('#gs-step1')?.addEventListener('click', () => navigateTo('argent', { tab: 'saisie' }));
-    if (!guideDone2)   el.querySelector('#gs-step2')?.addEventListener('click', () => navigateTo('argent', { tab: 'saisie' }));
+    if (!guideDone1)   el.querySelector('#gs-step1')?.addEventListener('click', () => navigateTo('argent', { tab: 'saisie', section: 'revenus' }));
+    if (!guideDone2)   el.querySelector('#gs-step2')?.addEventListener('click', () => navigateTo('argent', { tab: 'saisie', section: 'charges' }));
     if (!guideDoneOpt) el.querySelector('#gs-step-opt')?.addEventListener('click', () => navigateTo('argent', { tab: 'budgets' }));
     if (!guideDone3)   el.querySelector('#gs-step3')?.addEventListener('click', () => navigateTo('savings'));
     return;

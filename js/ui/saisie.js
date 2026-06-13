@@ -48,7 +48,7 @@ export async function triggerMonthComplete(body) {
   await _showEndOfMonthWizard(body, month, year);
 }
 
-export async function render(container) {
+export async function render(container, opts = {}) {
   _users = await getActiveUsers();
   const s     = await getAllSettings();
   _settings = s;
@@ -198,7 +198,7 @@ export async function render(container) {
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
         🏠 Charges du mois
       </summary>
-      <div class="settings-group-desc">Loyer, abonnements, crédits et toute charge fixe prélevée ce mois-ci. Importez vos charges récurrentes depuis <strong>Réglages → Charges types</strong>.</div>
+      <div class="settings-group-desc">Loyer, abonnements, crédits — charges fixes prélevées ce mois-ci. Utilisez <strong>📥 Importer</strong> pour copier vos charges récurrentes ou celles du mois précédent.</div>
       <div class="settings-group-body">
         <div style="display:flex;gap:8px;margin-bottom:12px;">
           <button class="btn btn-sm btn-outline" id="btn-import-charges">📥 Importer</button>
@@ -431,6 +431,18 @@ export async function render(container) {
   container.querySelector('#btn-validate-charges')?.addEventListener('click', () => {
     emit('charges:validated');
   });
+
+  // ── Navigation vers une section spécifique (depuis guide card ou barre progression) ──
+  if (opts.section) {
+    const sectionMap = { revenus: 'accord-revenus', charges: 'accord-charges' };
+    const targetId = sectionMap[opts.section];
+    if (targetId) setTimeout(() => {
+      const el = container.querySelector(`#${targetId}`);
+      if (!el) return;
+      el.setAttribute('open', '');
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 150);
+  }
 }
 
 // ── Render inline charges list ──
@@ -438,7 +450,11 @@ function _renderSaisieChargesList(container) {
   const el = container.querySelector('#saisie-charges-list');
   if (!el) return;
   if (!_chargesCache.length) {
-    el.innerHTML = `<p style="font-size:0.78rem;color:var(--text-3);text-align:center;padding:8px 0;">Aucune charge ce mois-ci.</p>`;
+    el.innerHTML = `<div style="text-align:center;padding:16px 8px 8px;">
+      <div style="font-size:1.4rem;margin-bottom:6px;">🏠</div>
+      <div style="font-size:0.82rem;font-weight:600;margin-bottom:4px;">Aucune charge ce mois-ci</div>
+      <div style="font-size:0.72rem;color:var(--text-3);line-height:1.5;">Cliquez sur <strong>📥 Importer</strong> pour copier vos charges habituelles ou sur <strong>+ Ajouter</strong> pour en créer une.</div>
+    </div>`;
     return;
   }
   const byCat = {};
