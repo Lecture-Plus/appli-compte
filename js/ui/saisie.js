@@ -505,10 +505,23 @@ function _showImportChargesOptions(container) {
         <strong>📅 Du mois précédent</strong><br>
         <span style="font-size:0.78rem;color:var(--text-3);">Copie toutes les charges du mois passé</span>
       </button>
+      <button class="btn btn-outline" id="imp-templates" style="text-align:left;padding:14px;white-space:normal;width:100%;">
+        <strong>📋 Charges prédéfinies</strong><br>
+        <span style="font-size:0.78rem;color:var(--text-3);">Sélectionnez parmi une liste de charges courantes</span>
+      </button>
     </div>`,
     `<button class="btn btn-outline" id="imp-cancel">Annuler</button>`
   );
   document.getElementById('imp-cancel')?.addEventListener('click', closeModal);
+  document.getElementById('imp-templates')?.addEventListener('click', () => {
+    closeModal();
+    showChargesTemplatesModal(async () => {
+      _chargesCache = await getChargesForMonth(month, year);
+      _renderSaisieChargesList(container);
+      updatePreview(container);
+      emit('charges:updated');
+    });
+  });
   document.getElementById('imp-prev-month')?.addEventListener('click', async () => {
     const prevM = addMonth(year, month, -1);
     const prevCharges = (await getAllCharges()).filter(c => c.year === prevM.year && c.month === prevM.month);
