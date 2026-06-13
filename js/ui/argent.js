@@ -249,15 +249,23 @@ async function renderHub(container) {
   for (const u of users) {
     const uId = String(u.id);
     const chgShare = kpi?.charges?.byUser?.[uId] || 0;
+
+    // Part de budget = plafond de chaque budget selon son mode d'allocation
     let budgShare = 0;
-    for (const op of budgetOps) {
-      const amt = Number(op.amount) || 0;
-      if (op.userId && String(op.userId) === uId) {
-        budgShare += amt;
-      } else if (!op.userId || !users.some(u2 => String(u2.id) === String(op.userId))) {
-        budgShare += amt * _getShareRatio(u.id);
+    for (const b of customBudgets) {
+      const alloc = b.allocation || 'shared';
+      if (alloc === 'custom') {
+        // Montant personnalisé par personne
+        budgShare += Number((b.amountByUser || {})[uId]) || 0;
+      } else if (alloc === 'equal') {
+        // Même montant pour chaque personne
+        budgShare += Number(b.amount) || 0;
+      } else {
+        // Budget commun : répartir selon la clé foyer
+        budgShare += (Number(b.amount) || 0) * _getShareRatio(u.id);
       }
     }
+
     let impShare = 0;
     for (const imp of (md?.imprévusList || [])) {
       const amt = Number(imp.amount) || 0;
