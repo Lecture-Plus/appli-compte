@@ -264,7 +264,7 @@ async function _renderResume(container, s, users) {
   const monthComplete = md?.isComplete === true;
   const guideDone1   = monthComplete || users.some(u => (md?.users?.[String(u.id)]?.revenus || 0) > 0);
   const guideDone2   = monthComplete || charges.length > 0;
-  const guideDoneOpt = monthComplete || allBudgetOps.length > 0;
+  const guideDoneOpt = monthComplete || allBudgetOps.length > 0 || customBudgets.length > 0;
   // Étape 4 (épargne) : jamais forcée par le mois, doit être confirmée indépendamment
   const guideDone3   = allSavConfirmed.length > 0;
   // Bravo uniquement quand les 4 étapes sont toutes validées
