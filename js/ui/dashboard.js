@@ -259,11 +259,12 @@ async function _renderResume(container, s, users) {
 
   // ── Guide d'initialisation (persiste jusqu'aux 4 étapes complètes) ──
   const allSavConfirmed = await getAllSavingsConfirmed();
-  // Chaque étape se valide uniquement sur la donnée réelle, jamais par le mois validé
-  const guideDone1   = users.some(u => (md?.users?.[String(u.id)]?.revenus || 0) > 0);
-  const guideDone2   = charges.length > 0;
-  // Étape 3 (budgets) : validée si mois complet OU si des budget ops existent
-  const guideDoneOpt = (md?.isComplete === true) || allBudgetOps.length > 0;
+  // Chaque étape se valide uniquement sur la donnée réelle, SAUF si le mois est validé
+  // (les 3 premières étapes sont considérées faites quand on valide le mois)
+  const monthComplete = md?.isComplete === true;
+  const guideDone1   = monthComplete || users.some(u => (md?.users?.[String(u.id)]?.revenus || 0) > 0);
+  const guideDone2   = monthComplete || charges.length > 0;
+  const guideDoneOpt = monthComplete || allBudgetOps.length > 0;
   // Étape 4 (épargne) : jamais forcée par le mois, doit être confirmée indépendamment
   const guideDone3   = allSavConfirmed.length > 0;
   // Bravo uniquement quand les 4 étapes sont toutes validées

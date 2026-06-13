@@ -30,13 +30,19 @@ let _budgetOpsCache = [];
 let _settings = null;
 let _coursesFoyerMode = localStorage.getItem('coursesFoyerMode') === '1';
 let _extrasFoyerMode  = localStorage.getItem('extrasFoyerMode')  === '1';
-// ── Nettoyage du listener month:complete (maintenu pour compatibilité si appel direct) ──
-let _monthCompleteUnsub = null;
 
 // ── Déclenchement du wizard fin de mois (appelé depuis argent.js) ──
 export async function triggerMonthComplete(body) {
-  if (!_md || !_users.length) return;
-  // Sync les inputs saisie si présents dans le DOM (inutile si onglet budgets actif)
+  // Charger les données si saisie.js n'a jamais été rendu (ex: arrive directement sur Budgets)
+  if (!_md || !_users.length) {
+    const { year, month } = State;
+    [_users, _md] = await Promise.all([
+      getActiveUsers(),
+      getMonthlyData(year, month),
+    ]);
+    if (!_md) _md = { year, month, users: {}, notes: '', isComplete: false };
+  }
+  // Sync uniquement si les inputs saisie sont présents dans le DOM
   if (body?.querySelector?.('[id^="rev-"]')) syncFormToState(body);
   const { month, year } = State;
   await _showEndOfMonthWizard(body, month, year);
