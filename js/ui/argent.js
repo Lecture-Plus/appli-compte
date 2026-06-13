@@ -186,7 +186,8 @@ async function renderHub(container) {
   // ── KPI ──
   const repCfg = await getRepartition(year, month);
   const s      = await getAllSettings();
-  const kpi    = calcMonth(md || {}, charges, achats, repCfg, users, budgetOps);
+  // Si aucun budgetOp, passer null pour que calcMonth utilise extras/courses de md
+  const kpi    = calcMonth(md || {}, charges, achats, repCfg, users, budgetOps.length ? budgetOps : null);
 
   const solde      = kpi?.solde?.total || 0;
   const soldeColor = solde >= 0 ? 'var(--success)' : 'var(--danger)';
@@ -195,20 +196,9 @@ async function renderHub(container) {
   const totalDep   = (kpi?.achats?.total || 0) + (kpi?.imprevus?.total || 0);
   const txEp       = kpi?.txEpargne?.total;
 
-  // ── Budgets variables pour le hub ──
-  const customBudgets   = s?.customBudgets || [];
-  const pinnedBudgets   = s?.pinnedBudgets || [];
-  const budgCourses = users.reduce((a, u) => a + (Number(md?.users?.[String(u.id)]?.courses) || 0), 0)
-                    || (Number(s?.budgetCibles?.courses) || 0);
-  const budgExtras  = users.reduce((a, u) => a + (Number(md?.users?.[String(u.id)]?.extras) || 0), 0)
-                    || (Number(s?.budgetCibles?.extras) || 0);
-  const spentCourses = budgetOps.filter(o => o.category === 'courses').reduce((a, o) => a + (Number(o.amount)||0), 0);
-  const spentExtras  = budgetOps.filter(o => o.category === 'extras').reduce((a,  o) => a + (Number(o.amount)||0), 0);
-
-  // Montrer TOUS les custom budgets (pas seulement les épinglés)
+  // ── Budgets variables — uniquement les customBudgets gérés par le spoke Budgets ──
+  const customBudgets = s?.customBudgets || [];
   const hubBudgets = [];
-  if (budgCourses > 0) hubBudgets.push({ id: 'courses', icon: '🛒', label: 'Courses',  budget: budgCourses, spent: spentCourses });
-  if (budgExtras  > 0) hubBudgets.push({ id: 'extras',  icon: '🎮', label: 'Loisirs',  budget: budgExtras,  spent: spentExtras });
   for (const b of customBudgets) {
     const sp = budgetOps.filter(o => o.category === b.id).reduce((a, o) => a + (Number(o.amount)||0), 0);
     const effectiveBudget = b.allocation === 'equal' ? (Number(b.amount)||0) * users.length
@@ -216,9 +206,9 @@ async function renderHub(container) {
                           : Number(b.amount)||0;
     hubBudgets.push({ id: b.id, icon: b.icon || '📌', label: b.name, budget: effectiveBudget, spent: sp });
   }
-  const totalBudgets = hubBudgets.reduce((a, b) => a + b.spent, 0);
-  const anyBudgetOver = hubBudgets.some(b => b.budget > 0 && b.spent > b.budget);
-  const hasBudgets = customBudgets.length > 0 || budgCourses > 0 || budgExtras > 0;
+  const totalBudgets   = hubBudgets.reduce((a, b) => a + b.spent, 0);
+  const anyBudgetOver  = hubBudgets.some(b => b.budget > 0 && b.spent > b.budget);
+  const hasBudgets     = customBudgets.length > 0;
 
   // ── Helpers HTML ──
   function statusBadge(s) {
@@ -405,6 +395,7 @@ async function renderHub(container) {
       <div class="hub-bilan-peruser">
         ${users.map(u => {
           const uSolde = kpi?.solde?.byUser?.[u.id] ?? 0;
+          const uAp    = kpi?.aPayer?.byUser?.[u.id] ?? 0;
           const uTx    = kpi?.txEpargne?.byUser?.[u.id] ?? 0;
           const uColor = uSolde >= 0 ? 'var(--success)' : 'var(--danger)';
           return `<div class="hub-bilan-user-row">
@@ -413,7 +404,8 @@ async function renderHub(container) {
               <span style="font-size:0.8rem;font-weight:600;">${escHtml(u.name)}</span>
             </div>
             <div style="text-align:right;">
-              <div style="font-size:0.88rem;font-weight:800;color:${uColor};">${eur(uSolde)}</div>
+              <div style="font-size:0.68rem;color:var(--text-3);margin-bottom:1px;">à payer : ${eur(uAp)}</div>
+              <div style="font-size:0.9rem;font-weight:800;color:${uColor};">${eur(uSolde)}</div>
               ${totalRev > 0 ? `<div style="font-size:0.66rem;color:var(--text-3);">épargne ${Math.round(uTx*100)} %</div>` : ''}
             </div>
           </div>`;
@@ -506,7 +498,7 @@ async function _renderSpokeFooter(body) {
   const { users, md, charges, budgetOps, achats } = await _loadMonthData();
   const { year, month } = State;
   const repCfg = await getRepartition(year, month);
-  const kpi    = calcMonth(md || {}, charges, achats, repCfg, users, budgetOps);
+  const kpi    = calcMonth(md || {}, charges, achats, repCfg, users, budgetOps.length ? budgetOps : null);
   const solde  = kpi?.solde?.total || 0;
   const color  = solde >= 0 ? 'var(--success)' : 'var(--danger)';
   const footer = document.createElement('div');
