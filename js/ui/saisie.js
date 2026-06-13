@@ -46,7 +46,6 @@ export async function triggerMonthComplete(body) {
   if (!_md) _md = { year, month, users: {}, notes: '', isComplete: false };
   // Sync uniquement si les inputs saisie sont présents dans le DOM
   if (body?.querySelector?.('[id^="rev-"]')) syncFormToState(body);
-  const { month, year } = State;
   await _showEndOfMonthWizard(body, month, year);
 }
 
