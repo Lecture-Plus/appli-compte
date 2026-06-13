@@ -454,17 +454,10 @@ function _renderSaisieChargesList(container) {
       <div style="font-size:1.4rem;margin-bottom:6px;">🏠</div>
       <div style="font-size:0.82rem;font-weight:600;margin-bottom:4px;">Aucune charge ce mois-ci</div>
       <div style="font-size:0.72rem;color:var(--text-3);line-height:1.65;margin-bottom:8px;">
-        <strong>📥 Importer</strong> copie vos charges récurrentes (loyer, EDF, abonnements…) en un clic.<br>
+        <strong>📥 Importer</strong> copie les charges du mois précédent en un clic.<br>
         <strong>+ Ajouter</strong> crée une charge pour ce mois uniquement.
       </div>
-      <div style="font-size:0.72rem;color:var(--primary);line-height:1.5;">
-        💡 Pas encore de charges récurrentes configurées ?<br>
-        <span id="goto-recurrentes-empty" style="text-decoration:underline;cursor:pointer;">Accéder à mes charges récurrentes →</span>
-      </div>
     </div>`;
-    el.querySelector('#goto-recurrentes-empty')?.addEventListener('click', () => {
-      import('../app.js').then(({ navigateTo }) => navigateTo('charges'));
-    });
     return;
   }
   const byCat = {};
@@ -512,23 +505,10 @@ function _showImportChargesOptions(container) {
         <strong>📅 Du mois précédent</strong><br>
         <span style="font-size:0.78rem;color:var(--text-3);">Copie toutes les charges du mois passé</span>
       </button>
-      <button class="btn btn-outline" id="imp-templates" style="text-align:left;padding:14px;white-space:normal;width:100%;">
-        <strong>📋 Charges types</strong><br>
-        <span style="font-size:0.78rem;color:var(--text-3);">Sélectionnez des charges prédéfinies</span>
-      </button>
     </div>`,
     `<button class="btn btn-outline" id="imp-cancel">Annuler</button>`
   );
   document.getElementById('imp-cancel')?.addEventListener('click', closeModal);
-  document.getElementById('imp-templates')?.addEventListener('click', () => {
-    closeModal();
-    showChargesTemplatesModal(async () => {
-      _chargesCache = await getChargesForMonth(month, year);
-      _renderSaisieChargesList(container);
-      updatePreview(container);
-      emit('charges:updated');
-    });
-  });
   document.getElementById('imp-prev-month')?.addEventListener('click', async () => {
     const prevM = addMonth(year, month, -1);
     const prevCharges = (await getAllCharges()).filter(c => c.year === prevM.year && c.month === prevM.month);

@@ -227,20 +227,7 @@ export async function render(container, params = {}) {
       saisieModule.render(body, { section: _pendingSection });
       _pendingSection = null;
     } else {
-      // ── Lien vers la gestion des charges récurrentes (inaccessible sinon sur mobile) ──
       body.innerHTML = '';
-      const linkDiv = document.createElement('div');
-      linkDiv.innerHTML = `
-        <button id="btn-go-recurrentes" style="display:flex;align-items:center;gap:10px;width:100%;padding:12px 14px;margin-bottom:12px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);text-align:left;cursor:pointer;color:var(--text);">
-          <span style="font-size:1.1rem;">📋</span>
-          <div style="flex:1;min-width:0;">
-            <div style="font-size:0.86rem;font-weight:700;">Charges récurrentes</div>
-            <div style="font-size:0.72rem;color:var(--text-3);">Loyer, abonnements, assurances…</div>
-          </div>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14"><path d="M9 18l6-6-6-6"/></svg>
-        </button>`;
-      body.appendChild(linkDiv);
-      linkDiv.querySelector('#btn-go-recurrentes')?.addEventListener('click', () => navigateTo('charges'));
       const budgDiv = document.createElement('div');
       body.appendChild(budgDiv);
       chargesModule.renderSection(budgDiv, 'budgets');
