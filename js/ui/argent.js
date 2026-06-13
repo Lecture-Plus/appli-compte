@@ -13,10 +13,12 @@ import * as saisieModule  from './saisie.js';
 import * as chargesModule from './charges.js';
 import { getActiveUsers, getMonthlyData, getChargesForMonth,
          getBudgetOpsForMonth, getAchatsForMonth,
-         getRepartition, getAllSettings, saveMonthlyData }    from '../db.js';
+         getRepartition, getAllSettings, saveMonthlyData,
+         saveRepartition, saveCharge }                        from '../db.js';
 import { State, navigateTo }                                  from '../app.js';
 import { nomMois, addMonth, eur, escHtml, showToast,
-         openModal, closeModal, uid }                         from '../utils.js';
+         openModal, closeModal, uid, debounce,
+         getCategoryInfo }                                    from '../utils.js';
 import { on, emit }                                           from '../events.js';
 import { calcMonth }                                          from '../calculs.js';
 
@@ -203,15 +205,20 @@ async function renderHub(container) {
   const spentCourses = budgetOps.filter(o => o.category === 'courses').reduce((a, o) => a + (Number(o.amount)||0), 0);
   const spentExtras  = budgetOps.filter(o => o.category === 'extras').reduce((a,  o) => a + (Number(o.amount)||0), 0);
 
+  // Montrer TOUS les custom budgets (pas seulement les épinglés)
   const hubBudgets = [];
   if (budgCourses > 0) hubBudgets.push({ id: 'courses', icon: '🛒', label: 'Courses',  budget: budgCourses, spent: spentCourses });
   if (budgExtras  > 0) hubBudgets.push({ id: 'extras',  icon: '🎮', label: 'Loisirs',  budget: budgExtras,  spent: spentExtras });
-  for (const b of customBudgets.filter(b => pinnedBudgets.includes(b.id))) {
+  for (const b of customBudgets) {
     const sp = budgetOps.filter(o => o.category === b.id).reduce((a, o) => a + (Number(o.amount)||0), 0);
-    hubBudgets.push({ id: b.id, icon: b.icon || '📌', label: b.name, budget: Number(b.amount)||0, spent: sp });
+    const effectiveBudget = b.allocation === 'equal' ? (Number(b.amount)||0) * users.length
+                          : b.allocation === 'custom' ? Object.values(b.amountByUser||{}).reduce((s,v)=>s+(Number(v)||0),0)
+                          : Number(b.amount)||0;
+    hubBudgets.push({ id: b.id, icon: b.icon || '📌', label: b.name, budget: effectiveBudget, spent: sp });
   }
   const totalBudgets = hubBudgets.reduce((a, b) => a + b.spent, 0);
   const anyBudgetOver = hubBudgets.some(b => b.budget > 0 && b.spent > b.budget);
+  const hasBudgets = customBudgets.length > 0 || budgCourses > 0 || budgExtras > 0;
 
   // ── Helpers HTML ──
   function statusBadge(s) {
@@ -242,8 +249,16 @@ async function renderHub(container) {
   // ── Statuts cards ──
   const stRev   = isDone || hasRev         ? 'done'    : 'empty';
   const stChg   = isDone || _chgValidated  ? 'done'    : hasChg ? 'partial' : 'empty';
-  const stBudg  = isDone ? 'done' : anyBudgetOver ? 'over' : hasBudg ? 'partial' : 'empty';
+  const stBudg  = isDone ? 'done' : anyBudgetOver ? 'over' : (hasBudg || hasBudgets) ? 'partial' : 'empty';
   const stDep   = hasDepenses              ? 'partial' : 'empty';
+
+  // ── Affichage des budgets sur la carte (max 3, +N si trop) ──
+  const displayBudgets = hubBudgets.slice(0, 3);
+  const extraBudgets   = hubBudgets.length - displayBudgets.length;
+
+  // ── Données bilan détaillé ──
+  const imprévus = md?.imprévusList || [];
+  const totalImprévus = imprévus.reduce((s, i) => s + (Number(i.amount)||0), 0);
 
   body.innerHTML = `
     <div class="hub-grid">
@@ -283,9 +298,9 @@ async function renderHub(container) {
           <span class="hub-card-title">Budgets variables</span>
           ${statusBadge(stBudg)}
         </div>
-        ${hubBudgets.length > 0 ? `
+        ${displayBudgets.length > 0 ? `
           <div class="hub-budgets-list">
-            ${hubBudgets.map(b => `
+            ${displayBudgets.map(b => `
               <div class="hub-budget-item">
                 <div class="hub-budget-item-header">
                   <span class="hub-budget-item-label">${b.icon} ${escHtml(b.label)}</span>
@@ -293,8 +308,9 @@ async function renderHub(container) {
                 </div>
                 ${budgetBar(b.budget, b.spent)}
               </div>`).join('')}
+            ${extraBudgets > 0 ? `<div style="font-size:0.68rem;color:var(--text-3);margin-top:2px;">+${extraBudgets} autre${extraBudgets>1?'s':''} →</div>` : ''}
           </div>
-        ` : `<div class="hub-card-amount hub-amount-empty">—</div><div class="hub-card-sub">Courses, loisirs…</div>`}
+        ` : hasBudgets ? `<div class="hub-card-amount hub-amount-empty">—</div><div class="hub-card-sub">Aucune dépense encore</div>` : `<div class="hub-card-amount hub-amount-empty">—</div><div class="hub-card-sub">Créez vos budgets →</div>`}
         <span class="hub-card-arrow">›</span>
       </button>
 
@@ -312,23 +328,100 @@ async function renderHub(container) {
 
     </div>
 
-    <!-- BILAN MENSUEL -->
+    <!-- BILAN MENSUEL DÉTAILLÉ -->
     <div class="hub-bilan">
       <div class="hub-bilan-header">
         <span class="hub-bilan-title">Bilan ${nomMois(month)} ${year}</span>
         ${isDone ? `<span class="chip chip-success" style="font-size:0.68rem;">✓ Clôturé</span>` : ''}
       </div>
+
+      <!-- Revenus -->
+      <div class="hub-bilan-section-title">Revenus</div>
       <div class="hub-bilan-rows">
-        <div class="hub-bilan-row"><span>Revenus</span><span style="color:var(--success);font-weight:700;">+ ${eur(totalRev)}</span></div>
-        <div class="hub-bilan-row"><span>Charges fixes</span><span>− ${eur(totalChg)}</span></div>
-        ${totalBudgets > 0 ? `<div class="hub-bilan-row"><span>Budgets</span><span>− ${eur(totalBudgets)}</span></div>` : ''}
-        ${totalDep > 0 ? `<div class="hub-bilan-row"><span>Dépenses</span><span>− ${eur(totalDep)}</span></div>` : ''}
+        ${users.length > 1 ? users.map(u => `
+          <div class="hub-bilan-row hub-bilan-row-sub">
+            <span style="display:flex;align-items:center;gap:5px;">
+              <span style="width:7px;height:7px;border-radius:50%;background:${escHtml(u.color||'#7C5CFC')};display:inline-block;"></span>
+              ${escHtml(u.name)}
+            </span>
+            <span style="color:var(--success);">+ ${eur(kpi?.revenus?.byUser?.[u.id]||0)}</span>
+          </div>`).join('') : ''}
+        ${(kpi?.aides?.total||0) > 0 ? `<div class="hub-bilan-row hub-bilan-row-sub"><span>Aides</span><span style="color:var(--success);">+ ${eur(kpi.aides.total)}</span></div>` : ''}
+        ${(kpi?.primes?.total||0) > 0 ? `<div class="hub-bilan-row hub-bilan-row-sub"><span>Primes &amp; bonus</span><span style="color:var(--success);">+ ${eur(kpi.primes.total)}</span></div>` : ''}
+        <div class="hub-bilan-row hub-bilan-row-total">
+          <span>Total revenus</span>
+          <span style="color:var(--success);font-weight:800;">+ ${eur(totalRev)}</span>
+        </div>
       </div>
+
+      <!-- Charges fixes -->
+      ${totalChg > 0 ? `
+      <div class="hub-bilan-section-title">Charges fixes</div>
+      <div class="hub-bilan-rows">
+        <div class="hub-bilan-row"><span>${charges.length} charge${charges.length>1?'s':''}</span><span>− ${eur(totalChg)}</span></div>
+      </div>` : ''}
+
+      <!-- Budgets variables -->
+      ${hubBudgets.length > 0 ? `
+      <div class="hub-bilan-section-title">Budgets variables</div>
+      <div class="hub-bilan-rows">
+        ${hubBudgets.map(b => `
+          <div class="hub-bilan-row hub-bilan-row-sub">
+            <span>${b.icon} ${escHtml(b.label)}${b.budget > 0 ? ` <span style="color:var(--text-3);font-size:0.68rem;">/ ${eur(b.budget)}</span>` : ''}</span>
+            <span style="color:${b.budget > 0 && b.spent > b.budget ? 'var(--danger)' : 'var(--text-2)'};">− ${eur(b.spent)}</span>
+          </div>`).join('')}
+        <div class="hub-bilan-row hub-bilan-row-total"><span>Total budgets</span><span>− ${eur(totalBudgets)}</span></div>
+      </div>` : ''}
+
+      <!-- Dépenses ponctuelles (achats) -->
+      ${achats.length > 0 ? `
+      <div class="hub-bilan-section-title">Dépenses ponctuelles</div>
+      <div class="hub-bilan-rows">
+        ${achats.map(a => `
+          <div class="hub-bilan-row hub-bilan-row-sub">
+            <span>${escHtml(a.label || a.description || 'Achat')}</span>
+            <span style="color:var(--danger);">− ${eur(Number(a.amount)||0)}</span>
+          </div>`).join('')}
+      </div>` : ''}
+
+      <!-- Imprévus -->
+      ${imprévus.length > 0 ? `
+      <div class="hub-bilan-section-title">Dépenses imprévues</div>
+      <div class="hub-bilan-rows">
+        ${imprévus.map(i => `
+          <div class="hub-bilan-row hub-bilan-row-sub">
+            <span>${escHtml(i.label || 'Imprevu')}</span>
+            <span style="color:var(--danger);">− ${eur(Number(i.amount)||0)}</span>
+          </div>`).join('')}
+      </div>` : ''}
+
+      <!-- Il reste + par user -->
       <div class="hub-bilan-total">
         <span>Il reste</span>
         <span style="color:${soldeColor};font-size:1.35rem;font-weight:900;">${eur(solde)}</span>
       </div>
-      ${txEp !== undefined ? `<div class="hub-bilan-rate">Taux d'épargne : <strong>${Math.round(txEp * 100)} %</strong></div>` : ''}
+
+      ${users.length > 1 ? `
+      <div class="hub-bilan-peruser">
+        ${users.map(u => {
+          const uSolde = kpi?.solde?.byUser?.[u.id] ?? 0;
+          const uTx    = kpi?.txEpargne?.byUser?.[u.id] ?? 0;
+          const uColor = uSolde >= 0 ? 'var(--success)' : 'var(--danger)';
+          return `<div class="hub-bilan-user-row">
+            <div style="display:flex;align-items:center;gap:5px;">
+              <span style="width:8px;height:8px;border-radius:50%;background:${escHtml(u.color||'#7C5CFC')};display:inline-block;"></span>
+              <span style="font-size:0.8rem;font-weight:600;">${escHtml(u.name)}</span>
+            </div>
+            <div style="text-align:right;">
+              <div style="font-size:0.88rem;font-weight:800;color:${uColor};">${eur(uSolde)}</div>
+              ${totalRev > 0 ? `<div style="font-size:0.66rem;color:var(--text-3);">épargne ${Math.round(uTx*100)} %</div>` : ''}
+            </div>
+          </div>`;
+        }).join('')}
+      </div>` : ''}
+
+      ${txEp !== undefined && totalRev > 0 ? `
+      <div class="hub-bilan-rate">Taux d'épargne global : <strong>${Math.round(txEp * 100)} %</strong></div>` : ''}
     </div>
 
     <!-- CLÔTURER LE MOIS -->
@@ -381,6 +474,9 @@ async function _renderSpoke(container, body, view) {
   `;
 
   body.querySelector('#spoke-back').addEventListener('click', () => {
+    // Nettoyer listeners spoke
+    const btn = body.querySelector('#spoke-back');
+    if (btn._budgUnsub) { btn._budgUnsub(); btn._budgUnsub = null; }
     _currentView = 'hub';
     renderHub(container);
   });
@@ -388,11 +484,15 @@ async function _renderSpoke(container, body, view) {
   const spokeContent = body.querySelector('#spoke-content');
 
   if (view === 'revenus') {
-    await saisieModule.render(spokeContent, { section: 'revenus' });
+    await _renderRevenus(spokeContent);
   } else if (view === 'charges') {
-    await saisieModule.render(spokeContent, { section: 'charges' });
+    await _renderCharges(spokeContent);
   } else if (view === 'budgets') {
     await chargesModule.renderSection(spokeContent, 'budgets');
+    // Rafraîchir le footer quand une opération budget est ajoutée
+    const unsubBudg = on('budgetop:saved', () => { if (document.contains(spokeContent)) _renderSpokeFooter(body); });
+    // Nettoyer le listener au retour hub
+    body.querySelector('#spoke-back')._budgUnsub = unsubBudg;
   } else if (view === 'depenses') {
     await _renderDepenses(spokeContent);
   }
@@ -416,6 +516,311 @@ async function _renderSpokeFooter(body) {
     <span class="spoke-footer-amount" style="color:${color};">${eur(solde)}</span>
   `;
   body.appendChild(footer);
+}
+
+// ══════════════════════════════════════════════════════════════
+// VUE REVENUS — saisie par user, aides, primes, répartition
+// ══════════════════════════════════════════════════════════════
+async function _renderRevenus(container) {
+  const { year, month } = State;
+  const [users, md, repCfg] = await Promise.all([
+    getActiveUsers(),
+    getMonthlyData(year, month),
+    getRepartition(year, month),
+  ]);
+  if (!md) { container.innerHTML = `<div class="empty-state-inline">Aucune donnée pour ce mois.</div>`; return; }
+  const N = users.length;
+
+  const _v = u => Number(md?.users?.[String(u.id)]?.revenus) || '';
+  const _a = u => Number(md?.users?.[String(u.id)]?.aides)   || '';
+  const _p = u => Number(md?.users?.[String(u.id)]?.primes)  || '';
+
+  const repModes = [
+    { key: 'equitable',    label: '⚖️ Équitable' },
+    { key: 'fixe',         label: '% Fixe' },
+    { key: 'separe',       label: '🔀 Séparé' },
+    { key: 'personnalise', label: '🎛 Perso' },
+  ];
+
+  container.innerHTML = `
+    <div class="spoke-section">
+      <div class="spoke-section-title">💰 Revenus</div>
+      <div class="spoke-rev-grid">
+        ${users.map(u => `
+          <div class="spoke-rev-user">
+            <div class="spoke-rev-user-label">
+              <span class="spoke-user-dot" style="background:${escHtml(u.color||'#7C5CFC')};"></span>
+              ${escHtml(u.name)}
+            </div>
+            <div class="input-wrap">
+              <input type="number" class="form-input input-euro rev-input" id="rv-rev-${u.id}"
+                inputmode="decimal" min="0" step="1" placeholder="0" value="${_v(u)}">
+              <span class="input-suffix">€</span>
+            </div>
+          </div>`).join('')}
+      </div>
+    </div>
+
+    <details class="settings-group" id="aides-details" style="margin-bottom:12px;">
+      <summary class="settings-group-title" style="font-size:0.84rem;">➕ Aides &amp; primes</summary>
+      <div class="settings-group-body">
+        <div class="spoke-section-title" style="margin-bottom:8px;">Aides (CAF, APL, allocations…)</div>
+        ${users.map(u => `
+          <div class="spoke-rev-user" style="margin-bottom:8px;">
+            <div class="spoke-rev-user-label">
+              <span class="spoke-user-dot" style="background:${escHtml(u.color||'#7C5CFC')};"></span>
+              ${escHtml(u.name)}
+            </div>
+            <div class="input-wrap">
+              <input type="number" class="form-input input-euro rev-input" id="rv-aid-${u.id}"
+                inputmode="decimal" min="0" step="1" placeholder="0" value="${_a(u)}">
+              <span class="input-suffix">€</span>
+            </div>
+          </div>`).join('')}
+        <div class="spoke-section-title" style="margin:12px 0 8px;">Primes &amp; bonus</div>
+        <p style="font-size:0.7rem;color:var(--text-3);margin:0 0 8px;">Non comptés dans la répartition des charges</p>
+        ${users.map(u => `
+          <div class="spoke-rev-user" style="margin-bottom:8px;">
+            <div class="spoke-rev-user-label">
+              <span class="spoke-user-dot" style="background:${escHtml(u.color||'#7C5CFC')};"></span>
+              ${escHtml(u.name)}
+            </div>
+            <div class="input-wrap">
+              <input type="number" class="form-input input-euro rev-input" id="rv-pri-${u.id}"
+                inputmode="decimal" min="0" step="1" placeholder="0" value="${_p(u)}">
+              <span class="input-suffix">€</span>
+            </div>
+          </div>`).join('')}
+      </div>
+    </details>
+
+    ${N > 1 ? `
+    <details class="settings-group" id="rep-details" style="margin-bottom:12px;">
+      <summary class="settings-group-title" style="font-size:0.84rem;">⚖️ Répartition des charges</summary>
+      <div class="settings-group-body">
+        <div class="tabs" id="rep-tabs">
+          ${repModes.map(m => `<button class="tab-btn ${repCfg.mode === m.key ? 'active' : ''}" data-mode="${m.key}">${m.label}</button>`).join('')}
+        </div>
+        <div id="rep-pcts" style="margin-top:8px;${repCfg.mode !== 'fixe' ? 'display:none;' : ''}">
+          ${users.map(u => `
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+              <span style="flex:1;font-size:0.8rem;">${escHtml(u.name)}</span>
+              <div class="input-wrap" style="width:80px;">
+                <input type="number" class="form-input pct-input" data-uid="${u.id}"
+                  min="0" max="100" step="1" value="${repCfg.pcts?.[u.id] ?? Math.round(100/N)}">
+                <span class="input-suffix">%</span>
+              </div>
+            </div>`).join('')}
+        </div>
+        <p id="rep-desc" style="font-size:0.76rem;color:var(--text-3);margin-top:6px;"></p>
+      </div>
+    </details>` : ''}
+
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0 80px;">
+      <span id="rv-save-ind" style="font-size:0.76rem;color:var(--success);display:none;">✓ Sauvegardé</span>
+    </div>
+  `;
+
+  // ── Mode répartition labels ──
+  const modeDescs = {
+    separe:       'Chacun paie ses dépenses personnelles uniquement.',
+    equitable:    'Les charges communes sont divisées proportionnellement aux revenus.',
+    fixe:         'Chacun paie un % fixe des charges communes.',
+    personnalise: 'Répartition définie manuellement par charge.',
+  };
+  const repDescEl = container.querySelector('#rep-desc');
+  if (repDescEl) repDescEl.textContent = modeDescs[repCfg.mode] || '';
+
+  // ── Auto-save ──
+  const _saveInd = () => {
+    const ind = container.querySelector('#rv-save-ind');
+    if (ind) { ind.style.display = 'inline'; setTimeout(() => ind.style.display = 'none', 2200); }
+    // Rafraîchir le footer du spoke
+    const body = container.closest('#argent-body');
+    if (body) _renderSpokeFooter(body);
+  };
+  const _doSave = debounce(async () => {
+    const fresh = await getMonthlyData(year, month) || { year, month, users: {} };
+    if (!fresh.users) fresh.users = {};
+    for (const u of users) {
+      const uid = String(u.id);
+      if (!fresh.users[uid]) fresh.users[uid] = {};
+      const rv  = container.querySelector(`#rv-rev-${u.id}`);
+      const aid = container.querySelector(`#rv-aid-${u.id}`);
+      const pri = container.querySelector(`#rv-pri-${u.id}`);
+      if (rv)  fresh.users[uid].revenus = Number(rv.value)  || 0;
+      if (aid) fresh.users[uid].aides   = Number(aid.value) || 0;
+      if (pri) fresh.users[uid].primes  = Number(pri.value) || 0;
+    }
+    await saveMonthlyData(fresh);
+    _saveInd();
+    emit('charges:updated');
+  }, 600);
+
+  container.querySelectorAll('.rev-input').forEach(inp => inp.addEventListener('input', _doSave));
+
+  // ── Mode répartition ──
+  if (N > 1) {
+    container.querySelectorAll('#rep-tabs .tab-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        container.querySelectorAll('#rep-tabs .tab-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        const freshRep = await getRepartition(year, month);
+        freshRep.mode = btn.dataset.mode;
+        const pctDiv = container.querySelector('#rep-pcts');
+        if (pctDiv) pctDiv.style.display = freshRep.mode === 'fixe' ? '' : 'none';
+        if (repDescEl) repDescEl.textContent = modeDescs[freshRep.mode] || '';
+        // Lire les % si fixe
+        if (freshRep.mode === 'fixe') {
+          if (!freshRep.pcts) freshRep.pcts = {};
+          container.querySelectorAll('.pct-input').forEach(inp => {
+            freshRep.pcts[inp.dataset.uid] = Number(inp.value) || Math.round(100/N);
+          });
+        }
+        await saveRepartition(freshRep);
+        _saveInd();
+        emit('charges:updated');
+      });
+    });
+    container.querySelectorAll('.pct-input').forEach(inp => {
+      inp.addEventListener('input', async () => {
+        const freshRep = await getRepartition(year, month);
+        if (!freshRep.pcts) freshRep.pcts = {};
+        container.querySelectorAll('.pct-input').forEach(i => {
+          freshRep.pcts[i.dataset.uid] = Number(i.value) || 0;
+        });
+        await saveRepartition(freshRep);
+        _saveInd();
+        emit('charges:updated');
+      });
+    });
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+// VUE CHARGES FIXES — liste, import, ajouter, confirmer
+// ══════════════════════════════════════════════════════════════
+async function _renderCharges(container) {
+  const { year, month } = State;
+  const [users, charges] = await Promise.all([
+    getActiveUsers(),
+    getChargesForMonth(month, year),
+  ]);
+
+  const _refresh = () => _renderCharges(container);
+
+  const totalChg = charges.reduce((s, c) => {
+    const lines = c.lines?.length ? c.lines : [{ amount: c.amount }];
+    return s + lines.reduce((ss, l) => ss + (Number(l.amount)||0), 0);
+  }, 0);
+
+  const byCat = {};
+  for (const c of charges) { (byCat[c.category || 'autre'] ??= []).push(c); }
+
+  container.innerHTML = `
+    <div class="spoke-toolbar">
+      <button class="btn btn-outline btn-sm" id="chg-import">📥 Importer</button>
+      <button class="btn btn-primary btn-sm" id="chg-add">+ Ajouter</button>
+    </div>
+    ${charges.length === 0 ? `
+      <div class="empty-state" style="padding:28px 0;">
+        <div class="empty-state-icon">🏠</div>
+        <div class="empty-state-title">Aucune charge ce mois-ci</div>
+        <div class="empty-state-text"><strong>📥 Importer</strong> copie les charges du mois précédent en un clic.</div>
+      </div>
+    ` : `
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+        <span style="font-size:0.78rem;color:var(--text-3);">${charges.length} charge${charges.length>1?'s':''}</span>
+        <span class="chip danger">Total : ${eur(totalChg)}</span>
+      </div>
+      <div class="item-list" id="chg-list">
+        ${Object.entries(byCat).map(([catId, items]) => {
+          const info = getCategoryInfo(catId);
+          const catTotal = items.reduce((s, c) => {
+            const lines = c.lines?.length ? c.lines : [{ amount: c.amount }];
+            return s + lines.reduce((ss, l) => ss + (Number(l.amount)||0), 0);
+          }, 0);
+          return `<div style="margin-bottom:10px;">
+            <div class="chg-cat-header">${escHtml((info.emoji||'') + ' ' + (info.label||catId))} — ${eur(catTotal)}</div>
+            ${items.map(c => {
+              const lines = c.lines?.length ? c.lines : [{ amount: c.amount }];
+              const lineTotal = lines.reduce((s, l) => s + (Number(l.amount)||0), 0);
+              return `<div class="list-item spoke-charge-item" data-cid="${c.id}" style="cursor:pointer;">
+                <div class="list-item-body"><div class="list-item-title">${escHtml(c.label)}</div></div>
+                <div class="list-item-right"><div class="list-item-amount">${eur(lineTotal)}</div></div>
+              </div>`;
+            }).join('')}
+          </div>`;
+        }).join('')}
+      </div>
+    `}
+    <div class="spoke-confirm-wrap">
+      <button class="btn btn-primary spoke-confirm-btn" id="chg-confirm" style="width:100%;padding:13px;">
+        ✓ Confirmer les charges
+      </button>
+      ${_chgValidated ? '<p style="text-align:center;font-size:0.7rem;color:var(--success);margin:6px 0 0;">✅ Déjà confirmées ce mois</p>' : ''}
+    </div>
+  `;
+
+  // Click-to-edit
+  container.querySelectorAll('.spoke-charge-item').forEach(el => {
+    el.addEventListener('click', () => {
+      const c = charges.find(x => x.id === Number(el.dataset.cid));
+      if (c) chargesModule.showChargeModal(c, () => { emit('charges:updated'); _refresh(); });
+    });
+  });
+
+  container.querySelector('#chg-add')?.addEventListener('click', () => {
+    chargesModule.showChargeModal(null, () => { emit('charges:updated'); _refresh(); });
+  });
+
+  container.querySelector('#chg-import')?.addEventListener('click', () => {
+    _showImportChargesModal(users, year, month, _refresh);
+  });
+
+  container.querySelector('#chg-confirm')?.addEventListener('click', () => {
+    emit('charges:validated');
+    showToast('Charges confirmées ✅', 'success');
+  });
+}
+
+// ── Import modal charges (indépendant de saisie.js) ──
+async function _showImportChargesModal(users, year, month, onDone) {
+  openModal('📥 Importer des charges', `
+    <div style="display:flex;flex-direction:column;gap:10px;">
+      <button class="btn btn-outline" id="imp-prev" style="text-align:left;padding:14px;white-space:normal;">
+        <strong>📅 Du mois précédent</strong><br>
+        <span style="font-size:0.78rem;color:var(--text-3);">Copie toutes les charges du mois passé</span>
+      </button>
+      <button class="btn btn-outline" id="imp-tpl" style="text-align:left;padding:14px;white-space:normal;">
+        <strong>📋 Charges prédéfinies</strong><br>
+        <span style="font-size:0.78rem;color:var(--text-3);">Sélectionnez parmi une liste de charges courantes</span>
+      </button>
+    </div>
+  `, `<button class="btn btn-outline" id="imp-cancel-btn">Annuler</button>`);
+
+  document.getElementById('imp-cancel-btn')?.addEventListener('click', closeModal);
+
+  document.getElementById('imp-tpl')?.addEventListener('click', () => {
+    closeModal();
+    chargesModule.showChargesTemplatesModal(() => { emit('charges:updated'); onDone(); });
+  });
+
+  document.getElementById('imp-prev')?.addEventListener('click', async () => {
+    const prevM     = addMonth(year, month, -1);
+    const prevCharges = await getChargesForMonth(prevM.month, prevM.year);
+    if (!prevCharges.length) { showToast('Aucune charge le mois précédent', 'warning'); closeModal(); return; }
+    const defaultQui = users.length === 1 ? String(users[0]?.id ?? 'shared') : 'shared';
+    for (const c of prevCharges) {
+      const { id: _id, ...rest } = c;
+      const lines = rest.lines?.map(l => ({ ...l, qui: l.qui ?? defaultQui }));
+      await saveCharge({ ...rest, qui: rest.qui ?? defaultQui, ...(lines ? { lines } : {}), year, month });
+    }
+    closeModal();
+    emit('charges:updated');
+    showToast(`${prevCharges.length} charge(s) importée(s) ✅`, 'success');
+    onDone();
+  });
 }
 
 // ══════════════════════════════════════════════════════════════
