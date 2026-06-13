@@ -23,10 +23,11 @@ import { on, emit }                                           from '../events.js
 import { calcMonth }                                          from '../calculs.js';
 
 // ── État module ──
-let _chgValidated      = false;
-let _chgUnsubscribe    = null;
+let _chgValidated       = false;
+let _chgUnsubscribe     = null;
 let _monthCompleteUnsub = null;
-let _currentView       = 'hub'; // 'hub' | 'revenus' | 'charges' | 'budgets' | 'depenses'
+let _currentView        = 'hub'; // 'hub' | 'revenus' | 'charges' | 'budgets' | 'depenses'
+let _bilanMode          = localStorage.getItem('compta-bilan-mode') || 'previsionnel'; // 'previsionnel' | 'reel'
 
 // ── Persistance validation charges ──
 function _chgKey()           { const { year, month } = State; return `compta-chg-ok-${year}-${month}`; }
@@ -206,9 +207,26 @@ async function renderHub(container) {
                           : Number(b.amount)||0;
     hubBudgets.push({ id: b.id, icon: b.icon || '📌', label: b.name, budget: effectiveBudget, spent: sp });
   }
-  const totalBudgets   = hubBudgets.reduce((a, b) => a + b.spent, 0);
-  const anyBudgetOver  = hubBudgets.some(b => b.budget > 0 && b.spent > b.budget);
-  const hasBudgets     = customBudgets.length > 0;
+  const totalBudgets        = hubBudgets.reduce((a, b) => a + b.spent, 0);
+  const totalBudgetsCeilings = hubBudgets.reduce((a, b) => a + b.budget, 0);
+  const anyBudgetOver        = hubBudgets.some(b => b.budget > 0 && b.spent > b.budget);
+  const hasBudgets           = customBudgets.length > 0;
+
+  // ── Prévisionnel vs Réel ──
+  const isPrevo        = _bilanMode === 'previsionnel';
+  const bilanBudgets   = isPrevo ? totalBudgetsCeilings : totalBudgets;
+  const bilanSolde     = totalRev - totalChg - bilanBudgets - totalDep;
+  const bilanColor     = bilanSolde >= 0 ? 'var(--success)' : 'var(--danger)';
+  // Per-user prévisionnel : distribuer les budgets selon la répartition kpi.part
+  const totalPartKpi   = kpi?.part?.total || 1;
+  const bilanUserSolde = uid => {
+    const uRev   = (kpi?.revenus?.byUser?.[uid] || 0) + (kpi?.aides?.byUser?.[uid] || 0) + (kpi?.primes?.byUser?.[uid] || 0);
+    if (!isPrevo) return kpi?.solde?.byUser?.[uid] ?? 0;
+    const uShare = totalPartKpi > 0 ? (kpi?.part?.byUser?.[uid] || 0) / totalPartKpi : (1 / (users.length || 1));
+    const uBudg  = bilanBudgets * uShare;
+    const uDep   = totalDep * uShare;
+    return uRev - (kpi?.charges?.byUser?.[uid] || 0) - uBudg - uDep;
+  };
 
   // ── Helpers HTML ──
   function statusBadge(s) {
@@ -322,8 +340,14 @@ async function renderHub(container) {
     <div class="hub-bilan">
       <div class="hub-bilan-header">
         <span class="hub-bilan-title">Bilan ${nomMois(month)} ${year}</span>
-        ${isDone ? `<span class="chip chip-success" style="font-size:0.68rem;">✓ Clôturé</span>` : ''}
+        <div style="display:flex;align-items:center;gap:6px;">
+          ${isDone ? `<span class="chip chip-success" style="font-size:0.68rem;">✓ Clôturé</span>` : ''}
+          <button id="bilan-mode-toggle" type="button" class="hub-bilan-mode-btn ${isPrevo ? 'prevo' : 'reel'}" title="Basculer Prévisionnel / Réel">
+            ${isPrevo ? '📊 Prévisionnel' : '📈 Réel'}
+          </button>
+        </div>
       </div>
+      ${isPrevo ? `<p class="hub-bilan-mode-hint">Basé sur vos plafonds de budget. <span style="color:var(--primary);cursor:pointer;" id="bilan-hint-switch">Voir le réel →</span></p>` : `<p class="hub-bilan-mode-hint" style="color:var(--primary);">Dépenses réelles validées. <span style="color:var(--text-3);cursor:pointer;" id="bilan-hint-switch">← Prévisionnel</span></p>`}
 
       <!-- Revenus -->
       <div class="hub-bilan-section-title">Revenus</div>
@@ -353,17 +377,21 @@ async function renderHub(container) {
 
       <!-- Budgets variables -->
       ${hubBudgets.length > 0 ? `
-      <div class="hub-bilan-section-title">Budgets variables</div>
+      <div class="hub-bilan-section-title">Budgets variables ${isPrevo ? '<span style="font-size:0.65rem;color:var(--text-3);font-weight:400;">(plafonds)</span>' : '<span style="font-size:0.65rem;color:var(--text-3);font-weight:400;">(réel)</span>'}</div>
       <div class="hub-bilan-rows">
-        ${hubBudgets.map(b => `
-          <div class="hub-bilan-row hub-bilan-row-sub">
-            <span>${b.icon} ${escHtml(b.label)}${b.budget > 0 ? ` <span style="color:var(--text-3);font-size:0.68rem;">/ ${eur(b.budget)}</span>` : ''}</span>
-            <span style="color:${b.budget > 0 && b.spent > b.budget ? 'var(--danger)' : 'var(--text-2)'};">− ${eur(b.spent)}</span>
-          </div>`).join('')}
-        <div class="hub-bilan-row hub-bilan-row-total"><span>Total budgets</span><span>− ${eur(totalBudgets)}</span></div>
+        ${hubBudgets.map(b => {
+          const showAmt = isPrevo ? b.budget : b.spent;
+          const isOver  = b.budget > 0 && b.spent > b.budget;
+          const color   = !isPrevo && isOver ? 'var(--danger)' : isPrevo ? 'var(--text-2)' : 'var(--text-2)';
+          return `<div class="hub-bilan-row hub-bilan-row-sub">
+            <span>${b.icon} ${escHtml(b.label)}${!isPrevo && b.budget > 0 ? ` <span style="color:var(--text-3);font-size:0.65rem;">/ ${eur(b.budget)}</span>` : ''}</span>
+            <span style="color:${color};">− ${eur(showAmt)}</span>
+          </div>`;
+        }).join('')}
+        <div class="hub-bilan-row hub-bilan-row-total"><span>Total budgets</span><span>− ${eur(bilanBudgets)}</span></div>
       </div>` : ''}
 
-      <!-- Dépenses ponctuelles (achats) -->
+      <!-- Dépenses ponctuelles (achats) —toujours réel— -->
       ${achats.length > 0 ? `
       <div class="hub-bilan-section-title">Dépenses ponctuelles</div>
       <div class="hub-bilan-rows">
@@ -374,7 +402,7 @@ async function renderHub(container) {
           </div>`).join('')}
       </div>` : ''}
 
-      <!-- Imprévus -->
+      <!-- Imprévus —toujours réel— -->
       ${imprévus.length > 0 ? `
       <div class="hub-bilan-section-title">Dépenses imprévues</div>
       <div class="hub-bilan-rows">
@@ -385,19 +413,20 @@ async function renderHub(container) {
           </div>`).join('')}
       </div>` : ''}
 
-      <!-- Il reste + par user -->
+      <!-- Il reste -->
       <div class="hub-bilan-total">
         <span>Il reste</span>
-        <span style="color:${soldeColor};font-size:1.35rem;font-weight:900;">${eur(solde)}</span>
+        <span style="color:${bilanColor};font-size:1.35rem;font-weight:900;">${eur(bilanSolde)}</span>
       </div>
 
+      <!-- Par user -->
       ${users.length > 1 ? `
       <div class="hub-bilan-peruser">
         ${users.map(u => {
-          const uSolde = kpi?.solde?.byUser?.[u.id] ?? 0;
+          const uSolde = bilanUserSolde(u.id);
           const uAp    = kpi?.aPayer?.byUser?.[u.id] ?? 0;
-          const uTx    = kpi?.txEpargne?.byUser?.[u.id] ?? 0;
           const uColor = uSolde >= 0 ? 'var(--success)' : 'var(--danger)';
+          const uTx    = totalRev > 0 ? uSolde / ((kpi?.revenus?.byUser?.[u.id]||0) + (kpi?.aides?.byUser?.[u.id]||0) + (kpi?.primes?.byUser?.[u.id]||0) || 1) : 0;
           return `<div class="hub-bilan-user-row">
             <div style="display:flex;align-items:center;gap:5px;">
               <span style="width:8px;height:8px;border-radius:50%;background:${escHtml(u.color||'#7C5CFC')};display:inline-block;"></span>
@@ -406,14 +435,14 @@ async function renderHub(container) {
             <div style="text-align:right;">
               <div style="font-size:0.68rem;color:var(--text-3);margin-bottom:1px;">à payer : ${eur(uAp)}</div>
               <div style="font-size:0.9rem;font-weight:800;color:${uColor};">${eur(uSolde)}</div>
-              ${totalRev > 0 ? `<div style="font-size:0.66rem;color:var(--text-3);">épargne ${Math.round(uTx*100)} %</div>` : ''}
+              ${totalRev > 0 ? `<div style="font-size:0.66rem;color:var(--text-3);">${isPrevo ? 'prévu ' : ''}épargne ${Math.max(0, Math.round(uTx*100))} %</div>` : ''}
             </div>
           </div>`;
         }).join('')}
       </div>` : ''}
 
-      ${txEp !== undefined && totalRev > 0 ? `
-      <div class="hub-bilan-rate">Taux d'épargne global : <strong>${Math.round(txEp * 100)} %</strong></div>` : ''}
+      ${totalRev > 0 ? `
+      <div class="hub-bilan-rate">${isPrevo ? 'Taux d\'épargne prévu' : 'Taux d\'épargne réel'} : <strong>${Math.round(Math.max(0, bilanSolde / (totalRev || 1)) * 100)} %</strong></div>` : ''}
     </div>
 
     <!-- CLÔTURER LE MOIS -->
@@ -428,6 +457,15 @@ async function renderHub(container) {
   body.querySelectorAll('.hub-card[data-view]').forEach(card => {
     card.addEventListener('click', () => _navigateView(container, card.dataset.view));
   });
+
+  // Toggle prévisionnel / réel
+  const _toggleBilanMode = () => {
+    _bilanMode = _bilanMode === 'previsionnel' ? 'reel' : 'previsionnel';
+    localStorage.setItem('compta-bilan-mode', _bilanMode);
+    renderHub(container);
+  };
+  body.querySelector('#bilan-mode-toggle')?.addEventListener('click', _toggleBilanMode);
+  body.querySelector('#bilan-hint-switch')?.addEventListener('click', _toggleBilanMode);
 
   body.querySelector('#hub-btn-close')?.addEventListener('click', () => emit('month:complete'));
 

@@ -75,7 +75,7 @@ async function _renderPage(container) {
         Gérés depuis l'onglet <strong>Charges → Exceptionnels</strong>.
       </p>
       ${achats.length === 0
-        ? `<div style="font-size:0.82rem;color:var(--text-3);text-align:center;padding:10px 0;">Aucun achat exceptionnel ce mois-ci</div>`
+        ? `<div style="font-size:0.82rem;color:var(--text-3);text-align:center;padding:10px 0;">Aucune dépense ponctuelle ce mois-ci</div>`
         : `<div class="item-list">${achats.map(a => _buildAchatItem(a)).join('')}</div>`
       }
     </div>

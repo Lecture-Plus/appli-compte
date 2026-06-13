@@ -637,7 +637,7 @@ async function renderAchats(container) {
     tc.innerHTML = monthNav + `
       <div class="empty-state">
         <div class="empty-state-icon">🛍️</div>
-        <div class="empty-state-title">Aucun achat exceptionnel</div>
+        <div class="empty-state-title">Aucune dépense ponctuelle</div>
         <div class="empty-state-text">Pour ce mois, aucune dépense exceptionnelle enregistrée.</div>
       </div>
       <div style="height:80px;"></div>
@@ -717,7 +717,7 @@ async function showCopyAchatsModal(destYear, destMonth, onSave) {
     if (!y || !m) return;
     srcAchats = await getAchatsForMonth(y, m);
     if (!srcAchats.length) {
-      preview.innerHTML = `<span style="color:var(--warning);">Aucun achat exceptionnel pour ce mois.</span>`;
+      preview.innerHTML = `<span style="color:var(--warning);">Aucune dépense ponctuelle pour ce mois.</span>`;
     } else {
       preview.innerHTML = `✅ ${srcAchats.length} achat(s) trouvé(s) — ${srcAchats.map(a => escHtml(a.label)).join(', ')}`;
     }
@@ -770,7 +770,8 @@ async function renderBudgets(container) {
     getAllSettings(),
   ]);
   const users = _users;
-  const customBudgets  = settings.customBudgets  || [];
+  const ym = `${year}-${month}`;
+  const customBudgets  = (settings.customBudgets || []).filter(b => !b.yearMonth || b.yearMonth === ym);
   const pinnedBudgets  = settings.pinnedBudgets   || [];
   const tc = container.querySelector('#tab-content');
 
@@ -843,7 +844,7 @@ async function renderBudgets(container) {
 
   tc.querySelector('#bgt-prev-month')?.addEventListener('click', () => { const d=addMonth(year,month,-1); State.year=d.year;State.month=d.month; renderBudgets(container); });
   tc.querySelector('#bgt-next-month')?.addEventListener('click', () => { const d=addMonth(year,month, 1); State.year=d.year;State.month=d.month; renderBudgets(container); });
-  tc.querySelector('#bgt-add-custom')?.addEventListener('click', () => showEditBudgetModal(null, customBudgets, () => renderBudgets(container), users));
+  tc.querySelector('#bgt-add-custom')?.addEventListener('click', () => showEditBudgetModal(null, customBudgets, () => renderBudgets(container), users, year, month));
   tc.querySelector('#bgt-manage')?.addEventListener('click', () => _showManageBudgetsModal(customBudgets, () => renderBudgets(container), users));
 
   tc.querySelectorAll('[data-bgt-add-op]').forEach(btn => {
@@ -936,7 +937,7 @@ async function renderBudgets(container) {
       const id = Number(btn.dataset.delAchat);
       const li = btn.closest('.list-item');
       if (li) li.style.display = 'none';
-      showToastWithUndo('Achat exceptionnel supprimé',
+      showToastWithUndo('Dépense ponctuelle supprimée',
         async () => { await deleteAchat(id); renderBudgets(container); }, 6000, 'warning',
         () => { if (li) li.style.display = ''; });
     });
@@ -1138,8 +1139,10 @@ async function _showAddBudgetOpModal({ catId, catLabel }, users, year, month, on
   });
 }
 
-export function showEditBudgetModal(existing, customBudgets, onSave, users = []) {
+export function showEditBudgetModal(existing, customBudgets, onSave, users = [], year = null, month = null) {
   const isNew      = !existing;
+  const _year  = year  ?? State.year;
+  const _month = month ?? State.month;
   const multiUser  = users.length > 1;
   const selIcon    = existing?.icon || '📌';
   const existingAlloc = existing?.allocation || 'shared';
@@ -1280,7 +1283,7 @@ export function showEditBudgetModal(existing, customBudgets, onSave, users = [])
     }
 
     const entry = isNew
-      ? { id: 'custom_'+Date.now(), name, icon, amount, allocation: alloc, amountByUser }
+      ? { id: 'custom_'+Date.now(), name, icon, amount, allocation: alloc, amountByUser, yearMonth: `${_year}-${_month}` }
       : { ...existing, name, icon, amount, allocation: alloc, amountByUser };
     const updated = isNew ? [...customBudgets, entry] : customBudgets.map(b => b.id===existing.id ? entry : b);
     await setSetting('customBudgets', updated);
@@ -1390,7 +1393,7 @@ export async function showAchatModal(achat, onSave) {
     <button class="btn btn-primary" id="a-save" style="margin-left:auto;">Enregistrer</button>
   `;
 
-  openModal(isNew ? 'Nouvel achat exceptionnel' : 'Modifier l\'achat', body, footer);
+  openModal(isNew ? 'Nouvelle dépense ponctuelle' : 'Modifier la dépense', body, footer);
 
   document.getElementById('a-cancel')?.addEventListener('click', closeModal);
 

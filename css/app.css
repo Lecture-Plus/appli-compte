@@ -1146,6 +1146,23 @@ svg { display: block; }
   font-size: 0.72rem; color: var(--text-3); margin-top: 8px; text-align: right;
 }
 
+/* ── Toggle Prévisionnel / Réel ── */
+.hub-bilan-mode-btn {
+  font-size: 0.7rem; font-weight: 700; padding: 4px 10px;
+  border-radius: 99px; border: 1.5px solid var(--border);
+  cursor: pointer; white-space: nowrap;
+  transition: background var(--transition), border-color var(--transition);
+}
+.hub-bilan-mode-btn.prevo {
+  background: var(--primary-bg); color: var(--primary); border-color: var(--primary-light);
+}
+.hub-bilan-mode-btn.reel {
+  background: var(--success-bg); color: var(--success); border-color: var(--success);
+}
+.hub-bilan-mode-hint {
+  font-size: 0.7rem; color: var(--text-3); margin: 0 0 10px; line-height: 1.5;
+}
+
 /* ── Boutons d'action hub ── */
 .hub-actions   { padding: 0 0 24px; display: flex; flex-direction: column; gap: 6px; }
 .hub-btn-close { width: 100%; padding: 13px; font-size: 0.88rem; }
