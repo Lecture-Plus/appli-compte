@@ -234,7 +234,6 @@ async function _renderResume(container, s, users) {
   const badgeText  = { done: 'Complet', partial: 'En cours', empty: 'Non rempli' }[status];
 
   const soldeColor = kpi.solde.total >= 0 ? 'var(--success)' : 'var(--danger)';
-  const heroStateClass = isFirstUse ? 'hero-v2--neutral' : kpi.solde.total >= 0 ? 'hero-v2--pos' : 'hero-v2--neg';
   const txColor    = kpi.txEpargne.total >= 0.10 ? 'var(--success)' : kpi.txEpargne.total >= 0 ? 'var(--warning)' : 'var(--danger)';
 
   // ── Score budgétaire (mini ring) — BM-1 : source unique de vérité via calcBudgetScore ──
@@ -257,6 +256,7 @@ async function _renderResume(container, s, users) {
       const ud = md?.users?.[String(u.id)];
       return !ud || (!(ud.revenus) && !(ud.primes) && !(ud.aides));
     });
+  const heroStateClass = isFirstUse ? 'hero-v2--neutral' : kpi.solde.total >= 0 ? 'hero-v2--pos' : 'hero-v2--neg';
 
   // ── Guide d'initialisation (persiste jusqu'aux 4 étapes complètes) ──
   const allSavConfirmed = await getAllSavingsConfirmed();
