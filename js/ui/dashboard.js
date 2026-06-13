@@ -386,12 +386,12 @@ async function _renderResume(container, s, users) {
         : status === 'partial'
           ? `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
               <button class="btn btn-primary" id="btn-go-saisie" style="grid-column:1/-1;font-size:0.82rem;padding:11px;white-space:normal;text-align:center;">✏️ Continuer la saisie mensuelle</button>
-              <button class="btn btn-outline" id="btn-go-craquage" style="font-size:0.82rem;padding:11px;">💸 Craquage et Dépassement</button>
-              <button class="btn btn-outline" id="btn-add-achat" style="font-size:0.82rem;padding:11px;">💳 Dépense ponctuelle</button>
+              <button class="btn btn-outline" id="btn-go-craquage" style="font-size:0.78rem;padding:10px 6px;white-space:normal;text-align:center;line-height:1.3;">💸 Craquage<br>et Dépassement</button>
+              <button class="btn btn-outline" id="btn-add-achat" style="font-size:0.78rem;padding:10px 6px;white-space:normal;text-align:center;line-height:1.3;">💳 Dépense<br>ponctuelle</button>
             </div>`
           : `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-              <button class="btn btn-outline" id="btn-go-craquage" style="font-size:0.82rem;padding:11px;">💸 Craquage et Dépassement</button>
-              <button class="btn btn-outline" id="btn-add-achat" style="font-size:0.82rem;padding:11px;">💳 Dépense ponctuelle</button>
+              <button class="btn btn-outline" id="btn-go-craquage" style="font-size:0.78rem;padding:10px 6px;white-space:normal;text-align:center;line-height:1.3;">💸 Craquage<br>et Dépassement</button>
+              <button class="btn btn-outline" id="btn-add-achat" style="font-size:0.78rem;padding:10px 6px;white-space:normal;text-align:center;line-height:1.3;">💳 Dépense<br>ponctuelle</button>
             </div>`}
     </div>
 

@@ -228,6 +228,48 @@ async function renderHub(container) {
     return uRev - (kpi?.charges?.byUser?.[uid] || 0) - uBudg - uDep;
   };
 
+  // ── "À payer" per user = charges share + budgets share + imprévusList share ──
+  // (sans achats ponctuels ni craquages — ils surviennent plus tard dans le mois)
+  const _N = users.length || 1;
+  const _getShareRatio = uid => {
+    const uId = String(uid);
+    if (_N <= 1) return 1;
+    const mode = repCfg?.mode || 'separe';
+    if (mode === 'equitable') {
+      const base = users.reduce((s, u) => s + (kpi?.revenus?.byUser?.[String(u.id)] || 0), 0);
+      return base > 0 ? (kpi?.revenus?.byUser?.[uId] || 0) / base : 1 / _N;
+    } else if (mode === 'fixe') {
+      const pcts = repCfg?.pcts ?? {};
+      const sum  = Object.values(pcts).reduce((s, v) => s + (Number(v) || 0), 0) || 100;
+      return (Number(pcts[uId]) || 0) / sum;
+    }
+    return 1 / _N; // separe, personnalise
+  };
+  const aPayerPerUser = {};
+  for (const u of users) {
+    const uId = String(u.id);
+    const chgShare = kpi?.charges?.byUser?.[uId] || 0;
+    let budgShare = 0;
+    for (const op of budgetOps) {
+      const amt = Number(op.amount) || 0;
+      if (op.userId && String(op.userId) === uId) {
+        budgShare += amt;
+      } else if (!op.userId || !users.some(u2 => String(u2.id) === String(op.userId))) {
+        budgShare += amt * _getShareRatio(u.id);
+      }
+    }
+    let impShare = 0;
+    for (const imp of (md?.imprévusList || [])) {
+      const amt = Number(imp.amount) || 0;
+      if (imp.qui === 'shared' || !imp.qui) {
+        impShare += amt * _getShareRatio(u.id);
+      } else if (String(imp.qui) === uId) {
+        impShare += amt;
+      }
+    }
+    aPayerPerUser[uId] = chgShare + budgShare + impShare;
+  }
+
   // ── Helpers HTML ──
   function statusBadge(s) {
     const cfg = {
@@ -424,7 +466,7 @@ async function renderHub(container) {
       <div class="hub-bilan-peruser">
         ${users.map(u => {
           const uSolde = bilanUserSolde(u.id);
-          const uAp    = kpi?.aPayer?.byUser?.[u.id] ?? 0;
+          const uAp    = aPayerPerUser[String(u.id)] || 0;
           const uColor = uSolde >= 0 ? 'var(--success)' : 'var(--danger)';
           const uTx    = totalRev > 0 ? uSolde / ((kpi?.revenus?.byUser?.[u.id]||0) + (kpi?.aides?.byUser?.[u.id]||0) + (kpi?.primes?.byUser?.[u.id]||0) || 1) : 0;
           return `<div class="hub-bilan-user-row">
@@ -854,117 +896,143 @@ async function _showImportChargesModal(users, year, month, onDone) {
 }
 
 // ══════════════════════════════════════════════════════════════
-// VUE DÉPENSES — liste imprévus + achats impulsifs
+// VUE DÉPENSES — 3 onglets : Inattendues | Craquage | Ponctuelles
 // ══════════════════════════════════════════════════════════════
 async function _renderDepenses(container) {
   const { year, month } = State;
-  const [users, md, achats] = await Promise.all([
-    getActiveUsers(),
-    getMonthlyData(year, month),
-    getAchatsForMonth(year, month),
-  ]);
+  let _activeDepTab = 'inattendues';
 
-  const _refreshList = async () => {
-    const listEl = container.querySelector('#dep-list');
-    if (!listEl) return;
-    const [freshMd, freshAchats] = await Promise.all([getMonthlyData(year, month), getAchatsForMonth(year, month)]);
-    const all = [
-      ...((freshMd?.imprévusList || []).map(i => ({ ...i, _type: 'imprevu' }))),
-      ...(freshAchats.map(a => ({ ...a, _type: 'achat' }))),
-    ].sort((a, b) => {
-      const da = a.day || a.date || 0;
-      const db_ = b.day || b.date || 0;
-      return da < db_ ? 1 : -1;
+  const _render = async () => {
+    const [users, md, achats] = await Promise.all([
+      getActiveUsers(),
+      getMonthlyData(year, month),
+      getAchatsForMonth(year, month),
+    ]);
+
+    const imprévusList = md?.imprévusList || [];
+    const craquages    = achats.filter(a => a.category === 'craquage' || a.craquage_source);
+    const ponctuelles  = achats.filter(a => !a.craquage_source && a.category !== 'craquage');
+
+    const tabs = [
+      { key: 'inattendues', label: '🚨 Inattendues', count: imprévusList.length },
+      { key: 'craquage',    label: '💥 Craquage',    count: craquages.length },
+      { key: 'ponctuelles', label: '💳 Ponctuelles',  count: ponctuelles.length },
+    ];
+
+    let listHtml = '';
+    let addBtnHtml = '';
+    if (_activeDepTab === 'inattendues') {
+      listHtml   = imprévusList.length ? imprévusList.map(d => _depItemHtml(d, 'imprevu')).join('') : `<div class="empty-state-inline">Aucune dépense inattendue ce mois-ci</div>`;
+      addBtnHtml = `<button class="btn dep-add-btn" id="dep-add-imprevu">+ Ajouter une dépense inattendue</button>`;
+    } else if (_activeDepTab === 'craquage') {
+      listHtml   = craquages.length ? craquages.map(d => _depItemHtml(d, 'achat')).join('') : `<div class="empty-state-inline">Aucun craquage ce mois-ci</div>`;
+      addBtnHtml = `<button class="btn dep-add-btn" id="dep-add-craquage">+ Ajouter un craquage</button>`;
+    } else {
+      listHtml   = ponctuelles.length ? ponctuelles.map(d => _depItemHtml(d, 'achat')).join('') : `<div class="empty-state-inline">Aucune dépense ponctuelle ce mois-ci</div>`;
+      addBtnHtml = `<button class="btn dep-add-btn" id="dep-add-ponctuelle">+ Nouvelle dépense ponctuelle</button>`;
+    }
+
+    container.innerHTML = `
+      <div class="tabs" style="margin-bottom:14px;">
+        ${tabs.map(t => `
+          <button class="tab-btn ${_activeDepTab === t.key ? 'active' : ''}" data-tab="${t.key}">
+            ${t.label}${t.count > 0 ? ` <span class="dep-tab-count">${t.count}</span>` : ''}
+          </button>`).join('')}
+      </div>
+      <div class="item-list" id="dep-list" style="margin-bottom:14px;">${listHtml}</div>
+      <div class="dep-add-wrap">${addBtnHtml}</div>
+    `;
+
+    container.querySelectorAll('.tab-btn[data-tab]').forEach(btn => {
+      btn.addEventListener('click', () => { _activeDepTab = btn.dataset.tab; _render(); });
     });
 
-    if (!all.length) {
-      listEl.innerHTML = `<div class="empty-state-inline">Aucune dépense ce mois-ci</div>`;
-      return;
-    }
-    listEl.innerHTML = all.map(d => {
-      const label = escHtml(d.label || d.description || '');
-      const amt   = Number(d.amount) || 0;
-      const icon  = d._type === 'imprevu' ? '🚨' : (d.category === 'craquage' ? '💥' : '💳');
-      const sub   = d._type === 'imprevu' ? 'Inattendue' : (d.category === 'craquage' ? 'Achat impulsif' : 'Achat exceptionnel');
-      return `<div class="list-item">
-        <div class="list-item-icon" style="background:var(--warning-bg);color:var(--warning);">${icon}</div>
-        <div class="list-item-body">
-          <div class="list-item-title">${label}</div>
-          <div class="list-item-sub">${sub}${d.day ? ' · jour ' + d.day : ''}</div>
-        </div>
-        <div class="list-item-right">
-          <div class="list-item-amount negative">−${eur(amt)}</div>
-        </div>
-      </div>`;
-    }).join('');
-  };
-
-  container.innerHTML = `
-    <div style="display:flex;flex-direction:column;gap:10px;padding-bottom:80px;">
-      <div class="item-list" id="dep-list"></div>
-      <div class="dep-actions">
-        <button class="btn btn-outline" id="dep-add-imprevu">🚨 Inattendue</button>
-        <button class="btn btn-outline" id="dep-add-achat">💥 Achat impulsif</button>
-      </div>
-    </div>
-  `;
-
-  await _refreshList();
-
-  container.querySelector('#dep-add-imprevu')?.addEventListener('click', async () => {
     const now = new Date();
-    const quiOpts = (users.length > 1 ? `<option value="shared">🤝 Partagé (tous)</option>` : '') +
-      users.map(u => `<option value="${u.id}" ${users.length === 1 ? 'selected' : ''}>${escHtml(u.name)}</option>`).join('');
 
-    openModal('🚨 Dépense inattendue', `
-      <div class="form-group">
-        <label class="form-label">Description</label>
-        <input type="text" class="form-input" id="dep-label" placeholder="Ex : Plombier, Médicaments…" autofocus>
-      </div>
-      <div class="form-grid-2">
+    container.querySelector('#dep-add-imprevu')?.addEventListener('click', async () => {
+      const quiOpts = (users.length > 1 ? `<option value="shared">🤝 Partagé (tous)</option>` : '') +
+        users.map(u => `<option value="${u.id}" ${users.length === 1 ? 'selected' : ''}>${escHtml(u.name)}</option>`).join('');
+      openModal('🚨 Dépense inattendue', `
         <div class="form-group">
-          <label class="form-label">Montant</label>
-          <div class="input-wrap">
-            <input type="number" class="form-input input-euro" id="dep-amount" inputmode="decimal" min="0" step="0.01" placeholder="0">
-            <span class="input-suffix">€</span>
+          <label class="form-label">Description</label>
+          <input type="text" class="form-input" id="dep-label" placeholder="Ex : Plombier, Médicaments…" autofocus>
+        </div>
+        <div class="form-grid-2">
+          <div class="form-group">
+            <label class="form-label">Montant</label>
+            <div class="input-wrap">
+              <input type="number" class="form-input input-euro" id="dep-amount" inputmode="decimal" min="0" step="0.01" placeholder="0">
+              <span class="input-suffix">€</span>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Jour</label>
+            <input type="number" class="form-input" id="dep-day" min="1" max="31" value="${now.getDate()}">
           </div>
         </div>
-        <div class="form-group">
-          <label class="form-label">Jour</label>
-          <input type="number" class="form-input" id="dep-day" min="1" max="31" value="${now.getDate()}">
-        </div>
-      </div>
-      ${users.length > 1 ? `<div class="form-group"><label class="form-label">Qui ?</label><select class="form-select" id="dep-qui">${quiOpts}</select></div>` : `<input type="hidden" id="dep-qui" value="${users[0]?.id || 0}">`}
-    `, `
-      <button class="btn btn-outline" id="dep-cancel-btn">Annuler</button>
-      <button class="btn btn-danger" id="dep-save-btn">Enregistrer</button>
-    `);
-
-    document.getElementById('dep-cancel-btn')?.addEventListener('click', closeModal);
-    document.getElementById('dep-save-btn')?.addEventListener('click', async () => {
-      const label  = document.getElementById('dep-label')?.value.trim();
-      const amount = Number(document.getElementById('dep-amount')?.value);
-      const day    = Number(document.getElementById('dep-day')?.value) || now.getDate();
-      const quiRaw = document.getElementById('dep-qui')?.value;
-      const qui    = quiRaw === 'shared' ? 'shared' : Number(quiRaw);
-      if (!label)  { showToast('La description est requise', 'error'); return; }
-      if (!amount) { showToast('Montant invalide', 'error'); return; }
-      const freshMd = await getMonthlyData(year, month) || { year, month, users: {}, imprévusList: [] };
-      if (!freshMd.imprévusList) freshMd.imprévusList = [];
-      freshMd.imprévusList.push({ id: uid(), label, amount, qui, day, createdAt: new Date().toISOString() });
-      await saveMonthlyData(freshMd);
-      closeModal();
-      showToast('Dépense ajoutée ✅', 'success');
-      emit('charges:updated');
-      await _refreshList();
+        ${users.length > 1 ? `<div class="form-group"><label class="form-label">Qui ?</label><select class="form-select" id="dep-qui">${quiOpts}</select></div>` : `<input type="hidden" id="dep-qui" value="${users[0]?.id || 0}">`}
+      `, `
+        <button class="btn btn-outline" id="dep-cancel-btn">Annuler</button>
+        <button class="btn btn-danger" id="dep-save-btn">Enregistrer</button>
+      `);
+      document.getElementById('dep-cancel-btn')?.addEventListener('click', closeModal);
+      document.getElementById('dep-save-btn')?.addEventListener('click', async () => {
+        const label  = document.getElementById('dep-label')?.value.trim();
+        const amount = Number(document.getElementById('dep-amount')?.value);
+        const day    = Number(document.getElementById('dep-day')?.value) || now.getDate();
+        const quiRaw = document.getElementById('dep-qui')?.value;
+        const qui    = quiRaw === 'shared' ? 'shared' : Number(quiRaw);
+        if (!label)  { showToast('La description est requise', 'error'); return; }
+        if (!amount) { showToast('Montant invalide', 'error'); return; }
+        const freshMd = await getMonthlyData(year, month) || { year, month, users: {}, imprévusList: [] };
+        if (!freshMd.imprévusList) freshMd.imprévusList = [];
+        freshMd.imprévusList.push({ id: uid(), label, amount, qui, day, createdAt: new Date().toISOString() });
+        await saveMonthlyData(freshMd);
+        closeModal();
+        showToast('Dépense ajoutée ✅', 'success');
+        emit('charges:updated');
+        await _render();
+      });
     });
-  });
 
-  container.querySelector('#dep-add-achat')?.addEventListener('click', () => {
-    saisieModule.showCraquageModal(null, month, year, users, async () => {
-      emit('charges:updated');
-      await _refreshList();
+    container.querySelector('#dep-add-craquage')?.addEventListener('click', () => {
+      saisieModule.showCraquageModal(null, month, year, users, async () => {
+        emit('charges:updated');
+        await _render();
+      });
     });
-  });
+
+    container.querySelector('#dep-add-ponctuelle')?.addEventListener('click', () => {
+      chargesModule.showAchatModal(null, async () => {
+        emit('charges:updated');
+        await _render();
+      });
+    });
+  };
+
+  await _render();
+}
+
+function _depItemHtml(d, type) {
+  const label = escHtml(d.label || d.description || '');
+  const amt   = Number(d.amount) || 0;
+  let icon, sub, iconBg, iconColor;
+  if (type === 'imprevu') {
+    icon = '🚨'; sub = 'Inattendue'; iconBg = 'var(--danger-bg)'; iconColor = 'var(--danger)';
+  } else if (d.category === 'craquage' || d.craquage_source) {
+    icon = '💥'; sub = 'Craquage'; iconBg = 'var(--warning-bg)'; iconColor = 'var(--warning)';
+  } else {
+    icon = '💳'; sub = 'Dépense ponctuelle'; iconBg = 'var(--primary-bg)'; iconColor = 'var(--primary)';
+  }
+  return `<div class="list-item">
+    <div class="list-item-icon" style="background:${iconBg};color:${iconColor};">${icon}</div>
+    <div class="list-item-body">
+      <div class="list-item-title">${label}</div>
+      <div class="list-item-sub">${sub}${d.day ? ' · Jour ' + d.day : ''}</div>
+    </div>
+    <div class="list-item-right">
+      <div class="list-item-amount" style="color:var(--danger);">−${eur(amt)}</div>
+    </div>
+  </div>`;
 }
 
