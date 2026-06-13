@@ -125,6 +125,7 @@ function _watchSaisieInputs(container) {
 
 // ── Gestion des événements charges ──
 let _chgUnsubscribe = null;
+let _monthCompleteUnsub = null;
 function _subscribeChargesEvents(container) {
   if (_chgUnsubscribe) _chgUnsubscribe();
   const unsub1 = on('charges:updated', () => {
@@ -175,6 +176,13 @@ export async function render(container, params = {}) {
 
   // Abonner immédiatement aux événements charges (tous onglets)
   _subscribeChargesEvents(container);
+  // Listener month:complete ici (actif peu importe l'onglet affiché)
+  if (_monthCompleteUnsub) _monthCompleteUnsub();
+  _monthCompleteUnsub = on('month:complete', async () => {
+    if (!document.contains(container)) { _monthCompleteUnsub?.(); _monthCompleteUnsub = null; return; }
+    const body = container.querySelector('#argent-body');
+    await saisieModule.triggerMonthComplete(body);
+  });
   _renderSharedProgress(container);
 
   // ── Bouton "Valider le mois" ──
@@ -210,12 +218,7 @@ export async function render(container, params = {}) {
         refreshCompleteBtn();
         return;
       }
-      // Déclencher le wizard de fin de mois
-      if (_arTab !== 'saisie') {
-        const tabSaisie = container.querySelector('[data-artab="saisie"]');
-        if (tabSaisie) tabSaisie.click();
-        await new Promise(r => setTimeout(r, 250));
-      }
+      // Déclencher le wizard de fin de mois (sans changer d'onglet)
       const { emit: emitEv } = await import('../events.js');
       emitEv('month:complete');
       const unsub = on('month:complete:done', () => {

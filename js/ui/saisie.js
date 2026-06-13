@@ -30,8 +30,17 @@ let _budgetOpsCache = [];
 let _settings = null;
 let _coursesFoyerMode = localStorage.getItem('coursesFoyerMode') === '1';
 let _extrasFoyerMode  = localStorage.getItem('extrasFoyerMode')  === '1';
-// ── Nettoyage du listener month:complete (evite accumulation sur re-render) ──
+// ── Nettoyage du listener month:complete (maintenu pour compatibilité si appel direct) ──
 let _monthCompleteUnsub = null;
+
+// ── Déclenchement du wizard fin de mois (appelé depuis argent.js) ──
+export async function triggerMonthComplete(body) {
+  if (!_md || !_users.length) return;
+  // Sync les inputs saisie si présents dans le DOM (inutile si onglet budgets actif)
+  if (body?.querySelector?.('[id^="rev-"]')) syncFormToState(body);
+  const { month, year } = State;
+  await _showEndOfMonthWizard(body, month, year);
+}
 
 export async function render(container) {
   _users = await getActiveUsers();
@@ -399,14 +408,7 @@ export async function render(container) {
     showToast(`Données de ${nomMois(prevM.month)} ${prevM.year} copiées ✅`, 'success');
   });
 
-  // ── Marquer complet (déclenché depuis argent.js via EventBus) ──
-  if (_monthCompleteUnsub) _monthCompleteUnsub();
-  _monthCompleteUnsub = on('month:complete', async () => {
-    if (!document.contains(container)) return;
-    syncFormToState(container);
-    await _showEndOfMonthWizard(container, month, year);
-    if (_md.isComplete) emit('month:complete:done');
-  });
+  // ── Marquer complet : le listener est géré depuis argent.js via triggerMonthComplete ──
 
   // ── Charges du mois ──
   _renderSaisieChargesList(container);
@@ -1285,6 +1287,7 @@ async function _showEndOfMonthWizard(container, month, year) {
     await saveMonthlyData(_md);
     closeModal();
     showToast('Mois clôturé ✅', 'success');
+    emit('month:complete:done');
     const btn = container.querySelector('#btn-complete');
     if (btn) btn.style.color = 'var(--success)';
   });

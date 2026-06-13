@@ -262,9 +262,11 @@ async function _renderResume(container, s, users) {
   // Chaque étape se valide uniquement sur la donnée réelle, jamais par le mois validé
   const guideDone1   = users.some(u => (md?.users?.[String(u.id)]?.revenus || 0) > 0);
   const guideDone2   = charges.length > 0;
-  const guideDoneOpt = allBudgetOps.length > 0;
+  // Étape 3 (budgets) : validée si mois complet OU si des budget ops existent
+  const guideDoneOpt = (md?.isComplete === true) || allBudgetOps.length > 0;
+  // Étape 4 (épargne) : jamais forcée par le mois, doit être confirmée indépendamment
   const guideDone3   = allSavConfirmed.length > 0;
-  // Bravo uniquement quand les 4 étapes sont toutes validées par leurs actions respectives
+  // Bravo uniquement quand les 4 étapes sont toutes validées
   const allGuideDone = guideDone1 && guideDone2 && guideDoneOpt && guideDone3;
   // localStorage seulement pour mémoriser le clic sur "Découvrir" (jamais auto)
   const guideDismissed = localStorage.getItem('compta-guide-dismissed') === '1';
