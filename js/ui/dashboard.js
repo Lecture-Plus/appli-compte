@@ -257,13 +257,16 @@ async function _renderResume(container, s, users) {
       return !ud || (!(ud.revenus) && !(ud.primes) && !(ud.aides));
     });
 
-  // ── Guide d'initialisation (persiste jusqu'aux 3 étapes complètes) ──
+  // ── Guide d'initialisation (persiste jusqu'aux 4 étapes complètes) ──
   const allSavConfirmed = await getAllSavingsConfirmed();
-  const guideDone1 = users.some(u => (md?.users?.[String(u.id)]?.revenus || 0) > 0);
-  const guideDone2 = charges.length > 0;
-  const guideDoneOpt = allBudgetOps.length > 0;   // optionnel — ops du mois courant
-  const guideDone3 = allSavConfirmed.length > 0;
-  const allGuideDone = guideDone1 && guideDone2 && guideDone3; // optionnel exclu
+  // Si le mois est validé, toutes les étapes sont considérées comme faites
+  const monthComplete = md?.isComplete === true;
+  const guideDone1   = monthComplete || users.some(u => (md?.users?.[String(u.id)]?.revenus || 0) > 0);
+  const guideDone2   = monthComplete || charges.length > 0;
+  const guideDoneOpt = monthComplete || allBudgetOps.length > 0;
+  const guideDone3   = monthComplete || allSavConfirmed.length > 0;
+  // Bravo uniquement quand les 4 étapes (y compris budgets) sont faites, ou mois validé
+  const allGuideDone = monthComplete || (guideDone1 && guideDone2 && guideDoneOpt && guideDone3);
   // localStorage seulement pour mémoriser le clic sur "Découvrir" (jamais auto)
   const guideDismissed = localStorage.getItem('compta-guide-dismissed') === '1';
   const showBravo = allGuideDone && !guideDismissed;
