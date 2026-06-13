@@ -25,7 +25,9 @@ import { calcMonth }                                          from '../calculs.j
 // ── État module ──
 let _chgValidated       = false;
 let _chgUnsubscribe     = null;
-let _monthCompleteUnsub = null;
+let _monthCompleteUnsub    = null;
+let _monthCompleteDoneUnsub = null;
+let _spokeBudgUnsub     = null;  // listener budgetop:saved dans le spoke budgets
 let _currentView        = 'hub'; // 'hub' | 'revenus' | 'charges' | 'budgets' | 'depenses'
 let _bilanMode          = localStorage.getItem('compta-bilan-mode') || 'previsionnel'; // 'previsionnel' | 'reel'
 
@@ -133,7 +135,8 @@ export async function render(container, params = {}) {
     await saisieModule.triggerMonthComplete(body);
   });
 
-  on('month:complete:done', () => {
+  if (_monthCompleteDoneUnsub) _monthCompleteDoneUnsub();
+  _monthCompleteDoneUnsub = on('month:complete:done', () => {
     _setChgValidated(true);
     if (document.contains(container)) {
       _currentView = 'hub';
@@ -143,6 +146,13 @@ export async function render(container, params = {}) {
   });
 
   _renderCurrentView(container);
+
+  return () => {
+    if (_chgUnsubscribe) { _chgUnsubscribe(); _chgUnsubscribe = null; }
+    if (_monthCompleteUnsub) { _monthCompleteUnsub(); _monthCompleteUnsub = null; }
+    if (_monthCompleteDoneUnsub) { _monthCompleteDoneUnsub(); _monthCompleteDoneUnsub = null; }
+    if (_spokeBudgUnsub) { _spokeBudgUnsub(); _spokeBudgUnsub = null; }
+  };
 }
 
 function _updateMonthLabel(container) {
@@ -194,7 +204,9 @@ async function renderHub(container) {
   const soldeColor = solde >= 0 ? 'var(--success)' : 'var(--danger)';
   const totalRev   = (kpi?.revenus?.total || 0) + (kpi?.aides?.total || 0) + (kpi?.primes?.total || 0);
   const totalChg   = kpi?.charges?.total || 0;
-  const totalDep   = (kpi?.achats?.total || 0) + (kpi?.imprevus?.total || 0);
+  // Imprévus : total du champ saisie (ud.imprevus) + items de imprévusList (spoke dépenses)
+  const imprévusListTotal = (md?.imprévusList || []).reduce((s, i) => s + (Number(i.amount) || 0), 0);
+  const totalDep   = (kpi?.achats?.total || 0) + (kpi?.imprevus?.total || 0) + imprévusListTotal;
   const txEp       = kpi?.txEpargne?.total;
 
   // ── Budgets variables — uniquement les customBudgets gérés par le spoke Budgets ──
@@ -601,7 +613,8 @@ async function _renderSpoke(container, body, view) {
     await chargesModule.renderSection(spokeContent, 'budgets');
     // Rafraîchir le footer quand une opération budget est ajoutée
     const unsubBudg = on('budgetop:saved', () => { if (document.contains(spokeContent)) _renderSpokeFooter(body); });
-    // Nettoyer le listener au retour hub
+    if (_spokeBudgUnsub) _spokeBudgUnsub();
+    _spokeBudgUnsub = unsubBudg;
     body.querySelector('#spoke-back')._budgUnsub = unsubBudg;
   } else if (view === 'depenses') {
     await _renderDepenses(spokeContent);
@@ -918,8 +931,11 @@ async function _showImportChargesModal(users, year, month, onDone) {
 
   document.getElementById('imp-prev')?.addEventListener('click', async () => {
     const prevM     = addMonth(year, month, -1);
-    const prevCharges = await getChargesForMonth(prevM.month, prevM.year);
-    if (!prevCharges.length) { showToast('Aucune charge le mois précédent', 'warning'); closeModal(); return; }
+    const prevChargesRaw = await getChargesForMonth(prevM.month, prevM.year);
+    if (!prevChargesRaw.length) { showToast('Aucune charge le mois précédent', 'warning'); closeModal(); return; }
+    // getChargesForMonth expand les multi-lignes : dédupliquer par id pour ne sauvegarder qu'une fois par charge originale
+    const seenIds = new Set();
+    const prevCharges = prevChargesRaw.filter(c => { if (seenIds.has(c.id)) return false; seenIds.add(c.id); return true; });
     const defaultQui = users.length === 1 ? String(users[0]?.id ?? 'shared') : 'shared';
     for (const c of prevCharges) {
       const { id: _id, ...rest } = c;

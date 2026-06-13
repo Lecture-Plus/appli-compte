@@ -572,6 +572,7 @@ export async function importAllData(data) {
   }
 
   _settingsCache = null; _usersCache = null; // invalider après import
+  emit('db:write', { store: 'all' }); // invalider _calcCache dans calculs.js
   await setSetting('lastBackup', new Date().toISOString());
 }
 
@@ -581,6 +582,7 @@ export async function resetAllData() {
                   'budget_ops', 'salary_savings', 'salary_abondements', 'savings_goals'];
   for (const s of stores) await _clear(s);
   _settingsCache = null; _usersCache = null;
+  emit('db:write', { store: 'all' }); // invalider _calcCache dans calculs.js
   if (_db) { try { _db.close(); } catch (_) {} }
   _db = null;
 }

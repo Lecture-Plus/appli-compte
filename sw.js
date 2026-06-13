@@ -1,7 +1,7 @@
 // Service Worker – Compta+
 // Stratégie : Network First pour l'app shell (auto-update), Cache pour CDN
 
-const CACHE_NAME = 'compta-plus-v110';
+const CACHE_NAME = 'compta-plus-v111';
 
 const APP_SHELL = [
   './index.html',
@@ -62,7 +62,7 @@ self.addEventListener('activate', event => {
 // Notification click : ouvrir l'app sur la page saisie
 self.addEventListener('notificationclick', event => {
   event.notification.close();
-  const targetPage = event.notification.data?.page ?? 'saisie';
+  const targetPage = event.notification.data?.page ?? 'argent';
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(clients => {
       for (const client of clients) {

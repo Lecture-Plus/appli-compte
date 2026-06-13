@@ -125,21 +125,28 @@ async function checkUnfilledMonths() {
 async function checkBudgetAlerts() {
   try {
     const { year, month } = State;
-    const [md, ops, s]    = await Promise.all([
-      (await import('./db.js')).getMonthlyData(year, month),
-      (await import('./db.js')).getBudgetOpsForMonth(year, month),
+    const db              = await import('./db.js');
+    const [md, ops, s, users] = await Promise.all([
+      db.getMonthlyData(year, month),
+      db.getBudgetOpsForMonth(year, month),
       getAllSettings(),
+      getActiveUsers(),
     ]);
     const budgets      = s.customBudgets || [];
-    const users        = await getActiveUsers();
     const budgCourses  = users.reduce((a, u) => a + (Number(md?.users?.[String(u.id)]?.courses) || 0), 0);
     const budgExtras   = users.reduce((a, u) => a + (Number(md?.users?.[String(u.id)]?.extras)  || 0), 0);
     const spent        = cat => ops.filter(o => o.category === cat).reduce((s, o) => s + (Number(o.amount) || 0), 0);
 
+    const effectiveCeiling = b => {
+      if (b.allocation === 'equal')  return (Number(b.amount) || 0) * users.length;
+      if (b.allocation === 'custom') return Object.values(b.amountByUser || {}).reduce((s, v) => s + (Number(v) || 0), 0);
+      return Number(b.amount) || 0;
+    };
+
     const exceeded = [
       { id: 'courses', budget: budgCourses },
       { id: 'extras',  budget: budgExtras  },
-      ...budgets.map(b => ({ id: b.id, budget: Number(b.amount) || 0 })),
+      ...budgets.map(b => ({ id: b.id, budget: effectiveCeiling(b) })),
     ].filter(b => b.budget > 0 && spent(b.id) >= b.budget * 0.8).length;
 
     const badge = document.getElementById('badge-budget');
