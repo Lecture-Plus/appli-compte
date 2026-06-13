@@ -1174,58 +1174,52 @@ svg { display: block; }
   text-align: center; font-size: 0.68rem; color: var(--text-3); margin: 0;
 }
 
-/* ── Spoke (vue secondaire) ── */
+/* ══════════════════════════════════════════════════
+   SPOKES — argent.js vues secondaires
+   ══════════════════════════════════════════════════ */
+
+/* ─── Header de navigation ─── */
 .spoke-header {
-  display: flex; align-items: center; gap: 10px;
-  padding: 0 0 12px; margin-bottom: 4px;
+  display: flex; align-items: center; gap: 12px;
+  padding: 0 0 16px; margin-bottom: 20px;
   border-bottom: 1px solid var(--border);
 }
 .spoke-back {
-  display: flex; align-items: center; gap: 4px;
-  font-size: 0.82rem; font-weight: 600; color: var(--primary);
-  background: none; border: none; cursor: pointer; padding: 6px 0;
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 0.8rem; font-weight: 700; color: var(--primary);
+  background: var(--primary-bg); border: 1px solid rgba(124,92,252,0.2);
+  border-radius: 99px; padding: 7px 14px;
+  cursor: pointer; flex-shrink: 0; white-space: nowrap;
+  transition: background var(--transition), transform var(--transition);
 }
-.spoke-back:hover { opacity: 0.75; }
-.spoke-title {
-  font-size: 1rem; font-weight: 800; letter-spacing: -0.01em; flex: 1;
-}
-.argent-subview {
-  animation: slideInRight 0.22s cubic-bezier(0.2, 0, 0, 1);
-}
-@keyframes slideInRight {
-  from { opacity: 0; transform: translateX(24px); }
+.spoke-back:hover  { background: rgba(124,92,252,0.15); }
+.spoke-back:active { transform: scale(0.93); }
+.spoke-title { font-size: 1.05rem; font-weight: 900; letter-spacing: -0.025em; }
+
+/* ─── Animation entrée ─── */
+.argent-subview { animation: spokeIn 0.2s cubic-bezier(0.22, 1, 0.36, 1); }
+@keyframes spokeIn {
+  from { opacity: 0; transform: translateX(14px); }
   to   { opacity: 1; transform: translateX(0); }
 }
+
+/* ─── Footer "Il reste" ─── */
 .spoke-footer {
   position: sticky; bottom: 0; left: 0; right: 0;
   display: flex; align-items: center; justify-content: space-between;
-  padding: 10px 16px; margin: 0 -16px;
+  padding: 13px 20px; margin: 0 -16px;
   background: var(--bg-card); border-top: 1px solid var(--border);
-  box-shadow: 0 -2px 12px rgba(0,0,0,.06);
+  box-shadow: 0 -4px 20px rgba(0,0,0,.08);
 }
-.spoke-footer-label  { font-size: 0.68rem; font-weight: 600; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.06em; }
-.spoke-footer-amount { font-size: 1.1rem; font-weight: 900; }
+.spoke-footer-label  { font-size: 0.62rem; font-weight: 700; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.09em; }
+.spoke-footer-amount { font-size: 1.15rem; font-weight: 900; letter-spacing: -0.04em; }
 
-/* ── Vue dépenses ── */
-.dep-actions {
-  display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 4px;
-}
-.empty-state-inline {
-  text-align: center; padding: 24px 0;
-  color: var(--text-3); font-size: 0.82rem;
-}
-
-/* ── Bilan per-user ── */
+/* ─── Bilan hub per-user ─── */
 .hub-bilan-section-title {
-  font-size: 0.7rem; font-weight: 700; color: var(--text-3);
-  text-transform: uppercase; letter-spacing: 0.07em;
-  margin: 12px 0 4px;
+  font-size: 0.68rem; font-weight: 700; color: var(--text-3);
+  text-transform: uppercase; letter-spacing: 0.07em; margin: 12px 0 4px;
 }
-.hub-bilan-row-sub {
-  font-size: 0.78rem; color: var(--text-2);
-  padding: 4px 0;
-  border-bottom: 1px solid var(--border);
-}
+.hub-bilan-row-sub { font-size: 0.78rem; color: var(--text-2); padding: 4px 0; border-bottom: 1px solid var(--border); }
 .hub-bilan-row-sub:last-child { border-bottom: none; }
 .hub-bilan-row-total {
   display: flex; justify-content: space-between; align-items: center;
@@ -1234,106 +1228,86 @@ svg { display: block; }
 }
 .hub-bilan-peruser {
   display: flex; flex-direction: column; gap: 8px;
-  margin-top: 12px; padding-top: 12px;
-  border-top: 2px solid var(--border);
+  margin-top: 12px; padding-top: 12px; border-top: 2px solid var(--border);
 }
 .hub-bilan-user-row {
   display: flex; justify-content: space-between; align-items: center;
-  padding: 7px 10px; background: var(--bg-2);
+  padding: 8px 12px; background: var(--bg-2);
   border-radius: var(--radius); border: 1px solid var(--border);
 }
 
-/* ── Spoke revenus ── */
-.spoke-section       { margin-bottom: 16px; }
-.spoke-section-title { font-size: 0.72rem; font-weight: 700; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 8px; }
-.spoke-rev-grid      { display: flex; flex-direction: column; gap: 10px; }
-.spoke-rev-user      { display: flex; align-items: center; gap: 10px; }
-.spoke-rev-user-label { flex: 1; font-size: 0.86rem; font-weight: 600; display: flex; align-items: center; gap: 6px; }
-.spoke-user-dot      { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
-
-/* ── Spoke charges ── */
-.spoke-toolbar {
-  display: flex; gap: 8px; margin-bottom: 14px;
-  position: sticky; top: 0; z-index: 5;
-  background: var(--bg); padding-bottom: 2px;
-}
-.spoke-toolbar .btn { flex: 1; }
-.spoke-confirm-wrap  { padding: 16px 0 80px; }
-.spoke-confirm-btn   { border-radius: var(--radius-lg) !important; min-height: 52px; font-size: 0.9rem !important; }
-.chg-cat-header {
-  font-size: 0.7rem; font-weight: 800; color: var(--text-2);
-  text-transform: uppercase; letter-spacing: 0.06em;
-  padding: 7px 10px; background: var(--bg-2);
-  border-radius: var(--radius-sm); margin-bottom: 6px;
-  border-left: 3px solid var(--primary);
-}
-
-/* ════════════════════════════════════════
-   SPOKE REDESIGN v2 — Mobile-first
-   ════════════════════════════════════════ */
-
-/* ── Section spoke → card ── */
+/* ─── Sections en carte ─── */
 .spoke-section {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: 16px;
-  box-shadow: var(--shadow-sm);
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); overflow: hidden;
+  margin-bottom: 14px; box-shadow: var(--shadow-sm);
 }
-
-/* ── Titre section avec accent ── */
 .spoke-section-title {
-  display: flex; align-items: center; gap: 8px;
-  font-size: 0.7rem; font-weight: 800;
-  color: var(--text-2); text-transform: uppercase;
-  letter-spacing: 0.08em; margin-bottom: 14px;
-  padding-bottom: 8px; border-bottom: 1px solid var(--border);
-}
-.spoke-section-title::before {
-  content: ''; width: 3px; height: 14px; border-radius: 99px;
-  background: var(--primary); flex-shrink: 0;
+  font-size: 0.65rem; font-weight: 800; text-transform: uppercase;
+  letter-spacing: 0.1em; color: var(--text-3);
+  padding: 10px 16px; background: var(--bg-2);
+  border-bottom: 1px solid var(--border); margin-bottom: 0;
 }
 
-/* ── Lignes revenus ── */
+/* ─── Revenus — lignes user ─── */
+.spoke-rev-grid { display: flex; flex-direction: column; }
 .spoke-rev-user {
   display: flex; align-items: center; gap: 12px;
-  padding: 10px 0; border-bottom: 1px solid var(--border);
+  padding: 14px 16px; border-bottom: 1px solid var(--border);
+  transition: background var(--transition);
 }
 .spoke-rev-user:last-child { border-bottom: none; }
+.spoke-rev-user:focus-within { background: rgba(124,92,252,0.025); }
 .spoke-rev-user-label {
-  flex: 1; font-size: 0.9rem; font-weight: 700;
-  display: flex; align-items: center; gap: 8px; color: var(--text);
+  flex: 1; font-size: 0.9rem; font-weight: 700; color: var(--text);
+  display: flex; align-items: center; gap: 8px;
 }
-.spoke-user-dot {
-  width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
-  box-shadow: 0 0 0 2px var(--bg-card);
+.spoke-user-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.spoke-rev-user .input-wrap  { width: 120px; flex-shrink: 0; }
+.spoke-rev-user .form-input  { text-align: right; font-size: 1.05rem; font-weight: 800; height: 48px; padding: 10px 26px 10px 8px; }
+
+/* ─── Toolbar charges ─── */
+.spoke-toolbar { display: flex; gap: 8px; margin-bottom: 14px; }
+.spoke-toolbar .btn { flex: 1; min-height: 46px; border-radius: var(--radius-lg); font-size: 0.86rem; }
+
+/* ─── Catégories charges ─── */
+.chg-cat-header {
+  font-size: 0.68rem; font-weight: 800; text-transform: uppercase;
+  letter-spacing: 0.08em; color: var(--text-2);
+  padding: 8px 0 5px; margin: 12px 0 5px;
+  border-bottom: 1.5px solid var(--border);
 }
-.spoke-rev-user .input-wrap { width: 130px; flex-shrink: 0; }
-.spoke-rev-user .form-input {
-  text-align: right; font-size: 1rem; font-weight: 700;
-  min-height: 48px; padding: 10px 30px 10px 10px;
+.chg-cat-header:first-child { margin-top: 0; }
+
+/* ─── Confirmer charges ─── */
+.spoke-confirm-wrap { padding: 16px 0 80px; }
+.spoke-confirm-btn  { min-height: 54px !important; border-radius: var(--radius-lg) !important; font-size: 0.92rem !important; font-weight: 800 !important; }
+
+/* ─── Empty state inline ─── */
+.empty-state-inline {
+  display: flex; flex-direction: column; align-items: center;
+  padding: 36px 20px; gap: 8px;
+  color: var(--text-3); font-size: 0.82rem; text-align: center;
 }
 
-/* ── Compteur sur onglets dépenses ── */
+/* ─── Dépenses : badge onglets ─── */
 .dep-tab-count {
   display: inline-flex; align-items: center; justify-content: center;
-  background: var(--primary-bg); color: var(--primary);
-  font-size: 0.58rem; font-weight: 800;
-  min-width: 15px; height: 15px; border-radius: 99px;
-  padding: 0 3px; margin-left: 2px; vertical-align: middle;
+  min-width: 16px; height: 16px; border-radius: 99px; padding: 0 4px;
+  margin-left: 3px; font-size: 0.56rem; font-weight: 800;
+  background: var(--bg-2); color: var(--text-3); vertical-align: middle;
 }
-.tab-btn.active .dep-tab-count { background: var(--primary); color: white; }
+.tab-btn.active .dep-tab-count { background: rgba(255,255,255,0.28); color: inherit; }
 
-/* ── Bouton d'ajout dépense ── */
-.dep-add-wrap { padding-bottom: 80px; }
+/* ─── Dépenses : bouton ajout ─── */
+.dep-add-wrap { margin-top: 8px; padding-bottom: 80px; }
 .dep-add-btn {
-  width: 100%; min-height: 52px; font-size: 0.9rem; font-weight: 700;
-  border-radius: var(--radius-lg); border: 1.5px dashed var(--border);
+  display: flex; align-items: center; justify-content: center;
+  width: 100%; min-height: 52px; font-size: 0.88rem; font-weight: 700;
+  border-radius: var(--radius-lg); border: 1.5px dashed rgba(124,92,252,0.3);
   color: var(--primary); background: var(--primary-bg);
   letter-spacing: -0.01em; transition: all var(--transition);
 }
-.dep-add-btn:hover {
-  border-style: solid; border-color: var(--primary-light);
-  box-shadow: 0 2px 10px var(--primary-glow);
-}
+.dep-add-btn:hover { border-style: solid; border-color: var(--primary); box-shadow: 0 4px 16px var(--primary-glow); background: rgba(124,92,252,0.12); }
+.dep-add-btn:active { transform: scale(0.98); }
 

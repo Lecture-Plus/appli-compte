@@ -787,8 +787,6 @@ async function renderBudgets(container) {
   const spent = cat => (opsByCategory[cat] || []).reduce((s, op) => s + (Number(op.amount) || 0), 0);
 
   const pendingCraquages = achats.filter(a => a.category === 'craquage' && a.craquage_source === 'pending');
-  const regularAchats    = achats.filter(a => !(a.category === 'craquage' && a.craquage_source === 'pending'));
-  const totalAchats = regularAchats.reduce((s, a) => s + (Number(a.amount) || 0), 0);
 
   tc.innerHTML = `
     <div style="display:flex;align-items:center;justify-content:space-between;margin:8px 0 12px;">
@@ -816,30 +814,10 @@ async function renderBudgets(container) {
         </div>`
       : customBudgets.map(b => _buildBudCatSection({ id:b.id, icon:b.icon||'📌', title:b.name, budget:effectiveBudget(b), spent:spent(b.id), ops:opsByCategory[b.id]||[], users, isPinned:pinnedBudgets.includes(b.id) })).join('')
     }
-    <button class="btn btn-outline btn-full" id="bgt-add-custom" style="margin-bottom:16px;">
+    <button class="btn btn-outline btn-full" id="bgt-add-custom" style="margin-bottom:80px;">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="15" height="15"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
       Nouveau budget personnalisé
     </button>
-    <div class="card" style="margin-bottom:80px;">
-      <div class="card-header">
-        <span>💳 Dépenses ponctuelles</span>
-        <div style="display:flex;align-items:center;gap:6px;">
-          <span class="chip danger">${eur(totalAchats)}</span>
-          <button class="btn btn-sm btn-primary" id="bgt-add-achat">+ Ajouter</button>
-        </div>
-      </div>
-      ${regularAchats.length===0
-        ? `<div style="font-size:0.82rem;color:var(--text-3);text-align:center;padding:8px 0;">Aucune dépense ponctuelle ce mois-ci</div>`
-        : `<button class="btn btn-outline btn-full btn-sm" id="bgt-ops-toggle-achats" style="font-size:0.78rem;">📋 Voir (${regularAchats.length})</button>
-           <div id="bgt-ops-achats" style="display:none;margin-top:8px;">
-             <div class="item-list">${regularAchats.map(a => {
-               const info = getCategoryInfo(a.category);
-               const dateStr = a.day ? `${a.day} ${nomMois(a.month)} ${a.year}` : `${nomMois(a.month)} ${a.year}`;
-               return `<div class="list-item" style="position:relative;"><div class="list-item-icon" style="background:var(--warning-bg);">${info.emoji}</div><div class="list-item-body"><div class="list-item-title">${escHtml(a.label)}</div><div class="list-item-sub">${dateStr}</div></div><div class="list-item-right"><div class="list-item-amount" style="color:var(--danger);">−${eur(a.amount)}</div><button class="btn-icon" data-del-achat="${a.id}" style="width:24px;height:24px;color:var(--text-3);font-size:0.8rem;" title="Supprimer">🗑️</button></div></div>`;
-             }).join('')}</div>
-           </div>`
-      }
-    </div>
   `;
 
   tc.querySelector('#bgt-prev-month')?.addEventListener('click', () => { const d=addMonth(year,month,-1); State.year=d.year;State.month=d.month; renderBudgets(container); });
@@ -928,26 +906,6 @@ async function renderBudgets(container) {
     });
   });
 
-  // Achats exceptionnels: + button and ops collapse
-  tc.querySelector('#bgt-add-achat')?.addEventListener('click', () => {
-    showAchatModal(null, () => renderBudgets(container));
-  });
-  tc.querySelectorAll('[data-del-achat]').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      const id = Number(btn.dataset.delAchat);
-      const li = btn.closest('.list-item');
-      if (li) li.style.display = 'none';
-      showToastWithUndo('Dépense ponctuelle supprimée',
-        async () => { await deleteAchat(id); renderBudgets(container); }, 6000, 'warning',
-        () => { if (li) li.style.display = ''; });
-    });
-  });
-  tc.querySelector('#bgt-ops-toggle-achats')?.addEventListener('click', () => {
-    const sec = tc.querySelector('#bgt-ops-achats');
-    if (!sec) return;
-    const open = sec.style.display !== 'none';
-    sec.style.display = open ? 'none' : '';
-  });
 }
 
 function _buildBudCatSection({ id, icon, title, budget, spent, ops, users, hint, isPinned = false, perUserBudgets = null }) {

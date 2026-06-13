@@ -12,7 +12,7 @@
 import * as saisieModule  from './saisie.js';
 import * as chargesModule from './charges.js';
 import { getActiveUsers, getMonthlyData, getChargesForMonth,
-         getBudgetOpsForMonth, getAchatsForMonth,
+         getBudgetOpsForMonth, getAchatsForMonth, deleteAchat,
          getRepartition, getAllSettings, saveMonthlyData,
          saveRepartition, saveCharge }                        from '../db.js';
 import { State, navigateTo }                                  from '../app.js';
@@ -791,8 +791,8 @@ async function _renderCharges(container) {
 
   container.innerHTML = `
     <div class="spoke-toolbar">
-      <button class="btn btn-outline btn-sm" id="chg-import">📥 Importer</button>
-      <button class="btn btn-primary btn-sm" id="chg-add">+ Ajouter</button>
+      <button class="btn btn-outline" id="chg-import">📥 Importer</button>
+      <button class="btn btn-primary" id="chg-add">+ Ajouter</button>
     </div>
     ${charges.length === 0 ? `
       <div class="empty-state" style="padding:28px 0;">
@@ -1008,6 +1008,31 @@ async function _renderDepenses(container) {
         await _render();
       });
     });
+
+    // Suppression des dépenses
+    container.querySelectorAll('.dep-del-btn').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const item = btn.closest('[data-dep-type]');
+        if (!item) return;
+        const depType = item.dataset.depType;
+        const depId   = item.dataset.depId;
+        item.style.opacity = '0.35';
+        item.style.pointerEvents = 'none';
+        if (depType === 'imprevu') {
+          const freshMd = await getMonthlyData(year, month);
+          if (freshMd?.imprévusList) {
+            freshMd.imprévusList = freshMd.imprévusList.filter(i => String(i.id) !== String(depId));
+            await saveMonthlyData(freshMd);
+          }
+        } else {
+          await deleteAchat(Number(depId));
+        }
+        emit('charges:updated');
+        showToast('Dépense supprimée', 'success');
+        await _render();
+      });
+    });
   };
 
   await _render();
@@ -1024,7 +1049,7 @@ function _depItemHtml(d, type) {
   } else {
     icon = '💳'; sub = 'Dépense ponctuelle'; iconBg = 'var(--primary-bg)'; iconColor = 'var(--primary)';
   }
-  return `<div class="list-item">
+  return `<div class="list-item" data-dep-type="${type}" data-dep-id="${escHtml(String(d.id))}">
     <div class="list-item-icon" style="background:${iconBg};color:${iconColor};">${icon}</div>
     <div class="list-item-body">
       <div class="list-item-title">${label}</div>
@@ -1032,6 +1057,7 @@ function _depItemHtml(d, type) {
     </div>
     <div class="list-item-right">
       <div class="list-item-amount" style="color:var(--danger);">−${eur(amt)}</div>
+      <button class="btn-icon dep-del-btn" style="width:26px;height:26px;color:var(--text-3);font-size:0.8rem;margin-top:3px;" title="Supprimer">🗑️</button>
     </div>
   </div>`;
 }
