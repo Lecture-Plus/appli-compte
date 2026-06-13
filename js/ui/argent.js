@@ -18,7 +18,7 @@ import { getActiveUsers, getMonthlyData, getChargesForMonth,
 import { State, navigateTo }                                  from '../app.js';
 import { nomMois, addMonth, eur, escHtml, showToast,
          openModal, closeModal, uid, debounce,
-         getCategoryInfo }                                    from '../utils.js';
+         getCategoryInfo, setupHints }                       from '../utils.js';
 import { on, emit }                                           from '../events.js';
 import { calcMonth }                                          from '../calculs.js';
 
@@ -378,6 +378,11 @@ async function renderHub(container) {
   const totalImprévus = imprévus.reduce((s, i) => s + (Number(i.amount)||0), 0);
 
   body.innerHTML = `
+    ${!isDone && !hasRev && !localStorage.getItem('hint-argent-workflow') ? `
+    <div class="hint-box" data-hint-key="hint-argent-workflow" style="margin-bottom:12px;">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18" style="color:var(--primary);flex-shrink:0;"><circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg>
+      <div><strong>Chaque mois en 4 étapes :</strong> saisir les <strong>Revenus</strong>, importer les <strong>Charges fixes</strong>, renseigner les <strong>Budgets</strong>, puis ajouter les <strong>Dépenses</strong>. Une fois terminé, cliquez « Clôturer ce mois » pour archiver le bilan.</div>
+    </div>` : ''}
     <div class="hub-grid">
 
       <!-- REVENUS -->
@@ -563,6 +568,7 @@ async function renderHub(container) {
     </div>
   `;
 
+  setupHints(body);
   body.querySelectorAll('.hub-card[data-view]').forEach(card => {
     card.addEventListener('click', () => _navigateView(container, card.dataset.view));
   });
@@ -632,9 +638,13 @@ async function _renderSpoke(container, body, view) {
     _renderSpoke(container, body, nextView);
   });
 
-  body.querySelector('#spoke-validate')?.addEventListener('click', () => {
+  body.querySelector('#spoke-validate')?.addEventListener('click', async () => {
     _currentView = 'hub';
-    renderHub(container);
+    await renderHub(container);
+    setTimeout(() => {
+      const btn = container.querySelector('#hub-btn-close') || container.querySelector('#hub-btn-reopen');
+      if (btn) btn.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 80);
   });
 
   const spokeContent = body.querySelector('#spoke-content');

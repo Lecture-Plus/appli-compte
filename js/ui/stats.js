@@ -9,7 +9,8 @@ import { getMonthsByYear, getAllCharges,
          getAllSettings, getAvailableYears,
          getActiveUsers, getAllUsers,
          getAllSavingsOperations, getLatestSavingsConfirmed, getAllSavingsConfirmed, getAllRepartitions,
-         getAllAchats, getAllBudgetOps }                     from '../db.js';
+         getAllAchats, getAllBudgetOps,
+         getAllSavingsGoals }                               from '../db.js';
 import { calcMonth, calcYear, calcSavingsBalance, calcBudgetScore } from '../calculs.js';
 import { resolveLineAmount, resolveChargeAmount }           from '../db.js';
 import { eur, pct, nomMoisCourt, escHtml, showToast,
@@ -904,17 +905,16 @@ function renderTableMensuel(container, results) {
 async function exportPDF(year, month, users, s) {
   showToast('Génération du PDF…', 'success');
   try {
-    const monthsData  = await getMonthsByYear(year);
+    const [monthsData, allAchats, allChargesR, allRep, allBudgetOpsPDF,
+           allSavOps, latestSavConf, savGoals] = await Promise.all([
+      getMonthsByYear(year), getAllAchats(), getAllCharges(), getAllRepartitions(),
+      getAllBudgetOps(), getAllSavingsOperations(), getLatestSavingsConfirmed(), getAllSavingsGoals(),
+    ]);
     const monthMap    = Object.fromEntries(monthsData.map(m => [m.month, m]));
-    const allAchats   = await getAllAchats();
-    const allChargesR = await getAllCharges();
-    const allRep      = await getAllRepartitions();
     const defaultMode = s?.defaultRepartMode ?? 'separe';
     const achatMap = {}, repartMap = {};
     for (const a of allAchats)  { if (a.year === year) { (achatMap[a.month] ??= []).push(a); } }
     for (const r of allRep)     { if (r.year === year) repartMap[r.month] = r; }
-    // Charger les budget_ops de l'année pour les calculs PDF
-    const allBudgetOpsPDF = await getAllBudgetOps();
     const bopsMapPDF = {};
     for (const op of allBudgetOpsPDF) { if (op.year === year) { (bopsMapPDF[op.month] ??= []).push(op); } }
 
@@ -960,17 +960,51 @@ async function exportPDF(year, month, users, s) {
     const esc    = escHtml;
     const genDate = new Date().toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric'});
 
-    // Score budgétaire
+    // Score budgétaire via calcBudgetScore (source de vérité unique)
     const refR = singleMonth ? allResults[month-1] : (allResults[new Date().getMonth()] ?? allResults.filter(Boolean).pop());
-    let scoreVal=0, scoreColor='#EF4444', scoreLabel='À améliorer';
-    if (refR) {
-      const tx=refR.txEpargne?.total??0, thr=Number(s?.epargneThreshold)||100;
-      const pts=(tx>=0.35?40:tx>=0.05?25:tx>0?10:0)+(refR.solde.total>=thr?20:refR.solde.total>=0?10:0);
-      scoreVal=Math.min(100,pts+20);
-      scoreColor=scoreVal>=75?'#10B981':scoreVal>=50?'#F59E0B':'#EF4444';
-      scoreLabel=scoreVal>=75?'Excellent':scoreVal>=50?'Satisfaisant':'À améliorer';
-    }
+    const { total: scoreVal=0, scoreHex: scoreColor='#EF4444', scoreLabel='—', criteria: scoreCriteria=[] } = refR ? calcBudgetScore(refR, s) : {};
     const circ=(2*Math.PI*26), dashOff=(circ-(scoreVal/100)*circ).toFixed(2);
+
+    // Budget ops par catégorie (résumé)
+    const customBudgets = s?.customBudgets || [];
+    const budgetCatSummary = {};
+    for (const m of months) {
+      for (const op of (bopsMapPDF[m] || [])) {
+        const cat = customBudgets.find(b => b.id === op.category);
+        if (!cat) continue;
+        if (!budgetCatSummary[cat.id]) budgetCatSummary[cat.id] = { icon: cat.icon||'📌', label: cat.name, planned: 0, spent: 0 };
+        budgetCatSummary[cat.id].spent += Number(op.amount)||0;
+      }
+    }
+    for (const b of customBudgets) {
+      if (!budgetCatSummary[b.id]) continue;
+      const monthly = b.allocation==='equal'?(Number(b.amount)||0)*users.length
+                    : b.allocation==='custom'?Object.values(b.amountByUser||{}).reduce((s,v)=>s+(Number(v)||0),0)
+                    : Number(b.amount)||0;
+      budgetCatSummary[b.id].planned = monthly * months.length;
+    }
+
+    // Épargne
+    const savBalance   = allSavOps.reduce((t, op) => t + (Number(op.amount)||0), 0);
+    const savGoal      = Number(s?.savingsGoal) || 0;
+    const savGoalPct   = savGoal > 0 ? Math.min(100, Math.round(savBalance / savGoal * 100)) : -1;
+    const savYearOps   = allSavOps.filter(op => op.year === year).slice(-10).reverse();
+    const latestConfAt = latestSavConf?.confirmedAt ? new Date(latestSavConf.confirmedAt).toLocaleDateString('fr-FR') : null;
+
+    // Texte narratif automatique
+    const narrativeLines = [];
+    if (yearKPI) {
+      const txEp = yearKPI.txEpargne?.total ?? 0;
+      if (txEp >= 0.35) narrativeLines.push(`✅ Taux d'épargne excellent : ${(txEp*100).toFixed(1)} % — objectif 35 % dépassé.`);
+      else if (txEp >= 0.15) narrativeLines.push(`👍 Taux d'épargne satisfaisant : ${(txEp*100).toFixed(1)} % (objectif conseillé : 35 %).`);
+      else if (txEp >= 0) narrativeLines.push(`⚠️ Taux d'épargne de ${(txEp*100).toFixed(1)} % — à améliorer (objectif : 35 %).`);
+      else narrativeLines.push(`🔴 Solde négatif sur la période : les dépenses dépassent les revenus.`);
+      const solde = yearKPI.solde?.total ?? 0;
+      narrativeLines.push(solde >= 0 ? `Solde cumulé positif : ${fmt(solde)} disponibles.` : `Solde déficitaire : ${fmt(Math.abs(solde))} de dépassement sur la période.`);
+      const over = Object.values(budgetCatSummary).filter(b => b.planned > 0 && b.spent > b.planned);
+      if (over.length) narrativeLines.push(`⚠️ Dépassements de budget détectés : ${over.map(b => `${b.label} (+${fmt(b.spent-b.planned)})`).join(', ')}.`);
+    }
+    if (savBalance > 0) narrativeLines.push(`Épargne totale constituée : ${fmt(savBalance)}${savGoal>0?` · Objectif ${fmt(savGoal)} atteint à ${savGoalPct} %`:''}.`);
 
     // Sparklines SVG
     const sparkData = allResults.map(r=>r?.solde?.total??null);
@@ -1129,6 +1163,32 @@ async function exportPDF(year, month, users, s) {
   .ac tbody td{padding:6px 10px;border-bottom:1px solid #FEF3C7;}
   .pf{margin-top:14px;padding-top:8px;border-top:1px solid #E2E8F0;display:flex;justify-content:space-between;font-size:8.5px;color:#CBD5E1;}
   .pf strong{color:#A78BFA;font-weight:700;}
+  /* Criteria */
+  .crit-row{display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid #F1F5F9;}
+  .crit-row:last-child{border:none;}
+  .crit-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;}
+  .crit-lbl{flex:1;font-size:9.5px;color:#334155;}
+  .crit-det{font-size:9px;color:#94A3B8;margin-right:8px;}
+  .crit-pts{font-size:10px;font-weight:800;}
+  /* Budget ops */
+  .bops-row{display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid #F1F5F9;}
+  .bops-row:last-child{border:none;}
+  .bops-lbl{flex:1;font-size:10px;color:#334155;font-weight:600;}
+  .bops-bar-wrap{width:100px;height:8px;background:#EEF2FF;border-radius:4px;overflow:hidden;}
+  .bops-bar-fill{height:8px;border-radius:4px;}
+  .bops-val{font-size:9.5px;font-weight:700;text-align:right;width:80px;font-feature-settings:"tnum";}
+  /* Savings */
+  .sav-box{background:#F0FDF4;border-radius:12px;padding:14px 16px;border:1px solid #BBF7D0;margin-bottom:20px;}
+  .sav-box h4{font-size:8.5px;text-transform:uppercase;letter-spacing:.1em;color:#059669;font-weight:700;margin-bottom:8px;}
+  .sav-kv{display:flex;justify-content:space-between;font-size:10.5px;padding:3px 0;border-bottom:1px solid #D1FAE5;}
+  .sav-kv:last-child{border:none;}
+  .sav-k{color:#64748B;}.sav-v{font-weight:700;font-feature-settings:"tnum";}
+  .sav-op-row{display:flex;justify-content:space-between;font-size:9.5px;padding:3.5px 0;border-bottom:1px solid #D1FAE5;}
+  .sav-op-row:last-child{border:none;}
+  /* Narrative */
+  .narr-box{background:linear-gradient(135deg,#F8F7FF,#EEF2FF);border-radius:12px;padding:14px 16px;border:1px solid #DDD6FE;margin-bottom:20px;}
+  .narr-box h4{font-size:8.5px;text-transform:uppercase;letter-spacing:.1em;color:#7C3AED;font-weight:700;margin-bottom:8px;}
+  .narr-line{font-size:10.5px;color:#334155;padding:3px 0;display:flex;align-items:baseline;gap:6px;}
 </style>
 </head>
 <body>
@@ -1148,13 +1208,14 @@ ${yearKPI ? `
   <div class="kc ke"><span class="kc-ico">📈</span><div class="kc-lbl">Taux d'épargne</div><div class="kc-val">${fmtPct(yearKPI.txEpargne.total)}</div><div class="kc-sub">${yearKPI.txEpargne.total>=0.15?'Excellent ✓':yearKPI.txEpargne.total>=0.35?'Bon ✓':'Objectif : 35 %'}</div></div>
 </div>
 <div class="ss-row">
-  <div class="score-box">
-    <svg width="68" height="68" viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="30" cy="30" r="26" fill="none" stroke="#EEF2FF" stroke-width="6"/>
-      <circle cx="30" cy="30" r="26" fill="none" stroke="${scoreColor}" stroke-width="6" stroke-linecap="round" stroke-dasharray="${circ.toFixed(2)}" stroke-dashoffset="${dashOff}" transform="rotate(-90 30 30)"/>
-      <text x="30" y="35" text-anchor="middle" font-family="Inter,sans-serif" font-size="13" font-weight="900" fill="${scoreColor}">${scoreVal}</text>
-    </svg>
-    <div class="score-txt"><h3 style="color:${scoreColor};">${scoreLabel}</h3><p>Score budgétaire<br>sur 100 pts</p></div>
+  <div class="score-box" style="flex-direction:column;align-items:flex-start;gap:10px;">
+    <div style="display:flex;align-items:center;gap:14px;">
+      <svg width="68" height="68" viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="30" cy="30" r="26" fill="none" stroke="#EEF2FF" stroke-width="6"/>
+        <circle cx="30" cy="30" r="26" fill="none" stroke="${scoreColor}" stroke-width="6" stroke-linecap="round" stroke-dasharray="${circ.toFixed(2)}" stroke-dashoffset="${dashOff}" transform="rotate(-90 30 30)"/>
+        <text x="30" y="35" text-anchor="middle" font-family="Inter,sans-serif" font-size="13" font-weight="900" fill="${scoreColor}">${scoreVal}</text>
+      </svg>
+      <div class="score-txt"><h3 style="color:${scoreColor};">${scoreLabel}</h3><p>Score budgétaire<br>sur 100 pts</p></div>
   </div>
   ${sparkSVG ? `<div class="spark-box"><h4>Évolution du solde mensuel</h4><div style="display:flex;align-items:center;gap:16px;"><div><div class="spark-val" style="color:${clr(yearKPI.solde.total)};">${fmt(yearKPI.solde.total)}</div><div class="spark-sub">cumul ${year}</div></div>${sparkSVG}</div></div>` : '<div></div>'}
 </div>
@@ -1181,6 +1242,11 @@ ${Object.keys(chargesByCat).length > 0 ? `<div class="st">🏠 Charges fixes</di
 <div class="ch-wrap"><table class="cht"><thead><tr><th>Catégorie</th><th>Moy. mensuelle</th><th>Total période</th></tr></thead><tbody>${chargesRows}</tbody></table></div>` : ''}
 
 <div class="pb"></div>
+
+${Object.keys(budgetCatSummary).length ? '<div class="st">📊 Budgets variables — Résumé</div><div class="ch-wrap"><table class="cht"><thead><tr><th>Budget</th><th>Dépensé</th><th>Planifié</th><th>Statut</th></tr></thead><tbody>'+Object.values(budgetCatSummary).map((b,i)=>{const pct2=b.planned>0?Math.min(200,Math.round(b.spent/b.planned*100)):0;const bg=i%2?'background:#F8FAFC;':'';const color=b.planned>0&&b.spent>b.planned?'#EF4444':'#10B981';return '<tr style="'+bg+'"><td>'+esc(b.icon)+' '+esc(b.label)+'</td><td style="text-align:right;font-weight:700;color:'+color+';">'+fmt(b.spent)+'</td><td style="text-align:right;color:#64748B;">'+fmt(b.planned)+'</td><td style="text-align:right;color:'+color+';font-weight:700;">'+(b.planned>0?pct2+'%':'-')+'</td></tr>';}).join('')+'</tbody></table></div>' : ''}
+
+${savBalance > 0 || savGoals.length ? '<div class="st">💰 Épargne</div><div class="sav-box"><h4>Suivi épargne — '+esc(periodLabel)+'</h4>'+'<div class="sav-kv"><span class="sav-k">Solde total</span><span class="sav-v" style="color:#059669;">'+fmt(savBalance)+'</span></div>'+(savGoal>0?'<div class="sav-kv"><span class="sav-k">Objectif '+esc(s?.savingsGoalLabel||'Mon objectif')+'</span><span class="sav-v">'+fmt(savGoal)+' ('+savGoalPct+' %)</span></div>':'')+(latestConfAt?'<div class="sav-kv"><span class="sav-k">Dernière confirmation</span><span class="sav-v">'+latestConfAt+'</span></div>':'')+(savGoals.length?'<div style="margin-top:8px;font-size:8.5px;font-weight:700;color:#059669;text-transform:uppercase;letter-spacing:.1em;margin-bottom:4px;">Objectifs nommés</div>'+savGoals.map(g=>{const gp=g.targetAmount>0?Math.min(100,Math.round(savBalance/g.targetAmount*100)):0;return '<div class="sav-kv"><span class="sav-k">'+esc(g.icon||'🎯')+' '+esc(g.label)+'</span><span class="sav-v">'+gp+'% · '+fmt(g.targetAmount)+'</span></div>';}).join(''):'')+(savYearOps.length?'<div style="margin-top:8px;font-size:8.5px;font-weight:700;color:#059669;text-transform:uppercase;letter-spacing:.1em;margin-bottom:4px;">Opérations '+year+'</div>'+savYearOps.map(op=>'<div class="sav-op-row"><span style="color:#334155;">'+esc(op.label||(op.amount>=0?'Versement':'Retrait'))+'</span><span style="color:'+(op.amount>=0?'#059669':'#EF4444')+';font-weight:700;">'+(op.amount>=0?'+':'')+fmt(op.amount)+'</span></div>').join(''):'')+'</div>' : ''}
+
 <div class="st">📋 ${singleMonth ? 'Détail du mois' : 'Récapitulatif mensuel'}</div>
 <div class="mt-wrap"><table class="mt">
   <thead><tr><th>Mois</th>${users.map(u=>`<th>Revenus ${esc(u.name)}</th>`).join('')}<th>Charges</th><th>Dépenses</th><th>Solde</th><th>Taux ép.</th></tr></thead>
@@ -1212,29 +1278,108 @@ ${imprévusForPDF.length > 0 ? `<div class="st">⚡ Imprévus${imprévusForPDF.l
 }
 
 // ─────────────────────────────────────────────────
-// FM-3 : Export CSV du tableau mensuel
+// FM-3 : Export CSV enrichi multi-sections
 // ─────────────────────────────────────────────────
-function exportTableCSV(year, month, users = []) {
+async function exportTableCSV(year, month, users = []) {
   const results = _lastDisplayResults;
   if (!results) { showToast('Aucune donnée à exporter', 'error'); return; }
 
   const MOIS_FULL = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
-  const headers   = ['Mois', ...users.map(u => `Revenus ${u.name}`), 'Charges', 'Dépenses', 'Solde', 'Taux épargne'];
-  const rows = results.map((r, i) => {
-    if (!r) return [MOIS_FULL[i], ...users.map(() => ''), '', '', '', ''];
-    return [
+  const sep = ';';
+  const nl  = '\n';
+  const rows = [];
+
+  // ── Entête document ──
+  rows.push(['Compta+ — Export CSV', year, month > 0 ? MOIS_FULL[month-1] : 'Toute l\'année',
+             'Généré le ' + new Date().toLocaleDateString('fr-FR')]);
+  rows.push([]);
+
+  // ── Section 1 : Tableau mensuel ──
+  rows.push(['=== TABLEAU MENSUEL ===']);
+  rows.push(['Mois', ...users.map(u => `Revenus ${u.name}`), 'Charges fixes', 'Dépenses', 'Solde', 'Taux épargne']);
+  for (let i = 0; i < results.length; i++) {
+    const r = results[i];
+    if (!r) { rows.push([MOIS_FULL[i], ...users.map(() => ''), '', '', '', '']); continue; }
+    rows.push([
       MOIS_FULL[i],
       ...users.map(u => (r.revenus.byUser?.[String(u.id)] ?? 0).toFixed(2)),
       r.charges.total.toFixed(2),
       (r.depensesReelles?.total ?? r.depenses.total).toFixed(2),
       r.solde.total.toFixed(2),
       ((r.txEpargne?.total ?? 0) * 100).toFixed(1) + '%',
-    ];
-  });
+    ]);
+  }
+  rows.push([]);
 
-  const periodLabel = month > 0 ? `${MOIS_FULL[month - 1]}-${year}` : String(year);
-  const csv  = buildCSV(rows, headers);
+  // ── Section 2 : Charges fixes par catégorie ──
+  try {
+    const allChargesCSV = await getAllCharges();
+    const chargesActive = allChargesCSV.filter(c => c.active);
+    if (chargesActive.length) {
+      rows.push(['=== CHARGES FIXES ===']);
+      rows.push(['Libellé', 'Catégorie', 'Montant mensuel', 'Qui', 'Mois actifs']);
+      for (const c of chargesActive) {
+        const info = getCategoryInfo(c.category);
+        const lines = c.lines?.length ? c.lines : [{ amount: c.amount, qui: c.qui ?? 'shared' }];
+        for (const l of lines) {
+          rows.push([
+            c.label || '',
+            info.label,
+            (Number(l.amount) || 0).toFixed(2),
+            l.qui === 'shared' ? 'Partagé' : (users.find(u => String(u.id) === String(l.qui))?.name ?? l.qui),
+            c.months === 'all' ? 'Tous les mois' : (Array.isArray(c.months) ? c.months.map(m => MOIS_FULL[m-1]).join(', ') : '—'),
+          ]);
+        }
+      }
+      rows.push([]);
+    }
+  } catch(e) { /* skip */ }
+
+  // ── Section 3 : Budget ops par mois ──
+  try {
+    const allBopsCSV = await getAllBudgetOps();
+    const bopsYear = allBopsCSV.filter(op => op.year === year && (month === 0 || op.month === month));
+    if (bopsYear.length) {
+      rows.push(['=== DÉPENSES BUDGETS VARIABLES ===']);
+      rows.push(['Mois', 'Catégorie', 'Libellé', 'Montant', 'Utilisateur']);
+      for (const op of bopsYear.sort((a,b) => a.month - b.month || a.label?.localeCompare?.(b.label))) {
+        rows.push([
+          MOIS_FULL[op.month-1],
+          op.category || '—',
+          op.label || '—',
+          (Number(op.amount) || 0).toFixed(2),
+          op.userId ? (users.find(u=>String(u.id)===String(op.userId))?.name ?? op.userId) : 'Partagé',
+        ]);
+      }
+      rows.push([]);
+    }
+  } catch(e) { /* skip */ }
+
+  // ── Section 4 : Épargne ──
+  try {
+    const savOpsCSV = await getAllSavingsOperations();
+    const savYear = savOpsCSV.filter(op => op.year === year && (month === 0 || op.month === month));
+    if (savYear.length) {
+      rows.push(['=== OPÉRATIONS ÉPARGNE ===']);
+      rows.push(['Mois', 'Jour', 'Type', 'Libellé', 'Montant', 'Utilisateur']);
+      for (const op of savYear.sort((a,b) => a.month - b.month || (a.day||0) - (b.day||0))) {
+        const typeLabels = { add:'Versement', withdraw:'Retrait', confirm:'Confirmation', adjustment:'Ajustement', initial_balance:'Solde initial', monthly_savings:'Épargne mensuelle' };
+        rows.push([
+          MOIS_FULL[op.month-1],
+          op.day || '',
+          typeLabels[op.type] || op.type || '—',
+          op.label || '—',
+          (Number(op.amount) || 0).toFixed(2),
+          op.userId ? (users.find(u=>String(u.id)===String(op.userId))?.name ?? op.userId) : '',
+        ]);
+      }
+      rows.push([]);
+    }
+  } catch(e) { /* skip */ }
+
+  const csv  = rows.map(r => r.map(v => { const s=String(v??'').replace(/"/g,'""'); return s.includes(sep)||s.includes('\n')?`"${s}"`:s; }).join(sep)).join(nl);
   const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+  const periodLabel = month > 0 ? `${MOIS_FULL[month-1]}-${year}` : String(year);
   downloadBlob(blob, `compta-plus-${periodLabel}.csv`);
   showToast('CSV exporté ✅', 'success');
 }

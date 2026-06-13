@@ -14,7 +14,7 @@ import { calcMonth, whatIf }                           from '../calculs.js';
 import { eur, pct, nomMois, addMonth, escHtml,
          signClass, debounce, showToast, uid,
          openModal, closeModal, MOIS,
-         getCategoryInfo }                             from '../utils.js';
+         getCategoryInfo, setupHints }                from '../utils.js';
 import { showChargeModal,
          showChargesTemplatesModal }                   from './charges.js';
 import { emit, on }                                    from '../events.js';
@@ -117,6 +117,12 @@ export async function render(container, opts = {}) {
     ` : `
 
     ${_isEmptyMonth && _hasPrevData ? `<div id="prefill-banner" style="background:var(--primary-bg);border-left:3px solid var(--primary);border-radius:var(--radius);padding:10px 14px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;gap:8px;"><div><div style="font-weight:600;font-size:0.82rem;color:var(--primary);">Pré-remplir depuis ${nomMois(prevM.month)} ${prevM.year} ?</div><div style="font-size:0.72rem;color:var(--text-3);margin-top:2px;">Revenus et budgets copiés — modifiez si besoin.</div></div><button class="btn btn-primary btn-sm" id="btn-prefill" style="flex-shrink:0;">Copier</button></div>` : ''}
+
+    ${!localStorage.getItem('hint-saisie-repartition') ? `
+    <div class="hint-box" data-hint-key="hint-saisie-repartition" style="margin-bottom:12px;">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18" style="color:var(--primary);flex-shrink:0;"><circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg>
+      <div><strong>Conseil :</strong> saisissez d'abord les <strong>revenus nets</strong> de chaque personne. La répartition des charges s'ajuste ensuite automatiquement. Les champs marqués <em>€</em> acceptent des montants décimaux.</div>
+    </div>` : ''}
 
     <!-- Accordion 1: Revenus (ouvert par défaut) -->
     <details class="settings-group" open id="accord-revenus">
@@ -252,6 +258,7 @@ export async function render(container, opts = {}) {
 
   if (N === 0) return;
 
+  setupHints(container);
   _saveInd = container.querySelector('#save-indicator');
 
   // Mise à jour immédiate de l'aperçu

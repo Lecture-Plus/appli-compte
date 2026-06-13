@@ -170,6 +170,30 @@ export function pickJSONFile() {
   });
 }
 
+/**
+ * Configure le dismiss automatique pour tout .hint-box[data-hint-key] dans `container`.
+ * Ajoute le bouton × si absent, masque les boîtes déjà rejetées, et mémorise le rejet
+ * en localStorage pour ne plus les afficher.
+ */
+export function setupHints(container) {
+  if (!container) return;
+  container.querySelectorAll('.hint-box[data-hint-key]').forEach(box => {
+    const key = box.dataset.hintKey;
+    if (localStorage.getItem(key)) { box.style.display = 'none'; return; }
+    if (!box.querySelector('.hint-dismiss')) {
+      const btn = document.createElement('button');
+      btn.className = 'hint-dismiss';
+      btn.title     = 'Ne plus afficher';
+      btn.textContent = '×';
+      box.appendChild(btn);
+    }
+    box.querySelector('.hint-dismiss')?.addEventListener('click', () => {
+      localStorage.setItem(key, '1');
+      box.remove();
+    });
+  });
+}
+
 /** Convertit des données mensuelle en lignes CSV */
 export function buildCSV(rows, headers) {
   const sep   = ';';
