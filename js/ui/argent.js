@@ -211,12 +211,7 @@ export async function render(container, params = {}) {
         refreshCompleteBtn();
         return;
       }
-      // Valider toutes les étapes + déclencher wizard
-      _chgValidated = true;
-      _saveChgState();
-      _chgHasData = true;
-      _renderSharedProgress(container);
-      // Basculer sur saisie pour le wizard
+      // Déclencher le wizard de fin de mois
       if (_arTab !== 'saisie') {
         const tabSaisie = container.querySelector('[data-artab="saisie"]');
         if (tabSaisie) tabSaisie.click();
@@ -226,6 +221,11 @@ export async function render(container, params = {}) {
       emitEv('month:complete');
       const unsub = on('month:complete:done', () => {
         unsub();
+        // Wizard terminé : forcer toutes les étapes done + rafraîchir
+        _chgValidated = true;
+        _saveChgState();
+        _chgHasData = true;
+        _prevChgState = '';
         refreshCompleteBtn();
         _renderSharedProgress(container);
       });
