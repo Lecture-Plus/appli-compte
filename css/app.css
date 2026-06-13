@@ -1024,3 +1024,177 @@ svg { display: block; }
 .score-detail-bar   { height: 4px; border-radius: 99px; background: var(--bg-2); margin-top: 3px; overflow: hidden; }
 .score-detail-fill  { height: 100%; border-radius: 99px; background: var(--primary); transition: width 0.6s cubic-bezier(0.4,0,0.2,1); }
 
+/* ════════════════════════════════════════
+   HUB MENSUEL — argent.js refonte
+   ════════════════════════════════════════ */
+
+/* ── Header mois ── */
+.argent-hub-header   { padding: 0 0 8px; }
+.argent-month-nav {
+  display: flex; align-items: center; justify-content: center; gap: 16px;
+}
+.month-btn {
+  display: flex; align-items: center; justify-content: center;
+  width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--border);
+  background: var(--bg-card); color: var(--text-2); cursor: pointer;
+  transition: background var(--transition), border-color var(--transition);
+}
+.month-btn:hover  { background: var(--bg-2); border-color: var(--primary-light); }
+.month-btn:active { transform: scale(0.93); }
+
+/* ── Grille hub 4 cartes ── */
+.hub-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+@media (max-width: 480px) { .hub-grid { grid-template-columns: 1fr 1fr; gap: 8px; } }
+
+/* ── Carte hub ── */
+.hub-card {
+  position: relative;
+  display: flex; flex-direction: column;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 14px 12px 10px;
+  text-align: left; cursor: pointer;
+  transition: box-shadow var(--transition), border-color var(--transition), transform var(--transition);
+  box-shadow: var(--shadow-sm);
+}
+.hub-card:hover  { box-shadow: var(--shadow-md); border-color: var(--primary-light); }
+.hub-card:active { transform: scale(0.97); }
+.hub-card-wide   { grid-column: 1 / -1; }
+
+.hub-card-header {
+  display: flex; align-items: center; gap: 6px;
+  margin-bottom: 8px;
+}
+.hub-card-icon  { font-size: 1.15rem; line-height: 1; }
+.hub-card-title { flex: 1; font-size: 0.78rem; font-weight: 700; color: var(--text-2); }
+.hub-card-amount {
+  font-size: 1.18rem; font-weight: 900; letter-spacing: -0.02em;
+  color: var(--text-1); line-height: 1.2; margin-bottom: 4px;
+}
+.hub-amount-empty  { color: var(--text-3); font-weight: 500; font-size: 1.1rem; }
+.hub-card-sub {
+  font-size: 0.68rem; color: var(--text-3); line-height: 1.4;
+  margin-bottom: 4px; min-height: 14px;
+}
+.hub-card-arrow {
+  position: absolute; right: 10px; bottom: 10px;
+  font-size: 1.1rem; color: var(--text-3); line-height: 1;
+  transition: transform var(--transition);
+}
+.hub-card:hover .hub-card-arrow { transform: translateX(3px); }
+
+/* ── Badge statut ── */
+.hub-status {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 20px; height: 20px; border-radius: 50%;
+  font-size: 0.7rem; font-weight: 800; flex-shrink: 0;
+}
+.hub-status.done    { background: var(--success-bg); color: var(--success); }
+.hub-status.partial { background: #fff8e1; color: #f59e0b; }
+.hub-status.over    { background: var(--danger-bg); color: var(--danger); }
+.hub-status.empty   { background: var(--bg-2); color: var(--text-3); }
+
+/* ── Mini barres de budget dans la carte Budgets ── */
+.hub-budgets-list   { display: flex; flex-direction: column; gap: 8px; width: 100%; margin-bottom: 4px; }
+.hub-budget-item    { width: 100%; }
+.hub-budget-item-header {
+  display: flex; justify-content: space-between; align-items: center;
+}
+.hub-budget-item-label  { font-size: 0.76rem; font-weight: 600; }
+.hub-budget-item-amount { font-size: 0.72rem; font-weight: 600; }
+.hub-budget-bar-wrap {
+  display: flex; align-items: center; gap: 6px; margin-top: 3px;
+}
+.hub-budget-bar-track {
+  flex: 1; height: 4px; background: var(--bg-2); border-radius: 99px; overflow: hidden;
+}
+.hub-budget-bar-fill {
+  height: 100%; border-radius: 99px; transition: width 0.3s;
+}
+.hub-budget-bar-pct  { font-size: 0.65rem; font-weight: 700; min-width: 26px; text-align: right; }
+
+/* ── Bilan mensuel ── */
+.hub-bilan {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); padding: 16px;
+  margin-bottom: 16px; box-shadow: var(--shadow-sm);
+}
+.hub-bilan-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 12px;
+}
+.hub-bilan-title   { font-size: 0.86rem; font-weight: 800; color: var(--text-1); }
+.hub-bilan-rows    { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+.hub-bilan-row {
+  display: flex; justify-content: space-between; align-items: center;
+  font-size: 0.8rem; color: var(--text-2); padding: 5px 0;
+  border-bottom: 1px solid var(--border);
+}
+.hub-bilan-row:last-child { border-bottom: none; }
+.hub-bilan-total {
+  display: flex; justify-content: space-between; align-items: center;
+  padding-top: 10px; border-top: 2px solid var(--border);
+  font-size: 0.88rem; font-weight: 700;
+}
+.hub-bilan-rate {
+  font-size: 0.72rem; color: var(--text-3); margin-top: 8px; text-align: right;
+}
+
+/* ── Boutons d'action hub ── */
+.hub-actions   { padding: 0 0 24px; display: flex; flex-direction: column; gap: 6px; }
+.hub-btn-close { width: 100%; padding: 13px; font-size: 0.88rem; }
+.hub-btn-done  {
+  width: 100%; padding: 13px; font-size: 0.88rem;
+  color: var(--success); background: var(--success-bg); border: none;
+}
+.hub-close-hint {
+  text-align: center; font-size: 0.68rem; color: var(--text-3); margin: 0;
+}
+
+/* ── Spoke (vue secondaire) ── */
+.spoke-header {
+  display: flex; align-items: center; gap: 10px;
+  padding: 0 0 12px; margin-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+}
+.spoke-back {
+  display: flex; align-items: center; gap: 4px;
+  font-size: 0.82rem; font-weight: 600; color: var(--primary);
+  background: none; border: none; cursor: pointer; padding: 6px 0;
+}
+.spoke-back:hover { opacity: 0.75; }
+.spoke-title {
+  font-size: 1rem; font-weight: 800; letter-spacing: -0.01em; flex: 1;
+}
+.argent-subview {
+  animation: slideInRight 0.22s cubic-bezier(0.2, 0, 0, 1);
+}
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(24px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+.spoke-footer {
+  position: sticky; bottom: 0; left: 0; right: 0;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 16px; margin: 0 -16px;
+  background: var(--bg-card); border-top: 1px solid var(--border);
+  box-shadow: 0 -2px 12px rgba(0,0,0,.06);
+}
+.spoke-footer-label  { font-size: 0.68rem; font-weight: 600; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.06em; }
+.spoke-footer-amount { font-size: 1.1rem; font-weight: 900; }
+
+/* ── Vue dépenses ── */
+.dep-actions {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 4px;
+}
+.empty-state-inline {
+  text-align: center; padding: 24px 0;
+  color: var(--text-3); font-size: 0.82rem;
+}
+
