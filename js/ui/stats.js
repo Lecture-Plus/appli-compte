@@ -1464,10 +1464,11 @@ function renderScoreBudgetaire(container, result, s) {
           const pct = Math.round(c.pts / c.max * 100);
           const barCls = c.pts === c.max ? 'success' : c.pts >= c.max / 2 ? 'warning' : 'danger';
           return `<div>
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
-              <span style="font-size:0.74rem;font-weight:600;color:var(--text-2);">${c.label}</span>
-              <span style="font-size:0.68rem;color:var(--text-3);">${c.detail} <strong style="color:var(--text);">${c.pts}/${c.max}</strong></span>
+            <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:1px;">
+              <span style="font-size:0.74rem;font-weight:600;color:var(--text-2);min-width:0;flex:1;">${c.label}</span>
+              <strong style="font-size:0.74rem;color:var(--text-1);margin-left:8px;flex-shrink:0;white-space:nowrap;">${c.pts}/${c.max}</strong>
             </div>
+            ${c.detail ? `<div style="font-size:0.65rem;color:var(--text-3);margin-bottom:3px;line-height:1.4;">${c.detail}</div>` : ''}
             <div class="progress-track"><div class="progress-bar ${barCls}" style="width:${pct}%;"></div></div>
           </div>`;
         }).join('')}

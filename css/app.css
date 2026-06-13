@@ -704,8 +704,10 @@ svg     { display: block; }
 .guide-step:hover .guide-step-arrow { transform: translateX(3px); }
 
 /* ─── 34. Hint / insight ─── */
-.hint-box { display: flex; gap: 8px; align-items: flex-start; background: var(--brand-pale); border: 1px solid rgba(109,40,217,0.14); border-radius: var(--r-sm); padding: 12px 14px; font-size: var(--fs-sm); color: var(--text-2); line-height: 1.55; margin-top: 8px; }
+.hint-box { display: flex; gap: 8px; align-items: flex-start; background: var(--brand-pale); border: 1px solid rgba(109,40,217,0.14); border-radius: var(--r-sm); padding: 12px 14px; padding-right: 36px; font-size: var(--fs-xs); color: var(--text-2); line-height: 1.55; margin-top: 8px; position: relative; }
 .hint-box svg     { flex-shrink: 0; margin-top: 1px; }
+.hint-dismiss { position: absolute; top: 8px; right: 8px; width: 22px; height: 22px; border-radius: var(--r-xs); background: transparent; border: none; cursor: pointer; color: var(--text-3); font-size: 1rem; display: flex; align-items: center; justify-content: center; line-height: 1; transition: background var(--dur-f), color var(--dur-f); }
+.hint-dismiss:hover { background: var(--surface-3); color: var(--text-1); }
 .hint-box.success { background: var(--success-pale); border-color: rgba(5,150,105,0.16); }
 .hint-box.warning { background: var(--warning-pale); border-color: rgba(217,119,6,0.16); }
 .hint-box.neutral { background: var(--surface-2); border-color: var(--border); }
@@ -789,12 +791,14 @@ svg     { display: block; }
 
 /* ─── 38. SPOKES ─── */
 .spoke-header { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 8px; padding: 0 0 18px; margin-bottom: 20px; border-bottom: 1px solid var(--border); }
-.spoke-back, .spoke-next { display: inline-flex; align-items: center; gap: 5px; font-size: var(--fs-sm); font-weight: 700; color: var(--text-2); background: var(--surface-2); border: 1px solid var(--border); border-radius: 99px; padding: 8px 14px; min-height: 38px; cursor: pointer; white-space: nowrap; transition: background var(--dur-b), color var(--dur-b), transform var(--dur-b); }
+.spoke-back, .spoke-next { display: inline-flex; align-items: center; gap: 4px; font-size: var(--fs-xs); font-weight: 700; color: var(--text-2); background: var(--surface-2); border: 1px solid var(--border); border-radius: 99px; padding: 7px 11px; min-height: 34px; cursor: pointer; white-space: nowrap; transition: background var(--dur-b), color var(--dur-b), transform var(--dur-b); flex-shrink: 0; }
 .spoke-back { justify-self: start; }
 .spoke-next { justify-self: end; }
 .spoke-back:hover, .spoke-next:hover { background: var(--brand-dim); color: var(--brand); border-color: rgba(109,40,217,0.28); }
 .spoke-back:active, .spoke-next:active { transform: scale(0.94); }
-.spoke-title { font-size: 1.08rem; font-weight: 900; letter-spacing: -0.025em; text-align: center; }
+.spoke-next.spoke-validate { background: var(--success-pale); color: var(--success); border-color: rgba(5,150,105,0.2); }
+.spoke-next.spoke-validate:hover { background: rgba(5,150,105,0.15); color: var(--success); }
+.spoke-title { font-size: 0.95rem; font-weight: 900; letter-spacing: -0.02em; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .argent-subview { animation: spokeIn 0.2s cubic-bezier(0.22,1,0.36,1); }
 @keyframes spokeIn { from{opacity:0;transform:translateX(12px);}to{opacity:1;transform:translateX(0);} }
 .spoke-footer { position: sticky; bottom: 0; left: 0; right: 0; display: flex; align-items: center; justify-content: space-between; padding: 14px 20px; margin: 0 -16px; background: var(--surface); border-top: 1px solid var(--border); box-shadow: 0 -4px 18px rgba(0,0,0,0.07); }
@@ -925,6 +929,8 @@ svg     { display: block; }
   .nav-items     { display: contents; }
   .main-wrapper  { display: contents; }
   #app           { flex-direction: column; }
+  /* Nav fixe en bas */
+  #bottom-nav    { order: 10; }
   .form-grid-3, .form-grid-4, .form-grid-5, .form-grid-6 { grid-template-columns: 1fr; gap: 10px; }
   .form-grid-2   { grid-template-columns: 1fr; }
   #modal-footer  { flex-direction: column; }

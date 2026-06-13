@@ -610,7 +610,9 @@ async function _renderSpoke(container, body, view) {
         Retour
       </button>
       <h2 class="spoke-title">${viewTitles[view] || view}</h2>
-      ${nextView ? `<button class="spoke-next" id="spoke-next" type="button">Suivant <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14"><path d="M9 18l6-6-6-6"/></svg></button>` : ''}
+      ${view === 'depenses'
+        ? `<button class="spoke-next spoke-validate" id="spoke-validate" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="13" height="13"><path d="M20 6L9 17l-5-5"/></svg> Valider</button>`
+        : nextView ? `<button class="spoke-next" id="spoke-next" type="button">Suivant <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14"><path d="M9 18l6-6-6-6"/></svg></button>` : '<div></div>'}
     </div>
     <div id="spoke-content" class="argent-subview"></div>
   `;
@@ -628,6 +630,10 @@ async function _renderSpoke(container, body, view) {
     if (btn?._budgUnsub) { btn._budgUnsub(); btn._budgUnsub = null; }
     _currentView = nextView;
     _renderSpoke(container, body, nextView);
+  });
+
+  body.querySelector('#spoke-validate')?.addEventListener('click', () => {
+    emit('month:complete');
   });
 
   const spokeContent = body.querySelector('#spoke-content');

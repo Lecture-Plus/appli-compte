@@ -119,13 +119,14 @@ async function _renderEconomies(el, container) {
       }
     </div>
 
-    ${!latest && allOps.length === 0 ? `
-    <div class="hint-box" style="margin-bottom:12px;">
+    ${!latest && allOps.length === 0 && !localStorage.getItem('hint-savings-start') ? `
+    <div class="hint-box" id="hint-savings-start-box" style="margin-bottom:12px;">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18" style="color:var(--primary);flex-shrink:0;"><circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg>
       <div>
         <strong>Comment démarrer ?</strong><br>
         Cliquez sur <strong>Confirmer le solde</strong> ci-dessous pour enregistrer le montant actuel de votre épargne. C'est la première étape — l'app pourra ensuite calculer vos versements mensuels.
       </div>
+      <button class="hint-dismiss" id="hint-savings-dismiss" title="Ne plus afficher">×</button>
     </div>` : ''}
 
     <!-- Soldes par user -->
@@ -283,6 +284,11 @@ async function _renderEconomies(el, container) {
   // ── Événements ──
   el.querySelector('#btn-confirm')?.addEventListener('click', () => showConfirmModal(users, () => _renderPage(container)));
   el.querySelector('#btn-quick-confirm')?.addEventListener('click', () => showConfirmModal(users, () => _renderPage(container)));
+  el.querySelector('#hint-savings-dismiss')?.addEventListener('click', () => {
+    localStorage.setItem('hint-savings-start', '1');
+    const box = el.querySelector('#hint-savings-start-box');
+    if (box) box.remove();
+  });
   el.querySelector('#btn-add-op')?.addEventListener('click', () => showOpModal('add', users, () => _renderPage(container)));
   el.querySelector('#btn-withdraw-op')?.addEventListener('click', () => showOpModal('withdraw', users, () => _renderPage(container)));
 
