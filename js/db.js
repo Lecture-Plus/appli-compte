@@ -17,9 +17,10 @@ export { on as onDbEvent };
 // ── Cache mémoire (évite les lectures IDB répétées) ──
 let _settingsCache = null; // invalidé par setSetting / importAllData / resetAllData
 let _usersCache    = null; // invalidé par saveUser / softDeleteUser / restoreUser / importAllData / resetAllData
+let _chargesCache  = null; // invalidé par saveCharge / deleteCharge / importAllData / resetAllData
 
 /** Invalider les deux caches (ex: après import/reset) */
-export function invalidateCache() { _settingsCache = null; _usersCache = null; }
+export function invalidateCache() { _settingsCache = null; _usersCache = null; _chargesCache = null; }
 
 /** Ouvre (ou réutilise) la connexion IndexedDB */
 async function openDB() {
@@ -358,7 +359,8 @@ export function resolveLineAmount(line, charge, year, month) {
 }
 
 export async function getAllCharges() {
-  return _getAll('charges');
+  if (!_chargesCache) _chargesCache = await _getAll('charges');
+  return _chargesCache;
 }
 
 export async function getCharge(id) {
@@ -366,10 +368,12 @@ export async function getCharge(id) {
 }
 
 export async function saveCharge(charge) {
+  _chargesCache = null;
   return _put('charges', charge);
 }
 
 export async function deleteCharge(id) {
+  _chargesCache = null;
   await _delete('charges', id);
 }
 
@@ -571,7 +575,7 @@ export async function importAllData(data) {
     throw err;
   }
 
-  _settingsCache = null; _usersCache = null; // invalider après import
+  _settingsCache = null; _usersCache = null; _chargesCache = null; // invalider après import
   emit('db:write', { store: 'all' }); // invalider _calcCache dans calculs.js
   await setSetting('lastBackup', new Date().toISOString());
 }
@@ -581,7 +585,7 @@ export async function resetAllData() {
                   'repartition', 'archives', 'savings_operations', 'savings_confirmed',
                   'budget_ops', 'salary_savings', 'salary_abondements', 'savings_goals'];
   for (const s of stores) await _clear(s);
-  _settingsCache = null; _usersCache = null;
+  _settingsCache = null; _usersCache = null; _chargesCache = null;
   emit('db:write', { store: 'all' }); // invalider _calcCache dans calculs.js
   if (_db) { try { _db.close(); } catch (_) {} }
   _db = null;

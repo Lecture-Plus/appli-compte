@@ -1,6 +1,10 @@
 # Fichiers à ignorer dans le dépôt Git
 *.txt
 *.bat
+*.bak
+_diag.cjs
+_fix2.cjs
 node_modules/
+dist/
 .DS_Store
 Thumbs.db

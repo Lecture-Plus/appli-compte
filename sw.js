@@ -1,7 +1,7 @@
 // Service Worker – Compta+
 // Stratégie : Network First pour l'app shell (auto-update), Cache pour CDN
 
-const CACHE_NAME = 'compta-plus-v118';
+const CACHE_NAME = 'compta-plus-v119';
 
 const APP_SHELL = [
   './index.html',
@@ -77,8 +77,8 @@ self.addEventListener('notificationclick', event => {
   );
 });
 
-// Fetch : Network First pour les fichiers JS/HTML (toujours du code frais),
-//          Cache First pour le CDN (Chart.js etc.)
+// Fetch : Stale-While-Revalidate pour l'app shell (réponse immédiate depuis cache,
+//          mise à jour en arrière-plan), Cache First pour le CDN.
 self.addEventListener('fetch', event => {
   if (event.request.method !== 'GET') return;
 
@@ -101,14 +101,20 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  // App shell (JS/HTML/CSS) : Network First → toujours le code le plus récent
+  // App shell (JS/HTML/CSS) : Stale-While-Revalidate
+  // → sert le cache immédiatement (si disponible), met à jour en arrière-plan
   event.respondWith(
-    fetch(event.request).then(response => {
-      if (response && response.status === 200) {
-        const toCache = response.clone();
-        caches.open(CACHE_NAME).then(c => c.put(event.request, toCache));
-      }
-      return response;
-    }).catch(() => caches.match(event.request))  // offline : fallback cache
+    caches.open(CACHE_NAME).then(cache =>
+      cache.match(event.request).then(cached => {
+        const fetchPromise = fetch(event.request).then(response => {
+          if (response && response.status === 200) {
+            cache.put(event.request, response.clone());
+          }
+          return response;
+        }).catch(() => null);
+        // Répondre immédiatement avec le cache si disponible, sinon attendre le réseau
+        return cached || fetchPromise;
+      })
+    )
   );
 });

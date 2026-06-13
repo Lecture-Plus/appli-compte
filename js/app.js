@@ -95,9 +95,6 @@ export async function reloadUsers() {
   State.users = await getActiveUsers();
 }
 
-/** @deprecated — utiliser reloadUsers directement */
-// export async function reloadNames() { return reloadUsers(); }
-
 // ── Vérification des mois non remplis + notification push ──
 async function checkUnfilledMonths() {
   try {

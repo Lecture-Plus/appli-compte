@@ -3,6 +3,8 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "test": "node --test tests/calculs.test.js"
+    "test": "node --test tests/calculs.test.js",
+    "build": "node build.js",
+    "preview": "npx serve . --single"
   }
 }

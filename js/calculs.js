@@ -3,10 +3,6 @@
 // Portage fidèle de la logique Apps Script
 // ============================================================
 
-// ============================================================
-// js/calculs.js – Logique de calcul budget (multi-utilisateurs)
-// ============================================================
-
 import { on } from './events.js';
 
 /* ── Mémoïsation ─────────────────────────────────────── */
@@ -17,14 +13,12 @@ on('db:write', () => _calcCache.clear());
 
 function _memoKey(monthData, charges, achats, repartCfg, users, budgetOps) {
   try {
-    return JSON.stringify([
-      monthData?.users,
-      (charges ||[]).map(c => [c.id, c.amount, c.qui, c.perso, c.splitPcts, c.payerViaPerso]),
-      (achats  ||[]).map(a => [a.id, a.amount, a.qui, a.craquage_source]),
-      repartCfg?.mode, repartCfg?.pcts, repartCfg?.aidesRepartition,
-      (users   ||[]).map(u => u.id),
-      budgetOps ? (budgetOps||[]).map(b => [b.id, b.amount, b.category, b.userId]) : null,
-    ]);
+    const chgKey = (charges  ||[]).map(c => `${c.id}:${c.amount}:${c.qui||''}:${c.perso?1:0}`).join('|');
+    const achKey = (achats   ||[]).map(a => `${a.id}:${a.amount}`).join('|');
+    const bopKey = budgetOps ? (budgetOps||[]).map(b => `${b.id}:${b.amount}`).join('|') : 'null';
+    const usrKey = (users    ||[]).map(u => u.id).join(',');
+    const mdKey  = JSON.stringify(monthData?.users ?? {});
+    return `${mdKey}|${chgKey}|${achKey}|${repartCfg?.mode}|${JSON.stringify(repartCfg?.pcts)}|${usrKey}|${bopKey}`;
   } catch { return null; }
 }
 

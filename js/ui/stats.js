@@ -18,6 +18,38 @@ import { eur, pct, nomMoisCourt, escHtml, showToast,
          getCategoryInfo, CATEGORIES }                      from '../utils.js';
 
 let _charts = [];
+const _deferredChartFns = {}; // tabId → [fns] : graphiques différés pour onglets cachés
+let _chartJsPromise = null;
+
+// Charge Chart.js dynamiquement (pas inclus dans le bundle HTML)
+async function _ensureChartJs() {
+  if (typeof Chart !== 'undefined') return;
+  if (!_chartJsPromise) {
+    _chartJsPromise = new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js';
+      s.onload = resolve; s.onerror = reject;
+      document.head.appendChild(s);
+    });
+  }
+  return _chartJsPromise;
+}
+
+// Différer le rendu d'un graphique si son onglet est caché (display:none)
+function _deferChart(tabId, fn) {
+  const el = document.getElementById(`stab-${tabId}`);
+  if (!el || el.style.display !== 'none') { fn(); return; }
+  (_deferredChartFns[tabId] ??= []).push(fn);
+}
+
+async function _flushDeferredCharts(tabId) {
+  const fns = _deferredChartFns[tabId];
+  if (!fns?.length) return;
+  _deferredChartFns[tabId] = [];
+  await _ensureChartJs();
+  for (const fn of fns) fn();
+}
+
 let _statsTab  = 'revenus'; // 'revenus' | 'epargne' | 'depenses' | 'evolution'
 let _statsMonth = 0;        // 0 = toute l'année, 1-12 = mois précis
 let _lastDisplayResults = null; // FM-3 : cache pour export CSV
@@ -185,6 +217,7 @@ export async function render(container) {
         const el = container.querySelector(`#stab-${t}`);
         if (el) el.style.display = t === _statsTab ? '' : 'none';
       });
+      _flushDeferredCharts(_statsTab); // rendu différé des graphiques de cet onglet
       if (_statsTab === 'evolution') {
         _renderEvolution(container, State.year, users);
       }
@@ -314,14 +347,24 @@ async function loadAndRender(container, year, month, users, s) {
 
   renderKPIAnnuel(container, yearKPI, singleMonth ? MOIS[month - 1] : null, nMonths, realSavingsTotal);
   destroyCharts();
-  renderChartRevDep(displayResults);
-  renderChartRevPrimes(displayResults, users);
-  await renderChartEpargne(augDisplayResults, year, allSavingsOps, allSavingsConfirmed, curYear, curMonth);
-  await renderChartSavingsBalance(year, curYear, curMonth, users, allSavingsConfirmed);
+  await _ensureChartJs();
   const yearBudgetOps = singleMonth ? (bopsMap[month] ?? []) : Object.values(bopsMap).flat();
-  renderChartRepartition(yearKPI, yearBudgetOps, s);
-  renderChartChargesCat(chargesByMonth);
-  renderChartTendances(results, chargesByMonth);
+  // Graphiques de l'onglet Revenus
+  _deferChart('revenus', () => {
+    renderChartRevDep(displayResults);
+    renderChartRevPrimes(displayResults, users);
+    renderChartTendances(results, chargesByMonth);
+  });
+  // Graphiques de l'onglet Épargne (différés si onglet inactif)
+  _deferChart('epargne', async () => {
+    await renderChartEpargne(augDisplayResults, year, allSavingsOps, allSavingsConfirmed, curYear, curMonth);
+    await renderChartSavingsBalance(year, curYear, curMonth, users, allSavingsConfirmed);
+  });
+  // Graphiques de l'onglet Dépenses (différés si onglet inactif)
+  _deferChart('depenses', () => {
+    renderChartRepartition(yearKPI, yearBudgetOps, s);
+    renderChartChargesCat(chargesByMonth);
+  });
   renderTableMensuel(container, augDisplayResults);
   await renderN1Comparison(container, year, users, s, displayResults, allBudgetOpsYear);
   await renderProjectionEpargne(container, year, curYear, curMonth);
@@ -1632,6 +1675,7 @@ function renderScoreBudgetaire(container, result, s) {
 function destroyCharts() {
   _charts.forEach(c => { try { c.destroy(); } catch (e) {} });
   _charts = [];
+  for (const k of Object.keys(_deferredChartFns)) _deferredChartFns[k] = [];
 }
 
 async function renderN1Comparison(container, year, users, s, currentResults, allBudgetOps = []) {

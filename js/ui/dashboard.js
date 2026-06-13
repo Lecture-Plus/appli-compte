@@ -146,8 +146,9 @@ async function _renderResume(container, s, users) {
 
   const pendingCraquages = allAchats.filter(a => a.category === 'craquage' && a.craquage_source === 'pending');
 
-  const kpi    = calcMonth(md, charges, achats, repCfg, users, allBudgetOps);
+  // kpiPrev d'abord : pas de budgetOps → clé mémo plus courte → hit probable
   const kpiPrev = calcMonth(md, charges, achats, repCfg, users); // sans budgetOps = plafonds budgets
+  const kpi     = calcMonth(md, charges, achats, repCfg, users, allBudgetOps);
   // Courses / extras confirmés (depuis les budget_ops réels, pas les plafonds)
   const realCourses = { total: 0, byUser: {} };
   const realExtras  = { total: 0, byUser: {} };
@@ -177,7 +178,10 @@ async function _renderResume(container, s, users) {
       }).filter(Boolean)
     : charges; // past months: all charges count
 
-  const kpiReel = calcMonth(md, chargesReel, achats, repCfg, users, allBudgetOps);
+  // kpiReel : inutile de recalculer si ce n'est pas le mois courant (chargesReel === charges)
+  const kpiReel = _isCurrentMonth
+    ? calcMonth(md, chargesReel, achats, repCfg, users, allBudgetOps)
+    : kpi;
 
   // Pinned budget cards data
   const budgCourses  = users.reduce((acc, u) => acc + (Number(md?.users?.[String(u.id)]?.courses) || 0), 0) || (Number(s.budgetCibles?.courses) || 0);
