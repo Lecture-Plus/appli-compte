@@ -996,7 +996,7 @@ async function _renderSalariale(el, container) {
       <div style="margin-bottom:8px;">
         <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:2px;margin-bottom:6px;">
           <span style="font-size:0.8rem;color:var(--text-2);">Versé : <strong>${eur(periodContrib)}</strong></span>
-          <span style="font-size:0.78rem;color:var(--text-3);">${yearAbonRemaining <= 0 ? '✅ Plafond atteint' : `Reste : ${eur(yearAbonRemaining)}`}</span>
+          <span style="font-size:0.78rem;color:var(--text-3);">${yearAbonRemaining <= 0 ? '✅ Plafond atteint' : `Reste à verser : ${eur(abonMissing)}`}</span>
         </div>
         <div class="progress-track"><div class="progress-bar ${pctPeriod >= 100 || yearAbonRemaining <= 0 ? 'success' : 'primary'}" style="width:${pctPeriod}%;"></div></div>
       </div>
