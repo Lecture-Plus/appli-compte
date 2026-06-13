@@ -1012,37 +1012,11 @@ async function _renderSalariale(el, container) {
         </div>
       </div>
       ${yearAbonRemaining > 0 && pctPeriod < 100 ? `<div style="font-size:0.78rem;color:var(--text-3);margin-top:8px;">Il manque <strong>${eur(abonMissing)}</strong> de versements pour utiliser le plafond restant.</div>` : ''}
+      ${monthsRemaining > 0 ? `<div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;padding:8px 10px;background:var(--bg-2);border-radius:var(--radius-sm);border-top:1px solid var(--border);">
+        <span style="font-size:0.78rem;color:var(--text-3);">🔮 Total estimé à terme<br><span style="font-size:0.7rem;">${monthsRemaining} mois restants · ${eur(avgMonthly)}/mois</span></span>
+        <span style="font-size:1rem;font-weight:800;color:var(--primary);">${eur(projectedTotal)}</span>
+      </div>` : ''}
     </div>
-
-    <!-- Simulation après abondement -->
-    ${monthsRemaining > 0 || projectedAbon > 0 ? `
-    <div class="card" style="margin-bottom:12px;">
-      <div class="card-header"><span class="card-title">🔮 Simulation au ${nextAbonDate}</span></div>
-      <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:10px;">
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:var(--bg-2);border-radius:var(--radius-sm);">
-          <div>
-            <div style="font-size:0.82rem;font-weight:600;color:var(--text-2);">\ud83d\udcb6 Vos versements</div>
-            <div style="font-size:0.72rem;color:var(--text-3);">+${eur(projectedExtraContrib)} projetés</div>
-          </div>
-          <div style="font-size:1rem;font-weight:800;color:var(--primary);">${eur(periodContrib + projectedExtraContrib)}</div>
-        </div>
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:var(--success-bg);border-radius:var(--radius-sm);">
-          <div>
-            <div style="font-size:0.82rem;font-weight:600;color:var(--success);">\ud83c\udfe6 Abondement estimé</div>
-            <div style="font-size:0.72rem;color:var(--text-3);">${yearAbonRemaining <= 0 ? 'Plafond atteint' : `sur ${eur(yearAbonRemaining)} restants`}</div>
-          </div>
-          <div style="font-size:1rem;font-weight:800;color:var(--success);">${eur(projectedAbon)}</div>
-        </div>
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:var(--surface);border:1.5px solid var(--primary);border-radius:var(--radius-sm);">
-          <div>
-            <div style="font-size:0.82rem;font-weight:700;color:var(--primary);">\ud83c\udfaf Total estimé</div>
-            <div style="font-size:0.72rem;color:var(--text-3);">actuel + projeté</div>
-          </div>
-          <div style="font-size:1.05rem;font-weight:800;color:var(--primary);">${eur(projectedTotal)}</div>
-        </div>
-      </div>
-      <div style="font-size:0.78rem;color:var(--text-3);">Projection sur ${monthsRemaining} mois restants à ${eur(avgMonthly)}/mois de moyenne.</div>
-    </div>` : ''}
 
     <!-- Versements planifiés -->
     ${users.length > 0 && Object.values(planned).some(v => Number(v) > 0) ? `
