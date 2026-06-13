@@ -874,7 +874,8 @@ async function _renderCharges(container) {
     getChargesForMonth(month, year),
   ]);
 
-  const _refresh = () => _renderCharges(container);
+  const _body = container.parentElement;
+  const _refresh = () => _renderCharges(container).then(() => _renderSpokeFooter(_body));
 
   const totalChg = charges.reduce((s, c) => {
     const lines = c.lines?.length ? c.lines : [{ amount: c.amount }];

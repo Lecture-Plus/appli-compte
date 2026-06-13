@@ -302,6 +302,13 @@ async function init() {
   });
   document.getElementById('btn-settings-gear')?.addEventListener('click', () => navigateTo('settings'));
 
+  // Bouton retour système (Android / PWA)
+  window.addEventListener('popstate', () => {
+    const h = window.location.hash.replace('#', '').trim();
+    const p = (h && PAGES[h]) ? h : 'dashboard';
+    if (State.page !== p) navigateTo(p);
+  });
+
   // Nav scroll hide/show
   _initNavScroll();
 
