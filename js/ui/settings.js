@@ -916,14 +916,23 @@ function bindEvents(container, s, users, archived, N) {
 
 /** Accepte JSON pur, objet JS ou le bloc complet collé depuis la console Firebase */
 function _normalizeFirebaseConfig(raw) {
-  // Supprimer les commentaires // et /* */
-  let s = raw.replace(/\/\/[^\n]*/g, '').replace(/\/\*[\s\S]*?\*\//g, '');
-  // Extraire le premier bloc { ... } (l'objet config)
-  const start = s.indexOf('{');
-  const end   = s.lastIndexOf('}');
-  if (start !== -1 && end !== -1 && end > start) {
-    s = s.slice(start, end + 1);
+  // Trouver l'objet qui contient apiKey (ancre fiable)
+  const apiIdx = raw.indexOf('apiKey');
+  if (apiIdx === -1) return raw;
+
+  // Reculer jusqu'au { qui ouvre l'objet config
+  const start = raw.lastIndexOf('{', apiIdx);
+  if (start === -1) return raw;
+
+  // Trouver le } fermant en comptant la profondeur (robuste si URL avec //)
+  let depth = 0, end = -1;
+  for (let i = start; i < raw.length; i++) {
+    if (raw[i] === '{') depth++;
+    else if (raw[i] === '}') { depth--; if (depth === 0) { end = i; break; } }
   }
+  if (end === -1) return raw;
+
+  let s = raw.slice(start, end + 1);
   // Citer les clés non quotées : apiKey: → "apiKey":
   s = s.replace(/([{,]\s*)([a-zA-Z_$][\w$]*)\s*:/g, '$1"$2":');
   return s.trim();
