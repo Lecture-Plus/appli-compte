@@ -358,8 +358,8 @@ async function init() {
   // Tracking d'activité (pour auto-save)
   initActivityTracking();
 
-  // Connecter le dirty flag IDB → sync
-  onWrite(markDirty);
+  // Connecter le dirty flag IDB → sync (ignorer les writes issus d'un import Firebase)
+  onWrite(({ store } = {}) => { if (store !== 'firebase-pull') markDirty(); });
 
   // Navigation
   document.querySelectorAll('.nav-item').forEach(btn => {
