@@ -465,6 +465,84 @@
   --success-bg:var(--success-pale); --danger-bg:var(--danger-pale); --warning-bg:var(--warning-pale);
 }
 
+/* ── Cyber (cyberpunk futuriste) ── */
+[data-theme="cyber"] {
+  --brand:#00F5FF; --brand-mid:#00C8D4; --brand-pale:rgba(0,245,255,.10); --brand-dim:rgba(0,245,255,.26);
+  --success:#00FF88; --success-pale:rgba(0,255,136,.12); --success-dim:rgba(0,255,136,.28);
+  --danger:#FF2D55;  --danger-pale:rgba(255,45,85,.12);  --danger-dim:rgba(255,45,85,.28);
+  --warning:#FFB800; --warning-pale:rgba(255,184,0,.12); --warning-dim:rgba(255,184,0,.28);
+  --bg:#050A0E; --surface:#0A1420; --surface-2:#0E1A28; --surface-3:#122030;
+  --overlay:rgba(5,10,14,.92);
+  --border:rgba(0,245,255,.10); --border-mid:rgba(0,245,255,.22);
+  --text-1:#DFF8FF; --text-2:#7EC8DA; --text-3:rgba(126,200,218,.50); --text-inv:#050A0E;
+  --nav-bg:rgba(5,10,14,.96); --header-bg:rgba(5,10,14,.96);
+  --sh-xs:0 1px 3px rgba(0,245,255,.08),0 0 6px rgba(0,245,255,.04);
+  --sh-sm:0 2px 8px rgba(0,245,255,.12),0 0 16px rgba(0,245,255,.06);
+  --sh-md:0 4px 16px rgba(0,245,255,.16),0 0 32px rgba(0,245,255,.08);
+  --sh-lg:0 8px 32px rgba(0,245,255,.20),0 0 64px rgba(0,245,255,.10);
+  --sh-focus:0 0 0 3px rgba(0,245,255,.28),0 0 14px rgba(0,245,255,.20);
+  --r-xs:2px; --r-sm:4px; --r-md:6px; --r-lg:9px; --r-xl:12px;
+  --radius-sm:4px; --radius:6px; --radius-lg:9px; --radius-xl:12px;
+  --dur-f:60ms; --dur-b:100ms; --dur-s:200ms;
+  --ease:cubic-bezier(.23,.71,.44,1); --ease-spring:cubic-bezier(.28,1.42,.54,1);
+  --primary-dark:#00C8D4; --primary-glow:rgba(0,245,255,.26);
+  --primary-bg:var(--brand-pale); --bg-card:var(--surface); --bg-2:var(--surface-2); --bg-input:var(--surface-2);
+  --bg-nav:var(--nav-bg); --bg-header:var(--header-bg); --text:var(--text-1);
+  --success-bg:var(--success-pale); --danger-bg:var(--danger-pale); --warning-bg:var(--warning-pale);
+}
+
+/* ── Street Art (béton foncé, spray, stencil) ── */
+[data-theme="street"] {
+  --brand:#FF4500; --brand-mid:#E03B00; --brand-pale:rgba(255,69,0,.14); --brand-dim:rgba(255,69,0,.32);
+  --success:#7EFF00; --success-pale:rgba(126,255,0,.14); --success-dim:rgba(126,255,0,.28);
+  --danger:#FF1744; --danger-pale:rgba(255,23,68,.14); --danger-dim:rgba(255,23,68,.28);
+  --warning:#FFE600; --warning-pale:rgba(255,230,0,.14); --warning-dim:rgba(255,230,0,.28);
+  --bg:#191918; --surface:#222221; --surface-2:#2B2B2A; --surface-3:#333332;
+  --overlay:rgba(20,20,18,.92);
+  --border:rgba(255,255,255,.08); --border-mid:rgba(255,255,255,.14);
+  --text-1:#F0EFE8; --text-2:#AAAAA5; --text-3:rgba(170,170,165,.50); --text-inv:#191918;
+  --nav-bg:rgba(20,20,18,.97); --header-bg:rgba(20,20,18,.97);
+  --sh-xs:0 1px 3px rgba(0,0,0,.45);
+  --sh-sm:0 2px 8px rgba(0,0,0,.55),0 0 12px rgba(255,69,0,.05);
+  --sh-md:0 4px 16px rgba(0,0,0,.60),0 0 24px rgba(255,69,0,.07);
+  --sh-lg:0 8px 32px rgba(0,0,0,.65),0 0 48px rgba(255,69,0,.09);
+  --sh-focus:0 0 0 3px rgba(255,69,0,.35),0 2px 8px rgba(0,0,0,.40);
+  --r-xs:2px; --r-sm:6px; --r-md:10px; --r-lg:14px; --r-xl:18px;
+  --radius-sm:6px; --radius:10px; --radius-lg:14px; --radius-xl:18px;
+  --dur-f:80ms; --dur-b:140ms; --dur-s:260ms;
+  --ease:cubic-bezier(.36,.07,.19,.97); --ease-spring:cubic-bezier(.36,1.56,.64,1);
+  --primary-dark:#E03B00; --primary-glow:rgba(255,69,0,.32);
+  --primary-bg:var(--brand-pale); --bg-card:var(--surface); --bg-2:var(--surface-2); --bg-input:var(--surface-2);
+  --bg-nav:var(--nav-bg); --bg-header:var(--header-bg); --text:var(--text-1);
+  --success-bg:var(--success-pale); --danger-bg:var(--danger-pale); --warning-bg:var(--warning-pale);
+}
+
+/* ── Synthwave (néon 80s, violet profond) ── */
+[data-theme="synthwave"] {
+  --brand:#FF2D78; --brand-mid:#D41A60; --brand-pale:rgba(255,45,120,.12); --brand-dim:rgba(255,45,120,.28);
+  --success:#00FFD4; --success-pale:rgba(0,255,212,.12); --success-dim:rgba(0,255,212,.28);
+  --danger:#FF3A3A;  --danger-pale:rgba(255,58,58,.12);  --danger-dim:rgba(255,58,58,.28);
+  --warning:#FFE600; --warning-pale:rgba(255,230,0,.12); --warning-dim:rgba(255,230,0,.28);
+  --bg:#09001A; --surface:#130028; --surface-2:#1C0038; --surface-3:#260048;
+  --overlay:rgba(9,0,26,.92);
+  --border:rgba(255,45,120,.12); --border-mid:rgba(255,45,120,.24);
+  --text-1:#FDF0FF; --text-2:#C89CDE; --text-3:rgba(200,156,222,.50); --text-inv:#09001A;
+  --nav-bg:rgba(9,0,26,.97); --header-bg:rgba(9,0,26,.97);
+  --sh-xs:0 1px 3px rgba(255,45,120,.10),0 0 8px rgba(255,45,120,.05);
+  --sh-sm:0 2px 8px rgba(255,45,120,.15),0 0 18px rgba(255,45,120,.08);
+  --sh-md:0 4px 16px rgba(255,45,120,.18),0 0 36px rgba(255,45,120,.10);
+  --sh-lg:0 8px 32px rgba(255,45,120,.22),0 0 72px rgba(255,45,120,.12);
+  --sh-focus:0 0 0 3px rgba(255,45,120,.32),0 0 16px rgba(255,45,120,.22);
+  --r-xs:4px; --r-sm:8px; --r-md:12px; --r-lg:18px; --r-xl:24px;
+  --radius-sm:8px; --radius:12px; --radius-lg:18px; --radius-xl:24px;
+  --dur-f:70ms; --dur-b:120ms; --dur-s:240ms;
+  --ease:cubic-bezier(.25,.46,.45,.94); --ease-spring:cubic-bezier(.34,1.46,.64,1);
+  --primary-dark:#D41A60; --primary-glow:rgba(255,45,120,.28);
+  --primary-bg:var(--brand-pale); --bg-card:var(--surface); --bg-2:var(--surface-2); --bg-input:var(--surface-2);
+  --bg-nav:var(--nav-bg); --bg-header:var(--header-bg); --text:var(--text-1);
+  --success-bg:var(--success-pale); --danger-bg:var(--danger-pale); --warning-bg:var(--warning-pale);
+}
+
 /* ─── 3. Reset ─── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 html { height: 100%; font-size: 16px; -webkit-text-size-adjust: 100%; }
@@ -1413,4 +1491,272 @@ details.acc-card[open] > summary.acc-summary { margin-bottom: 12px; padding-bott
 }
 .tcp-bg    { flex: 3; }
 .tcp-ac    { flex: 1; }
+
+/* ─── 49. Cyber · Street Art · Synthwave ─── */
+
+/* ── Keyframes ── */
+@keyframes cyber-glow {
+  0%,100% { opacity:1; }
+  50%      { opacity:.80; }
+}
+@keyframes cyber-scanlines {
+  from { background-position:0 0; }
+  to   { background-position:0 4px; }
+}
+@keyframes sw-neon-pulse {
+  0%,100% { box-shadow:0 0 18px rgba(255,45,120,.14),0 0 60px rgba(255,45,120,.06),inset 0 1px 0 rgba(255,45,120,.16); }
+  50%      { box-shadow:0 0 32px rgba(255,45,120,.28),0 0 80px rgba(255,45,120,.12),inset 0 1px 0 rgba(255,45,120,.24); }
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━ CYBER ━━━━━━━━━━━━━━━━━━━━━━━ */
+
+/* Corps : fond noir + grille holographique tuilée */
+[data-theme="cyber"] body {
+  background-color: #050A0E;
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='60'%3E%3Cpath d='M60 0H0v60' fill='none' stroke='rgba(0%2C245%2C255%2C.06)' stroke-width='.5'/%3E%3C/svg%3E"),
+    linear-gradient(180deg,#050A0E 0%,#071220 50%,#050A0E 100%);
+  background-size:60px 60px,100% 100%;
+}
+
+/* Scanlines fixes semi-transparentes */
+[data-theme="cyber"] body::after {
+  content:'';
+  position:fixed; inset:0; pointer-events:none; z-index:999;
+  background:repeating-linear-gradient(
+    0deg,
+    transparent 0px,transparent 2px,
+    rgba(0,245,255,.015) 2px,rgba(0,245,255,.015) 4px
+  );
+  animation:cyber-scanlines .08s steps(1) infinite;
+}
+
+/* Cartes : dégradé sombre + reflet haut */
+[data-theme="cyber"] .card {
+  background:linear-gradient(135deg,#0A1420 0%,#0C1828 100%);
+  border:1px solid rgba(0,245,255,.14);
+  box-shadow:inset 0 1px 0 rgba(0,245,255,.18),0 4px 16px rgba(0,245,255,.06);
+}
+
+/* Hero : bleu nuit avec aura cyan + animation */
+[data-theme="cyber"] .hero-v2 {
+  background:linear-gradient(135deg,#0E2440 0%,#0A1A30 100%);
+  border:1px solid rgba(0,245,255,.26);
+  box-shadow:0 0 30px rgba(0,245,255,.12),inset 0 1px 0 rgba(0,245,255,.22);
+  animation:cyber-glow 4s ease-in-out infinite;
+}
+
+/* Bouton principal : coins coupés (clip-path cyberpunk) */
+[data-theme="cyber"] .btn-primary {
+  background:linear-gradient(135deg,#00F5FF 0%,#00C8D4 100%);
+  box-shadow:0 0 16px rgba(0,245,255,.45),0 2px 8px rgba(0,0,0,.55);
+  color:#050A0E;
+  clip-path:polygon(0 0,calc(100% - 8px) 0,100% 8px,100% 100%,8px 100%,0 calc(100% - 8px));
+  font-weight:700;
+  letter-spacing:.04em;
+  text-transform:uppercase;
+}
+[data-theme="cyber"] .btn-primary:hover {
+  box-shadow:0 0 28px rgba(0,245,255,.65),0 4px 14px rgba(0,0,0,.60);
+  transform:translateY(-2px);
+}
+[data-theme="cyber"] .btn-primary:active { transform:scale(.97); }
+
+/* Nav + Header */
+[data-theme="cyber"] #app-header {
+  border-bottom:1px solid rgba(0,245,255,.12);
+  box-shadow:0 2px 18px rgba(0,245,255,.06);
+}
+[data-theme="cyber"] #bottom-nav { border-top:1px solid rgba(0,245,255,.12); }
+[data-theme="cyber"] .nav-item.active { text-shadow:0 0 12px rgba(0,245,255,.70); }
+[data-theme="cyber"] .nav-item.active::before { box-shadow:0 0 10px rgba(0,245,255,.80); }
+
+/* Formulaires */
+[data-theme="cyber"] .form-input,[data-theme="cyber"] .form-select {
+  background:#0A1420;
+  border-color:rgba(0,245,255,.18);
+}
+[data-theme="cyber"] .form-input:focus,[data-theme="cyber"] .form-select:focus {
+  border-color:rgba(0,245,255,.55);
+  box-shadow:0 0 0 3px rgba(0,245,255,.16),0 0 14px rgba(0,245,255,.10);
+}
+
+/* Chiffres néon */
+[data-theme="cyber"] .hero-amount,
+[data-theme="cyber"] .kpi-value,
+[data-theme="cyber"] .amount-display { text-shadow:0 0 14px rgba(0,245,255,.45); }
+
+/* Chips */
+[data-theme="cyber"] .action-chip {
+  border:1px solid rgba(0,245,255,.20);
+  background:rgba(0,245,255,.06);
+}
+[data-theme="cyber"] .action-chip:hover {
+  border-color:rgba(0,245,255,.45);
+  box-shadow:0 0 12px rgba(0,245,255,.18);
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━ STREET ART ━━━━━━━━━━━━━━━━━━━━━━━ */
+
+/* Corps : béton avec grain SVG (feTurbulence) */
+[data-theme="street"] body {
+  background-color:#191918;
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.80' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)' opacity='.048'/%3E%3C/svg%3E");
+  background-size:200px 200px;
+}
+
+/* Cartes */
+[data-theme="street"] .card {
+  background:linear-gradient(160deg,#222221 0%,#1E1E1C 100%);
+  border:1px solid rgba(255,255,255,.07);
+}
+
+/* Hero : bande orange à gauche, béton texturé */
+[data-theme="street"] .hero-v2 {
+  background:linear-gradient(135deg,#2A2A28 0%,#1E1E1C 100%);
+  border-left:4px solid var(--brand);
+  box-shadow:inset 6px 0 28px rgba(255,69,0,.08),0 4px 20px rgba(0,0,0,.50);
+}
+
+/* Bouton : style sticker/stencil offset shadow */
+[data-theme="street"] .btn-primary {
+  background:#FF4500;
+  box-shadow:4px 4px 0 #6B1B00,0 2px 8px rgba(0,0,0,.55);
+  transform:translate(-2px,-2px);
+  border-radius:2px;
+  font-weight:900;
+  letter-spacing:.06em;
+  text-transform:uppercase;
+}
+[data-theme="street"] .btn-primary:hover {
+  box-shadow:6px 6px 0 #6B1B00,0 3px 10px rgba(0,0,0,.60);
+  transform:translate(-3px,-3px);
+}
+[data-theme="street"] .btn-primary:active {
+  box-shadow:1px 1px 0 #6B1B00;
+  transform:translate(1px,1px);
+}
+
+/* Header accent line */
+[data-theme="street"] #app-header { border-bottom:3px solid var(--brand); }
+
+/* Nav */
+[data-theme="street"] .nav-item.active::before {
+  width:100%; height:3px; border-radius:0;
+  box-shadow:0 0 8px rgba(255,69,0,.60);
+}
+
+/* Formulaires : style béton anguleux */
+[data-theme="street"] .form-input,[data-theme="street"] .form-select {
+  background:#2B2B2A;
+  border-color:rgba(255,255,255,.10);
+  border-radius:2px;
+}
+
+/* Chiffres gras XXL */
+[data-theme="street"] .hero-amount,
+[data-theme="street"] .kpi-value,
+[data-theme="street"] .amount-display {
+  font-weight:900;
+  letter-spacing:-.02em;
+}
+
+/* Chips stencil */
+[data-theme="street"] .action-chip {
+  border:2px solid rgba(255,69,0,.30);
+  font-weight:800;
+  text-transform:uppercase;
+  font-size:.68rem;
+  letter-spacing:.07em;
+  border-radius:2px;
+}
+[data-theme="street"] .action-chip:hover {
+  border-color:var(--brand);
+  box-shadow:2px 2px 0 rgba(255,69,0,.30);
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━ SYNTHWAVE ━━━━━━━━━━━━━━━━━━━━━━━ */
+
+/* Corps : violet profond + halos néon rose et cyan */
+[data-theme="synthwave"] body {
+  background-color:#09001A;
+  background-image:
+    radial-gradient(ellipse 100% 50% at 50% 88%,rgba(255,45,120,.08) 0%,transparent 60%),
+    radial-gradient(ellipse 80%  40% at 25% 15%,rgba(0,255,212,.05) 0%,transparent 55%),
+    linear-gradient(180deg,#09001A 0%,#130028 55%,#09001A 100%);
+}
+
+/* Grille rétro synth sur la zone de contenu */
+[data-theme="synthwave"] #app-content {
+  background-image:
+    repeating-linear-gradient(transparent 0px,transparent 59px,rgba(255,45,120,.07) 59px,rgba(255,45,120,.07) 60px),
+    repeating-linear-gradient(90deg,transparent 0px,transparent 59px,rgba(0,255,212,.04) 59px,rgba(0,255,212,.04) 60px);
+}
+
+/* Cartes : gradient border effect (padding-box trick) */
+[data-theme="synthwave"] .card {
+  background:linear-gradient(135deg,#130028,#1A0034) padding-box,
+             linear-gradient(135deg,rgba(255,45,120,.30),rgba(0,255,212,.18)) border-box;
+  border:1px solid transparent;
+}
+
+/* Hero : pulse néon animée */
+[data-theme="synthwave"] .hero-v2 {
+  background:linear-gradient(135deg,#1C0040 0%,#260050 100%);
+  border:1px solid rgba(255,45,120,.30);
+  animation:sw-neon-pulse 3.5s ease-in-out infinite;
+}
+
+/* Bouton principal : rose néon brillant */
+[data-theme="synthwave"] .btn-primary {
+  background:linear-gradient(135deg,#FF2D78 0%,#D41A60 100%);
+  box-shadow:0 0 20px rgba(255,45,120,.50),0 2px 8px rgba(0,0,0,.55);
+  border:1px solid rgba(255,100,160,.28);
+}
+[data-theme="synthwave"] .btn-primary:hover {
+  box-shadow:0 0 32px rgba(255,45,120,.70),0 4px 12px rgba(0,0,0,.60);
+  transform:translateY(-2px);
+}
+[data-theme="synthwave"] .btn-primary:active { transform:scale(.97); }
+
+/* Nav + Header dégradé violet */
+[data-theme="synthwave"] #app-header {
+  border-bottom:1px solid rgba(255,45,120,.20);
+  background:linear-gradient(90deg,rgba(9,0,26,.97) 0%,rgba(20,0,45,.97) 100%);
+}
+[data-theme="synthwave"] #bottom-nav {
+  border-top:1px solid rgba(255,45,120,.20);
+  background:linear-gradient(90deg,rgba(9,0,26,.97) 0%,rgba(20,0,45,.97) 100%);
+}
+[data-theme="synthwave"] .nav-item.active { text-shadow:0 0 14px rgba(255,45,120,.75); }
+[data-theme="synthwave"] .nav-item.active::before { box-shadow:0 0 10px rgba(255,45,120,.80); }
+
+/* Chiffres : lueur double rose + violet */
+[data-theme="synthwave"] .hero-amount,
+[data-theme="synthwave"] .kpi-value,
+[data-theme="synthwave"] .amount-display {
+  text-shadow:0 0 12px rgba(255,45,120,.55),0 0 32px rgba(255,45,120,.22);
+}
+
+/* Formulaires violet foncé */
+[data-theme="synthwave"] .form-input,[data-theme="synthwave"] .form-select {
+  background:#1A003A;
+  border-color:rgba(255,45,120,.24);
+}
+[data-theme="synthwave"] .form-input:focus,[data-theme="synthwave"] .form-select:focus {
+  border-color:rgba(255,45,120,.55);
+  box-shadow:0 0 0 3px rgba(255,45,120,.18),0 0 16px rgba(255,45,120,.12);
+}
+
+/* Chips néon */
+[data-theme="synthwave"] .action-chip {
+  background:rgba(255,45,120,.10);
+  border:1px solid rgba(255,45,120,.24);
+}
+[data-theme="synthwave"] .action-chip:hover {
+  background:rgba(255,45,120,.18);
+  border-color:rgba(255,45,120,.45);
+  box-shadow:0 0 14px rgba(255,45,120,.22);
+}
 

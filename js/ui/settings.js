@@ -131,7 +131,10 @@ function buildHTML(s, users, archived, N) {
                 { id:'midnight', label:'Midnight',     bg:'#0A0A0C',  ac:'#60A5FA' },
                 { id:'aurora',   label:'Aurora',       bg:'#0E0B18',  ac:'#8B5CF6' },
                 { id:'atlas',    label:'Atlas',        bg:'#F4EFE6',  ac:'#1B6B5A' },
-                { id:'horizon',  label:'Horizon',      bg:'#FFFFFF',  ac:'#0070F3' },
+                { id:'horizon',   label:'Horizon',      bg:'#FFFFFF',  ac:'#0070F3' },
+                { id:'cyber',     label:'Cyber',        bg:'#050A0E',  ac:'#00F5FF' },
+                { id:'street',    label:'Street',       bg:'#191918',  ac:'#FF4500' },
+                { id:'synthwave', label:'Synthwave',    bg:'linear-gradient(135deg,#09001A,#260048)', ac:'#FF2D78' },
               ].map(t => `
                 <button class="theme-card${s.theme === t.id ? ' active' : ''}" data-tid="${t.id}" type="button">
                   <div class="theme-card-preview">
