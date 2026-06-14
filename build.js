@@ -34,8 +34,6 @@ const APP_SHELL_LOCAL = [
   'js/ui/budgets.js',
   'js/ui/stats.js',
   'js/ui/settings.js',
-  'js/firebase.js',
-  'js/fb-sync.js',
 ];
 
 const hash = createHash('sha256');

@@ -16,6 +16,7 @@ let _isSyncing = false;
 
 // ── Dirty flag : ne syncer que si des modifications ont eu lieu ──
 let _isDirty = false;
+let _lastImportAt = 0; // anti-boucle : ne pas pousser juste après avoir importé depuis Drive
 
 // ── Retry avec backoff exponentiel en cas d'erreur Drive ──
 let _retryCount  = 0;
@@ -25,8 +26,6 @@ const _RETRY_DELAYS = [30_000, 120_000, 600_000]; // 30s, 2min, 10min
 /** Marquer les données comme modifiées (appelé après toute écriture IDB) */
 export function markDirty() {
   _isDirty = true;
-  // Propager à Firebase (lazy import pour ne pas bloquer si Firebase non configuré)
-  import('./fb-sync.js').then(m => m.markFirebaseDirty()).catch(() => {});
 }
 
 // ── Indicateur de sync ──
@@ -53,6 +52,7 @@ export function getSyncStatus() { return _syncStatus; }
 
 const INACTIVITY_LIMIT_MS = 10 * 60 * 1000;  // 10 minutes
 const AUTO_SAVE_INTERVAL_MS = 2 * 60 * 1000; // 2 minutes
+const POLL_INTERVAL_MS      = 60 * 1000;     // 60 secondes
 
 /** Remet à jour le timestamp d'activité. Appelé sur chaque interaction utilisateur. */
 export function markActivity() {
@@ -77,10 +77,6 @@ export function initActivityTracking() {
 export async function initDriveSync() {
   const url = await getSetting(DRIVE_URL_KEY);
   if (!isValidDriveUrl(url)) { setSyncStatus('none'); return false; }
-
-  // Si l'import Drive est désactivé (ex: Firebase actif), on ne tire pas le backup
-  const importDisabled = await getSetting('driveImportDisabled');
-  if (importDisabled) { setSyncStatus('ok'); return false; }
 
   const overlay = document.getElementById('sync-overlay');
   if (overlay) overlay.classList.remove('hidden');
@@ -118,6 +114,7 @@ export async function initDriveSync() {
     if (data && data.appName) {
       await importAllData(data);
       await setSetting(DRIVE_SYNC_KEY, new Date().toISOString());
+      _lastImportAt = Date.now();
       console.log('[Sync] Drive synchronisé :', latest.filename);
     }
     setSyncStatus('ok');
@@ -169,6 +166,9 @@ export function startAutoSave() {
         }
       }
 
+      // Ne pas pousser si on vient d'importer depuis Drive (anti-boucle)
+      if (Date.now() - _lastImportAt < 15_000) return;
+
       // Pousser
       setSyncStatus('syncing');
       const data = await exportAllData();
@@ -193,6 +193,69 @@ export function startAutoSave() {
 export function stopAutoSave() {
   if (_autoSaveTimer) clearInterval(_autoSaveTimer);
   _autoSaveTimer = null;
+}
+
+// ── Poll Drive toutes les 60s : import si backup plus récent ──────────────
+
+let _pollTimer = null;
+
+/**
+ * Démarre la vérification périodique du Drive.
+ * Si un backup plus récent que les données locales est trouvé, il est importé
+ * silencieusement et les vues sont rechargées via l'event db:write.
+ */
+export function startDrivePoll() {
+  if (_pollTimer) return; // déjà actif
+
+  _pollTimer = setInterval(async () => {
+    if (_isSyncing || _isDirty) return; // laisser priorité à l'auto-save
+
+    const url = await getSetting(DRIVE_URL_KEY);
+    if (!isValidDriveUrl(url)) return;
+
+    const importDisabled = await getSetting('driveImportDisabled');
+    if (importDisabled) return;
+
+    try {
+      const backups = await listBackups(url);
+      if (!backups?.length) return;
+
+      const driveTs  = backups[0].savedAt ? new Date(backups[0].savedAt).getTime() : 0;
+      const localStr = await getSetting(DRIVE_SYNC_KEY);
+      const localTs  = localStr ? new Date(localStr).getTime() : 0;
+
+      if (driveTs <= localTs + 5_000) return; // déjà à jour
+
+      // Backup Drive plus récent → importer
+      console.log('[Poll] Nouvelle version Drive détectée — import…');
+      setSyncStatus('syncing');
+      _isSyncing = true;
+      try {
+        const data = await pullBackup(url, backups[0].filename);
+        if (data?.appName) {
+          const { emit } = await import('./events.js');
+          await importAllData(data);
+          await setSetting(DRIVE_SYNC_KEY, new Date().toISOString());
+          _lastImportAt = Date.now();
+          _isDirty = false;
+          emit('db:write', { store: 'drive-poll' });
+          showToast('🔄 Données synchronisées depuis Drive', 'info', 3000);
+          setSyncStatus('ok');
+        }
+      } finally {
+        _isSyncing = false;
+      }
+    } catch (e) {
+      console.warn('[Poll] Vérification Drive échouée :', e.message);
+      // Silencieux — pas de changement de status pour une erreur de poll
+    }
+  }, POLL_INTERVAL_MS);
+
+  console.log('[Poll] Drive poll démarré (intervalle 60s)');
+}
+
+export function stopDrivePoll() {
+  if (_pollTimer) { clearInterval(_pollTimer); _pollTimer = null; }
 }
 
 /**

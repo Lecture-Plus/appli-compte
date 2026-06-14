@@ -5,8 +5,7 @@
 import { getAllSettings, getSetting, setSetting, getActiveUsers, getMonthsByYear, onWrite,
          getAllBudgetOps, getDeviceSetting, setDeviceSetting }    from './db.js';
 import { initDriveSync, startAutoSave, initActivityTracking,
-         markDirty, testDriveConnection }                         from './sync.js';
-import { initFirebaseSync }                                       from './fb-sync.js';
+         markDirty, testDriveConnection, startDrivePoll }         from './sync.js';
 import { today, showToast, closeModal, openModal, nomMois,
          addMonth, isMonthEmpty }                                 from './utils.js';
 import { DRIVE_URL_KEY, isValidDriveUrl }                         from './drive.js';
@@ -358,8 +357,8 @@ async function init() {
   // Tracking d'activité (pour auto-save)
   initActivityTracking();
 
-  // Connecter le dirty flag IDB → sync (ignorer les writes issus d'un import Firebase)
-  onWrite(({ store } = {}) => { if (store !== 'firebase-pull') markDirty(); });
+  // Connecter le dirty flag IDB → sync (ignorer les writes issus d'un import Drive poll)
+  onWrite(({ store } = {}) => { if (store !== 'drive-poll') markDirty(); });
 
   // Navigation
   document.querySelectorAll('.nav-item').forEach(btn => {
@@ -456,9 +455,7 @@ async function init() {
 
   // ── Synchronisation Drive au lancement ──
   await initDriveSync();
-
-  // ── Synchronisation Firebase temps réel ──
-  initFirebaseSync(); // non-bloquant : démarre en arrière-plan
+  startDrivePoll(); // vérification périodique toutes les 60s
 
   // Re-charger les users après import potentiel depuis Drive
   await reloadUsers();
