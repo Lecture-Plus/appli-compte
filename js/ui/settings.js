@@ -135,7 +135,7 @@ function buildHTML(s, users, archived, N) {
                 { id:'cyber',     label:'Cyber',        bg:'#050A0E',  ac:'#00F5FF' },
                 { id:'street',    label:'Street',       bg:'#191918',  ac:'#FF4500' },
                 { id:'synthwave', label:'Synthwave',    bg:'linear-gradient(135deg,#080226,#2D0060)', ac:'#FF2D78' },
-                { id:'studio',    label:'Studio',       bg:'linear-gradient(135deg,#EAE2D9,#D8D0C7)', ac:'#C48F05' },
+                { id:'studio',    label:'Studio',       bg:'linear-gradient(135deg,#EAE2D9,#D8D0C7)', ac:'#9A7830' },
               ].map(t => `
                 <button class="theme-card${s.theme === t.id ? ' active' : ''}" data-tid="${t.id}" type="button">
                   <div class="theme-card-preview">

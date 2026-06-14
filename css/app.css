@@ -545,25 +545,25 @@
 
 /* ── Studio (atelier chaud, crème & or) ── */
 [data-theme="studio"] {
-  --brand:#C48F05; --brand-mid:#A87808; --brand-pale:rgba(196,143,5,.11); --brand-dim:rgba(196,143,5,.22);
-  --success:#2D7D4A; --success-pale:#E6F4EA; --success-dim:rgba(45,125,74,.12);
-  --danger:#C0392B;  --danger-pale:#FDECEA; --danger-dim:rgba(192,57,43,.12);
-  --warning:#C0700A; --warning-pale:#FEF0E0; --warning-dim:rgba(192,112,10,.12);
+  --brand:#9A7830; --brand-mid:#806420; --brand-pale:rgba(154,120,48,.10); --brand-dim:rgba(154,120,48,.20);
+  --success:#5E7A56; --success-pale:#E6EDE2; --success-dim:rgba(94,122,86,.12);
+  --danger:#8A4848;  --danger-pale:#EFE6E4; --danger-dim:rgba(138,72,72,.12);
+  --warning:#8A6428; --warning-pale:#EDE8D8; --warning-dim:rgba(138,100,40,.12);
   --bg:#F2EDE7; --surface:#EAE2D9; --surface-2:#D8D0C7; --surface-3:#CFC8BF;
   --overlay:rgba(32,24,16,.55);
   --border:rgba(80,60,30,.10); --border-mid:rgba(80,60,30,.18);
-  --text-1:#1C1510; --text-2:#5C4A30; --text-3:rgba(92,74,48,.55); --text-inv:#1C1510;
+  --text-1:#1C1510; --text-2:#5C4A30; --text-3:rgba(92,74,48,.55); --text-inv:#FFFFFF;
   --nav-bg:rgba(242,237,231,.98); --header-bg:rgba(242,237,231,.98);
   --sh-xs:0 1px 3px rgba(80,60,30,.10);
   --sh-sm:0 2px 8px rgba(80,60,30,.14),0 1px 3px rgba(80,60,30,.09);
   --sh-md:0 4px 16px rgba(80,60,30,.16),0 2px 6px rgba(80,60,30,.10);
   --sh-lg:0 8px 32px rgba(80,60,30,.20),0 4px 12px rgba(80,60,30,.12);
-  --sh-focus:0 0 0 3px rgba(196,143,5,.24);
+  --sh-focus:0 0 0 3px rgba(154,120,48,.22);
   --r-xs:4px; --r-sm:10px; --r-md:14px; --r-lg:20px; --r-xl:26px;
   --radius-sm:10px; --radius:14px; --radius-lg:20px; --radius-xl:26px;
   --dur-f:80ms; --dur-b:130ms; --dur-s:250ms;
   --ease:cubic-bezier(.4,0,.2,1); --ease-spring:cubic-bezier(.34,1.36,.64,1);
-  --primary-dark:#A87808; --primary-glow:rgba(196,143,5,.22);
+  --primary-dark:#806420; --primary-glow:rgba(154,120,48,.20);
   --primary-bg:var(--brand-pale); --bg-card:var(--surface); --bg-2:var(--surface-2); --bg-input:var(--surface-2);
   --bg-nav:var(--nav-bg); --bg-header:var(--header-bg); --text:var(--text-1);
   --success-bg:var(--success-pale); --danger-bg:var(--danger-pale); --warning-bg:var(--warning-pale);
@@ -1820,18 +1820,18 @@ details.acc-card[open] > summary.acc-summary { margin-bottom: 12px; padding-bott
 /* Hero : dégradé chaud + reflet or */
 [data-theme="studio"] .hero-v2 {
   background:linear-gradient(135deg,#E5DDD0 0%,#DAD0C0 100%);
-  border:1px solid rgba(196,143,5,.22);
-  box-shadow:inset 0 1px 0 rgba(255,235,160,.40),0 3px 12px rgba(80,60,30,.12);
+  border:1px solid rgba(154,120,48,.18);
+  box-shadow:inset 0 1px 0 rgba(220,200,160,.30),0 3px 12px rgba(80,60,30,.10);
 }
 
 /* Bouton principal : or profond, texte foncé */
 [data-theme="studio"] .btn-primary {
-  background:linear-gradient(135deg,#D4980A 0%,#A87808 100%);
-  color:#1C1510;
-  box-shadow:0 2px 8px rgba(196,143,5,.35),inset 0 1px 0 rgba(255,245,190,.30);
+  background:linear-gradient(135deg,#A88030 0%,#806420 100%);
+  color:#FFFFFF;
+  box-shadow:0 2px 8px rgba(154,120,48,.25),inset 0 1px 0 rgba(255,235,180,.18);
 }
 [data-theme="studio"] .btn-primary:hover {
-  box-shadow:0 4px 14px rgba(196,143,5,.48);
+  box-shadow:0 4px 14px rgba(154,120,48,.30);
   transform:translateY(-1px);
 }
 [data-theme="studio"] .btn-primary:active { transform:scale(.97); }
@@ -1846,15 +1846,15 @@ details.acc-card[open] > summary.acc-summary { margin-bottom: 12px; padding-bott
   border-color:rgba(80,60,30,.16);
 }
 [data-theme="studio"] .form-input:focus,[data-theme="studio"] .form-select:focus {
-  border-color:rgba(196,143,5,.45);
+  border-color:rgba(154,120,48,.40);
 }
 
 /* Chips */
-[data-theme="studio"] .action-chip { background:rgba(196,143,5,.08); border:1px solid rgba(196,143,5,.18); }
-[data-theme="studio"] .action-chip:hover { background:rgba(196,143,5,.14); border-color:rgba(196,143,5,.34); }
+[data-theme="studio"] .action-chip { background:rgba(154,120,48,.07); border:1px solid rgba(154,120,48,.16); }
+[data-theme="studio"] .action-chip:hover { background:rgba(154,120,48,.12); border-color:rgba(154,120,48,.28); }
 
 /* Montants */
-[data-theme="studio"] .hero-amount,[data-theme="studio"] .kpi-value { color:#8A6400; }
+[data-theme="studio"] .hero-amount,[data-theme="studio"] .kpi-value { color:#6E5824; }
 
 /* ━━━ Accents de cartes par thème (couleurs extraites de l'image) ━━━ */
 
