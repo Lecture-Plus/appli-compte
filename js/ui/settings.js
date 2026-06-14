@@ -575,7 +575,9 @@ function bindEvents(container, s, users, archived, N) {
         <ol style="padding-left:20px;display:flex;flex-direction:column;gap:8px;">
           <li>Aller sur <a href="https://script.google.com" target="_blank" style="color:var(--primary);">script.google.com</a></li>
           <li>Nouveau projet → nom : <strong>Compta+ Sync</strong></li>
-          <li>Coller le contenu du fichier <code>setup/Code.gs</code></li>
+          <li>Coller le script Apps Script dans l'éditeur
+            <button id="btn-copy-code-gs" style="margin-left:6px;font-size:0.75rem;padding:2px 8px;border:1px solid var(--primary);border-radius:4px;background:transparent;color:var(--primary);cursor:pointer;">📋 Copier le code</button>
+          </li>
           <li>Déployer → Application Web → Exécuter en tant que : Moi → Accès : Tout le monde</li>
           <li>Copier l'URL et la coller dans le champ ci-dessus</li>
           <li>Partager cette même URL sur vos autres appareils</li>
@@ -586,6 +588,16 @@ function bindEvents(container, s, users, archived, N) {
       </div>
     `, '<button class="btn btn-primary btn-full" id="close-help">Compris !</button>');
     document.getElementById('close-help')?.addEventListener('click', closeModal);
+    document.getElementById('btn-copy-code-gs')?.addEventListener('click', async () => {
+      const btn = document.getElementById('btn-copy-code-gs');
+      try {
+        const res = await fetch('https://raw.githubusercontent.com/Lecture-Plus/appli-compte/main/setup/Code.gs');
+        const code = await res.text();
+        await navigator.clipboard.writeText(code);
+        btn.textContent = '✅ Copié !';
+        setTimeout(() => { btn.textContent = '📋 Copier le code'; }, 2000);
+      } catch { btn.textContent = '❌ Erreur'; }
+    });
   });
 
   // ── Drive : tester la connexion ──

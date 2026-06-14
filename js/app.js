@@ -596,7 +596,9 @@ async function _showDriveConfigModal(s) {
       <ol style="font-size:0.78rem;color:var(--text-2);padding-left:18px;margin:0;line-height:2;">
         <li>Aller sur <a href="https://script.google.com" target="_blank" rel="noopener" style="color:var(--primary);text-decoration:underline;">script.google.com</a></li>
         <li>Créer un projet → nom : <strong>Compta+ Sync</strong></li>
-        <li>Copier-coller le contenu de <strong>setup/Code.gs</strong></li>
+        <li>Coller le script Apps Script dans l'éditeur
+          <button id="btn-copy-code-gs2" style="margin-left:6px;font-size:0.75rem;padding:2px 8px;border:1px solid var(--primary);border-radius:4px;background:transparent;color:var(--primary);cursor:pointer;">📋 Copier le code</button>
+        </li>
         <li>Cliquer <strong>Déployer → Application Web</strong></li>
         <li>Accès : <strong>Tout le monde</strong> → Copier l'URL</li>
       </ol>
@@ -614,6 +616,16 @@ async function _showDriveConfigModal(s) {
    <button class="btn btn-outline" id="modal-drive-cancel">Annuler</button>`);
 
   document.getElementById('modal-drive-cancel')?.addEventListener('click', closeModal);
+  document.getElementById('btn-copy-code-gs2')?.addEventListener('click', async () => {
+    const btn = document.getElementById('btn-copy-code-gs2');
+    try {
+      const res = await fetch('https://raw.githubusercontent.com/Lecture-Plus/appli-compte/main/setup/Code.gs');
+      const code = await res.text();
+      await navigator.clipboard.writeText(code);
+      btn.textContent = '✅ Copié !';
+      setTimeout(() => { btn.textContent = '📋 Copier le code'; }, 2000);
+    } catch { btn.textContent = '❌ Erreur'; }
+  });
   document.getElementById('modal-drive-save')?.addEventListener('click', async () => {
     const url     = document.getElementById('modal-drive-url')?.value.trim();
     const resultEl = document.getElementById('modal-drive-result');
