@@ -821,9 +821,9 @@ function bindEvents(container, s, users, archived, N) {
     const raw = container.querySelector('#s-fb-config')?.value.trim();
     if (!raw) { showToast('Collez votre firebaseConfig JSON.', 'error'); return; }
     try {
-      const cfg = JSON.parse(raw);
+      const cfg = JSON.parse(_normalizeFirebaseConfig(raw));
       if (!cfg.apiKey || !cfg.projectId) throw new Error('apiKey ou projectId manquant');
-      await setSetting('firebaseConfig', raw);
+      await setSetting('firebaseConfig', JSON.stringify(cfg));
       showToast('Config Firebase enregistrée ✅ — reconnectez-vous.', 'success');
     } catch (e) { showToast('JSON invalide : ' + e.message, 'error'); }
   });
@@ -912,6 +912,21 @@ function bindEvents(container, s, users, archived, N) {
 
   // Mettre à jour l'UI Firebase selon l'état d'auth
   _updateFbUI(container);
+}
+
+/** Accepte JSON pur, objet JS ou le bloc complet collé depuis la console Firebase */
+function _normalizeFirebaseConfig(raw) {
+  // Supprimer les commentaires // et /* */
+  let s = raw.replace(/\/\/[^\n]*/g, '').replace(/\/\*[\s\S]*?\*\//g, '');
+  // Extraire le premier bloc { ... } (l'objet config)
+  const start = s.indexOf('{');
+  const end   = s.lastIndexOf('}');
+  if (start !== -1 && end !== -1 && end > start) {
+    s = s.slice(start, end + 1);
+  }
+  // Citer les clés non quotées : apiKey: → "apiKey":
+  s = s.replace(/([{,]\s*)([a-zA-Z_$][\w$]*)\s*:/g, '$1"$2":');
+  return s.trim();
 }
 
 async function _updateFbUI(container) {

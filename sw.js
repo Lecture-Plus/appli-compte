@@ -1,7 +1,7 @@
 // Service Worker – Compta+
 // Stratégie : Network First pour l'app shell (auto-update), Cache pour CDN
 
-const CACHE_NAME = 'compta-plus-2d4d085a';
+const CACHE_NAME = 'compta-plus-806663ba';
 
 const APP_SHELL = [
   './index.html',
