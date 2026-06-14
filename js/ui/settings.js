@@ -114,13 +114,33 @@ function buildHTML(s, users, archived, N) {
 
         <div class="card" style="margin-bottom:10px;">
           <div class="card-header"><span class="card-title">Thème</span></div>
-          <div class="settings-row">
-            <span class="settings-row-label">Apparence de l'app</span>
-            <select class="form-select" id="s-theme" style="width:140px;">
-              <option value="auto"  ${s.theme === 'auto'  ? 'selected' : ''}>Automatique</option>
-              <option value="dark"  ${s.theme === 'dark'  ? 'selected' : ''}>Sombre</option>
-              <option value="light" ${s.theme === 'light' ? 'selected' : ''}>Clair</option>
-            </select>
+          <div style="padding:0 0 4px;">
+            <div class="theme-picker" id="theme-picker">
+              ${[
+                { id:'auto',     label:'Auto',        bg:'linear-gradient(135deg,#F2F2F8 50%,#13131D 50%)', ac:'#8B5CF6' },
+                { id:'light',    label:'Clair',        bg:'#F2F2F8',  ac:'#6D28D9' },
+                { id:'dark',     label:'Sombre',       bg:'#13131D',  ac:'#8B5CF6' },
+                { id:'nebula',   label:'Nebula',       bg:'#080B14',  ac:'#22D3EE' },
+                { id:'urban',    label:'Urban',        bg:'#F7F6F0',  ac:'#FF5722' },
+                { id:'organic',  label:'Organic',      bg:'#F2EEE6',  ac:'#3D7A5A' },
+                { id:'pulse',    label:'Pulse',        bg:'#080808',  ac:'#00E5A0' },
+                { id:'bento',    label:'Bento',        bg:'#EEF2F8',  ac:'#2563EB' },
+                { id:'crystal',  label:'Crystal',      bg:'linear-gradient(135deg,#C4D0EE,#D4C4EE)', ac:'#5B6AEA' },
+                { id:'clay',     label:'Clay',         bg:'#E8E2D9',  ac:'#C96A4A' },
+                { id:'motion',   label:'Motion',       bg:'#FAF7FF',  ac:'#D84FEA' },
+                { id:'midnight', label:'Midnight',     bg:'#0A0A0C',  ac:'#60A5FA' },
+                { id:'aurora',   label:'Aurora',       bg:'#0E0B18',  ac:'#8B5CF6' },
+                { id:'atlas',    label:'Atlas',        bg:'#F4EFE6',  ac:'#1B6B5A' },
+                { id:'horizon',  label:'Horizon',      bg:'#FFFFFF',  ac:'#0070F3' },
+              ].map(t => `
+                <button class="theme-card${s.theme === t.id ? ' active' : ''}" data-tid="${t.id}" type="button">
+                  <div class="theme-card-preview">
+                    <div class="tcp-bg" style="background:${t.bg};"></div>
+                    <div class="tcp-ac" style="background:${t.ac};"></div>
+                  </div>
+                  <span>${t.label}</span>
+                </button>`).join('')}
+            </div>
           </div>
         </div>
 
@@ -392,10 +412,14 @@ function bindEvents(container, s, users, archived, N) {
     });
   });
 
-  // ── Thème ──
-  container.querySelector('#s-theme')?.addEventListener('change', async (e) => {
-    await setSetting('theme', e.target.value);
-    applyTheme(e.target.value);
+  // ── Sélecteur de thème visuel ──
+  container.querySelector('#theme-picker')?.addEventListener('click', async e => {
+    const card = e.target.closest('.theme-card');
+    if (!card) return;
+    const tid = card.dataset.tid;
+    await setSetting('theme', tid);
+    applyTheme(tid);
+    container.querySelectorAll('.theme-card').forEach(c => c.classList.toggle('active', c.dataset.tid === tid));
   });
 
   // ── Notifications ──

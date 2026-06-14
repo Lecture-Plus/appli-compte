@@ -193,6 +193,278 @@
   --success-bg: #D1FAE5; --danger-bg: #FEE2E2; --warning-bg: #FEF3C7;
 }
 
+/* ─── 2b. Thèmes alternatifs ─── */
+
+/* ── Nebula : espace, galaxies, cyan sur fond nuit profonde ── */
+[data-theme="nebula"] {
+  --brand:#22D3EE; --brand-mid:#38BDF8; --brand-pale:rgba(34,211,238,.12); --brand-dim:rgba(34,211,238,.06);
+  --success:#34D399; --success-pale:rgba(52,211,153,.14); --success-dim:rgba(52,211,153,.08);
+  --danger:#F87171;  --danger-pale:rgba(248,113,113,.14); --danger-dim:rgba(248,113,113,.08);
+  --warning:#FBBF24; --warning-pale:rgba(251,191,36,.14);  --warning-dim:rgba(251,191,36,.08);
+  --bg:#080B14; --surface:#0E1626; --surface-2:#162033; --surface-3:#1E2B42;
+  --overlay:rgba(0,0,0,.82);
+  --border:rgba(34,211,238,.13); --border-mid:rgba(34,211,238,.24);
+  --text-1:#E2F4FF; --text-2:#82AECB; --text-3:#3D6887; --text-inv:#080B14;
+  --nav-bg:rgba(8,11,20,.97); --header-bg:rgba(8,11,20,.97);
+  --sh-xs:0 1px 2px rgba(0,0,0,.60);
+  --sh-sm:0 1px 4px rgba(0,0,0,.55),0 4px 14px rgba(0,0,0,.35);
+  --sh-md:0 4px 12px rgba(0,0,0,.65),0 12px 32px rgba(0,0,0,.45);
+  --sh-lg:0 8px 24px rgba(0,0,0,.72),0 24px 64px rgba(0,0,0,.52);
+  --sh-focus:0 0 0 3px rgba(34,211,238,.28);
+  --primary-dark:#0EA5E9; --primary-glow:rgba(34,211,238,.28);
+  --primary-bg:var(--brand-pale); --bg-card:var(--surface); --bg-2:var(--surface-2); --bg-input:var(--surface-2);
+  --bg-nav:var(--nav-bg); --bg-header:var(--header-bg); --text:var(--text-1);
+  --success-bg:var(--success-pale); --danger-bg:var(--danger-pale); --warning-bg:var(--warning-pale);
+}
+
+/* ── Urban Canvas : street art premium, orange vif, graphique ── */
+[data-theme="urban"] {
+  --brand:#FF5722; --brand-mid:#FF7043; --brand-pale:rgba(255,87,34,.10); --brand-dim:rgba(255,87,34,.06);
+  --success:#00BFA5; --success-pale:rgba(0,191,165,.13); --success-dim:rgba(0,191,165,.07);
+  --danger:#F44336;  --danger-pale:rgba(244,67,54,.12);   --danger-dim:rgba(244,67,54,.07);
+  --warning:#FFC107; --warning-pale:rgba(255,193,7,.15);   --warning-dim:rgba(255,193,7,.08);
+  --bg:#F7F6F0; --surface:#FFFFFF; --surface-2:#EFEDE6; --surface-3:#E4E1D8;
+  --overlay:rgba(10,10,8,.62);
+  --border:rgba(0,0,0,.09); --border-mid:rgba(0,0,0,.16);
+  --text-1:#1A1A14; --text-2:#4A4A42; --text-3:#8C8C80; --text-inv:#FFFFFF;
+  --nav-bg:rgba(247,246,240,.97); --header-bg:rgba(247,246,240,.97);
+  --sh-sm:0 2px 4px rgba(0,0,0,.08),0 6px 16px rgba(0,0,0,.05);
+  --sh-md:0 4px 10px rgba(0,0,0,.10),0 14px 32px rgba(0,0,0,.07);
+  --sh-lg:0 8px 22px rgba(0,0,0,.12),0 28px 56px rgba(0,0,0,.08);
+  --sh-focus:0 0 0 3px rgba(255,87,34,.22);
+  --primary-dark:#E64A19; --primary-glow:rgba(255,87,34,.22);
+  --primary-bg:var(--brand-pale); --bg-card:var(--surface); --bg-2:var(--surface-2); --bg-input:var(--surface-2);
+  --bg-nav:var(--nav-bg); --bg-header:var(--header-bg); --text:var(--text-1);
+  --success-bg:var(--success-pale); --danger-bg:var(--danger-pale); --warning-bg:var(--warning-pale);
+}
+
+/* ── Organic Flow : nature, formes douces, beige chaud, grands arrondis ── */
+[data-theme="organic"] {
+  --brand:#3D7A5A; --brand-mid:#52986F; --brand-pale:rgba(61,122,90,.12); --brand-dim:rgba(61,122,90,.07);
+  --success:#388E3C; --success-pale:rgba(56,142,60,.14); --success-dim:rgba(56,142,60,.08);
+  --danger:#C0392B;  --danger-pale:rgba(192,57,43,.12);  --danger-dim:rgba(192,57,43,.07);
+  --warning:#C0872A; --warning-pale:rgba(192,135,42,.14); --warning-dim:rgba(192,135,42,.08);
+  --bg:#F2EEE6; --surface:#FDFCF7; --surface-2:#E8E1D4; --surface-3:#DDD5C4;
+  --overlay:rgba(30,22,14,.58);
+  --border:rgba(60,46,30,.09); --border-mid:rgba(60,46,30,.16);
+  --text-1:#28211A; --text-2:#6B5A46; --text-3:#A48E78; --text-inv:#FDFCF7;
+  --nav-bg:rgba(242,238,230,.97); --header-bg:rgba(242,238,230,.97);
+  --sh-sm:0 1px 4px rgba(60,46,30,.10),0 4px 14px rgba(60,46,30,.07);
+  --sh-md:0 2px 8px rgba(60,46,30,.12),0 10px 28px rgba(60,46,30,.08);
+  --sh-lg:0 6px 18px rgba(60,46,30,.14),0 22px 52px rgba(60,46,30,.10);
+  --sh-focus:0 0 0 3px rgba(61,122,90,.22);
+  --r-xs:8px; --r-sm:16px; --r-md:22px; --r-lg:30px; --r-xl:40px;
+  --radius-sm:16px; --radius:22px; --radius-lg:30px; --radius-xl:40px;
+  --primary-dark:#2E5E43; --primary-glow:rgba(61,122,90,.22);
+  --primary-bg:var(--brand-pale); --bg-card:var(--surface); --bg-2:var(--surface-2); --bg-input:var(--surface-2);
+  --bg-nav:var(--nav-bg); --bg-header:var(--header-bg); --text:var(--text-1);
+  --success-bg:var(--success-pale); --danger-bg:var(--danger-pale); --warning-bg:var(--warning-pale);
+}
+
+/* ── Pulse : néon, ultra-sombre, tech, radii serrés ── */
+[data-theme="pulse"] {
+  --brand:#00E5A0; --brand-mid:#00F0B0; --brand-pale:rgba(0,229,160,.10); --brand-dim:rgba(0,229,160,.06);
+  --success:#00E5A0; --success-pale:rgba(0,229,160,.12); --success-dim:rgba(0,229,160,.07);
+  --danger:#FF4B6E;  --danger-pale:rgba(255,75,110,.14);  --danger-dim:rgba(255,75,110,.08);
+  --warning:#FFD600; --warning-pale:rgba(255,214,0,.14);   --warning-dim:rgba(255,214,0,.08);
+  --bg:#080808; --surface:#101010; --surface-2:#171717; --surface-3:#202020;
+  --overlay:rgba(0,0,0,.88);
+  --border:rgba(0,229,160,.14); --border-mid:rgba(0,229,160,.26);
+  --text-1:#EFEFEF; --text-2:#808080; --text-3:#424242; --text-inv:#080808;
+  --nav-bg:rgba(8,8,8,.98); --header-bg:rgba(8,8,8,.98);
+  --sh-xs:0 1px 2px rgba(0,0,0,.70);
+  --sh-sm:0 1px 4px rgba(0,0,0,.72),0 0 14px rgba(0,229,160,.06);
+  --sh-md:0 4px 12px rgba(0,0,0,.82),0 0 24px rgba(0,229,160,.08);
+  --sh-lg:0 8px 24px rgba(0,0,0,.90),0 0 40px rgba(0,229,160,.06);
+  --sh-focus:0 0 0 3px rgba(0,229,160,.32);
+  --r-xs:4px; --r-sm:6px; --r-md:8px; --r-lg:12px; --r-xl:16px;
+  --radius-sm:6px; --radius:8px; --radius-lg:12px; --radius-xl:16px;
+  --primary-dark:#00C88A; --primary-glow:rgba(0,229,160,.32);
+  --primary-bg:var(--brand-pale); --bg-card:var(--surface); --bg-2:var(--surface-2); --bg-input:var(--surface-2);
+  --bg-nav:var(--nav-bg); --bg-header:var(--header-bg); --text:var(--text-1);
+  --success-bg:var(--success-pale); --danger-bg:var(--danger-pale); --warning-bg:var(--warning-pale);
+}
+
+/* ── Bento : bleu acier, organisation modulaire, bordures marquées ── */
+[data-theme="bento"] {
+  --brand:#2563EB; --brand-mid:#3B7AF8; --brand-pale:rgba(37,99,235,.10); --brand-dim:rgba(37,99,235,.06);
+  --success:#059669; --success-pale:#D1FAE5; --success-dim:rgba(5,150,105,.10);
+  --danger:#DC2626;  --danger-pale:#FEE2E2;  --danger-dim:rgba(220,38,38,.10);
+  --warning:#D97706; --warning-pale:#FEF3C7;  --warning-dim:rgba(217,119,6,.10);
+  --bg:#EEF2F8; --surface:#FFFFFF; --surface-2:#E2E8F4; --surface-3:#D4DCF0;
+  --overlay:rgba(0,0,0,.56);
+  --border:rgba(0,0,0,.10); --border-mid:rgba(0,0,0,.18);
+  --text-1:#0D1424; --text-2:#344066; --text-3:#7888AA; --text-inv:#FFFFFF;
+  --nav-bg:rgba(238,242,248,.97); --header-bg:rgba(238,242,248,.97);
+  --sh-sm:0 1px 3px rgba(0,0,0,.08),0 4px 12px rgba(0,0,0,.05);
+  --sh-md:0 2px 8px rgba(0,0,0,.09),0 10px 28px rgba(0,0,0,.06);
+  --sh-lg:0 6px 18px rgba(0,0,0,.11),0 22px 50px rgba(0,0,0,.07);
+  --sh-focus:0 0 0 3px rgba(37,99,235,.20);
+  --primary-dark:#1D4ED8; --primary-glow:rgba(37,99,235,.20);
+  --primary-bg:var(--brand-pale); --bg-card:var(--surface); --bg-2:var(--surface-2); --bg-input:var(--surface-2);
+  --bg-nav:var(--nav-bg); --bg-header:var(--header-bg); --text:var(--text-1);
+  --success-bg:var(--success-pale); --danger-bg:var(--danger-pale); --warning-bg:var(--warning-pale);
+}
+
+/* ── Crystal : glassmorphisme, transparences, dégradé bleu-lavande ── */
+[data-theme="crystal"] {
+  --brand:#5B6AEA; --brand-mid:#7480F0; --brand-pale:rgba(91,106,234,.13); --brand-dim:rgba(91,106,234,.07);
+  --success:#10B981; --success-pale:rgba(16,185,129,.15); --success-dim:rgba(16,185,129,.08);
+  --danger:#EF4444;  --danger-pale:rgba(239,68,68,.14);   --danger-dim:rgba(239,68,68,.08);
+  --warning:#F59E0B; --warning-pale:rgba(245,158,11,.14);  --warning-dim:rgba(245,158,11,.08);
+  --bg:#C4D0EE; --surface:rgba(255,255,255,.64); --surface-2:rgba(255,255,255,.46); --surface-3:rgba(255,255,255,.34);
+  --overlay:rgba(20,24,60,.50);
+  --border:rgba(255,255,255,.48); --border-mid:rgba(255,255,255,.66);
+  --text-1:#1A1D3A; --text-2:#3F4480; --text-3:#8088C0; --text-inv:#FFFFFF;
+  --nav-bg:rgba(196,208,238,.92); --header-bg:rgba(196,208,238,.92);
+  --sh-sm:0 2px 8px rgba(80,90,160,.14),0 4px 16px rgba(80,90,160,.09);
+  --sh-md:0 4px 16px rgba(80,90,160,.18),0 12px 36px rgba(80,90,160,.12);
+  --sh-lg:0 8px 28px rgba(80,90,160,.22),0 24px 60px rgba(80,90,160,.14);
+  --sh-focus:0 0 0 3px rgba(91,106,234,.30);
+  --primary-dark:#4550C8; --primary-glow:rgba(91,106,234,.30);
+  --primary-bg:var(--brand-pale); --bg-card:var(--surface); --bg-2:var(--surface-2); --bg-input:var(--surface-2);
+  --bg-nav:var(--nav-bg); --bg-header:var(--header-bg); --text:var(--text-1);
+  --success-bg:var(--success-pale); --danger-bg:var(--danger-pale); --warning-bg:var(--warning-pale);
+}
+
+/* ── Clay : terre, ombres douces néomorphiques, arrondis généreux ── */
+[data-theme="clay"] {
+  --brand:#C96A4A; --brand-mid:#E07C5A; --brand-pale:rgba(201,106,74,.12); --brand-dim:rgba(201,106,74,.07);
+  --success:#5A8A50; --success-pale:rgba(90,138,80,.14); --success-dim:rgba(90,138,80,.08);
+  --danger:#B84040;  --danger-pale:rgba(184,64,64,.12);  --danger-dim:rgba(184,64,64,.07);
+  --warning:#B58020; --warning-pale:rgba(181,128,32,.14); --warning-dim:rgba(181,128,32,.08);
+  --bg:#E8E2D9; --surface:#F0EBE2; --surface-2:#E2DBCF; --surface-3:#D6CDBE;
+  --overlay:rgba(40,30,22,.58);
+  --border:rgba(60,44,28,.08); --border-mid:rgba(60,44,28,.14);
+  --text-1:#2E2418; --text-2:#7A6050; --text-3:#B09880; --text-inv:#F0EBE2;
+  --nav-bg:rgba(232,226,217,.97); --header-bg:rgba(232,226,217,.97);
+  --sh-xs:3px 3px 6px rgba(155,130,104,.40),-2px -2px 4px rgba(255,248,238,.80);
+  --sh-sm:4px 4px 8px rgba(155,130,104,.38),-2px -2px 6px rgba(255,248,238,.78);
+  --sh-md:6px 6px 14px rgba(155,130,104,.44),-3px -3px 8px rgba(255,248,238,.82);
+  --sh-lg:8px 8px 20px rgba(155,130,104,.48),-4px -4px 12px rgba(255,248,238,.86);
+  --sh-focus:0 0 0 3px rgba(201,106,74,.28);
+  --r-xs:8px; --r-sm:14px; --r-md:20px; --r-lg:28px; --r-xl:36px;
+  --radius-sm:14px; --radius:20px; --radius-lg:28px; --radius-xl:36px;
+  --primary-dark:#A85430; --primary-glow:rgba(201,106,74,.28);
+  --primary-bg:var(--brand-pale); --bg-card:var(--surface); --bg-2:var(--surface-2); --bg-input:var(--surface-2);
+  --bg-nav:var(--nav-bg); --bg-header:var(--header-bg); --text:var(--text-1);
+  --success-bg:var(--success-pale); --danger-bg:var(--danger-pale); --warning-bg:var(--warning-pale);
+}
+
+/* ── Motion : vibrant violet-rose, animations accélérées ── */
+[data-theme="motion"] {
+  --brand:#D84FEA; --brand-mid:#E568F5; --brand-pale:rgba(216,79,234,.12); --brand-dim:rgba(216,79,234,.07);
+  --success:#06D698; --success-pale:rgba(6,214,152,.14); --success-dim:rgba(6,214,152,.08);
+  --danger:#FF3B6F;  --danger-pale:rgba(255,59,111,.12);  --danger-dim:rgba(255,59,111,.07);
+  --warning:#FFB020; --warning-pale:rgba(255,176,32,.14);  --warning-dim:rgba(255,176,32,.08);
+  --bg:#FAF7FF; --surface:#FFFFFF; --surface-2:#F2ECFF; --surface-3:#E8DFFF;
+  --overlay:rgba(30,14,50,.60);
+  --border:rgba(100,60,160,.08); --border-mid:rgba(100,60,160,.15);
+  --text-1:#1A0A2E; --text-2:#5A4070; --text-3:#9880B8; --text-inv:#FFFFFF;
+  --nav-bg:rgba(250,247,255,.97); --header-bg:rgba(250,247,255,.97);
+  --sh-sm:0 2px 6px rgba(100,60,160,.12),0 6px 18px rgba(100,60,160,.08);
+  --sh-md:0 4px 12px rgba(100,60,160,.15),0 14px 36px rgba(100,60,160,.10);
+  --sh-lg:0 8px 24px rgba(100,60,160,.18),0 24px 56px rgba(100,60,160,.12);
+  --sh-focus:0 0 0 3px rgba(216,79,234,.28);
+  --dur-f:70ms; --dur-b:120ms; --dur-s:220ms;
+  --ease:cubic-bezier(.22,.61,.36,1); --ease-spring:cubic-bezier(.28,1.6,.58,1);
+  --primary-dark:#B830D4; --primary-glow:rgba(216,79,234,.28);
+  --primary-bg:var(--brand-pale); --bg-card:var(--surface); --bg-2:var(--surface-2); --bg-input:var(--surface-2);
+  --bg-nav:var(--nav-bg); --bg-header:var(--header-bg); --text:var(--text-1);
+  --success-bg:var(--success-pale); --danger-bg:var(--danger-pale); --warning-bg:var(--warning-pale);
+}
+
+/* ── Midnight Pro : SaaS premium, Linear/Vercel, noir absolu ── */
+[data-theme="midnight"] {
+  --brand:#60A5FA; --brand-mid:#7AB8FF; --brand-pale:rgba(96,165,250,.10); --brand-dim:rgba(96,165,250,.06);
+  --success:#34D399; --success-pale:rgba(52,211,153,.12); --success-dim:rgba(52,211,153,.07);
+  --danger:#FC8181;  --danger-pale:rgba(252,129,129,.12);  --danger-dim:rgba(252,129,129,.07);
+  --warning:#FBBF24; --warning-pale:rgba(251,191,36,.12);   --warning-dim:rgba(251,191,36,.07);
+  --bg:#0A0A0C; --surface:#111113; --surface-2:#18181B; --surface-3:#202025;
+  --overlay:rgba(0,0,0,.90);
+  --border:rgba(255,255,255,.06); --border-mid:rgba(255,255,255,.10);
+  --text-1:#F8FAFC; --text-2:#94A3B8; --text-3:#475569; --text-inv:#0A0A0C;
+  --nav-bg:rgba(10,10,12,.98); --header-bg:rgba(10,10,12,.98);
+  --sh-xs:0 1px 2px rgba(0,0,0,.55);
+  --sh-sm:0 1px 4px rgba(0,0,0,.65),0 4px 14px rgba(0,0,0,.45);
+  --sh-md:0 4px 12px rgba(0,0,0,.75),0 12px 32px rgba(0,0,0,.55);
+  --sh-lg:0 8px 24px rgba(0,0,0,.82),0 24px 64px rgba(0,0,0,.62);
+  --sh-focus:0 0 0 3px rgba(96,165,250,.22);
+  --r-xs:4px; --r-sm:6px; --r-md:8px; --r-lg:12px; --r-xl:16px;
+  --radius-sm:6px; --radius:8px; --radius-lg:12px; --radius-xl:16px;
+  --primary-dark:#3B82F6; --primary-glow:rgba(96,165,250,.22);
+  --primary-bg:var(--brand-pale); --bg-card:var(--surface); --bg-2:var(--surface-2); --bg-input:var(--surface-2);
+  --bg-nav:var(--nav-bg); --bg-header:var(--header-bg); --text:var(--text-1);
+  --success-bg:var(--success-pale); --danger-bg:var(--danger-pale); --warning-bg:var(--warning-pale);
+}
+
+/* ── Aurora : lumières polaires, violet-violet profond ── */
+[data-theme="aurora"] {
+  --brand:#8B5CF6; --brand-mid:#A78BFA; --brand-pale:rgba(139,92,246,.16); --brand-dim:rgba(139,92,246,.08);
+  --success:#34D399; --success-pale:rgba(52,211,153,.14); --success-dim:rgba(52,211,153,.08);
+  --danger:#F87171;  --danger-pale:rgba(248,113,113,.14);  --danger-dim:rgba(248,113,113,.08);
+  --warning:#FBBF24; --warning-pale:rgba(251,191,36,.14);   --warning-dim:rgba(251,191,36,.08);
+  --bg:#0E0B18; --surface:#16122A; --surface-2:#1C1834; --surface-3:#231E40;
+  --overlay:rgba(0,0,0,.82);
+  --border:rgba(139,92,246,.18); --border-mid:rgba(139,92,246,.30);
+  --text-1:#EDE8FF; --text-2:#9888CC; --text-3:#504475; --text-inv:#0E0B18;
+  --nav-bg:rgba(14,11,24,.97); --header-bg:rgba(14,11,24,.97);
+  --sh-xs:0 1px 2px rgba(0,0,0,.55);
+  --sh-sm:0 1px 4px rgba(0,0,0,.58),0 4px 14px rgba(80,50,160,.22);
+  --sh-md:0 4px 12px rgba(0,0,0,.65),0 12px 32px rgba(80,50,160,.28);
+  --sh-lg:0 8px 24px rgba(0,0,0,.74),0 24px 64px rgba(80,50,160,.32);
+  --sh-focus:0 0 0 3px rgba(139,92,246,.34);
+  --primary-dark:#7C3AED; --primary-glow:rgba(139,92,246,.34);
+  --primary-bg:var(--brand-pale); --bg-card:var(--surface); --bg-2:var(--surface-2); --bg-input:var(--surface-2);
+  --bg-nav:var(--nav-bg); --bg-header:var(--header-bg); --text:var(--text-1);
+  --success-bg:var(--success-pale); --danger-bg:var(--danger-pale); --warning-bg:var(--warning-pale);
+}
+
+/* ── Atlas : cartographie, parchemin, vert forêt ── */
+[data-theme="atlas"] {
+  --brand:#1B6B5A; --brand-mid:#248872; --brand-pale:rgba(27,107,90,.12); --brand-dim:rgba(27,107,90,.07);
+  --success:#1B6B5A; --success-pale:rgba(27,107,90,.14); --success-dim:rgba(27,107,90,.08);
+  --danger:#B04040;  --danger-pale:rgba(176,64,64,.12);   --danger-dim:rgba(176,64,64,.07);
+  --warning:#9C6820; --warning-pale:rgba(156,104,32,.14);  --warning-dim:rgba(156,104,32,.08);
+  --bg:#F4EFE6; --surface:#FDFAF3; --surface-2:#EDE5D4; --surface-3:#E2D8C3;
+  --overlay:rgba(30,22,12,.60);
+  --border:rgba(80,60,36,.10); --border-mid:rgba(80,60,36,.18);
+  --text-1:#2A1E10; --text-2:#6A5038; --text-3:#A08060; --text-inv:#FDFAF3;
+  --nav-bg:rgba(244,239,230,.97); --header-bg:rgba(244,239,230,.97);
+  --sh-sm:0 1px 4px rgba(80,60,36,.10),0 4px 14px rgba(80,60,36,.07);
+  --sh-md:0 2px 8px rgba(80,60,36,.12),0 10px 28px rgba(80,60,36,.08);
+  --sh-lg:0 6px 18px rgba(80,60,36,.14),0 22px 52px rgba(80,60,36,.10);
+  --sh-focus:0 0 0 3px rgba(27,107,90,.24);
+  --primary-dark:#145244; --primary-glow:rgba(27,107,90,.24);
+  --primary-bg:var(--brand-pale); --bg-card:var(--surface); --bg-2:var(--surface-2); --bg-input:var(--surface-2);
+  --bg-nav:var(--nav-bg); --bg-header:var(--header-bg); --text:var(--text-1);
+  --success-bg:var(--success-pale); --danger-bg:var(--danger-pale); --warning-bg:var(--warning-pale);
+}
+
+/* ── Horizon : minimalisme maximal, blanc pur, blue Vercel ── */
+[data-theme="horizon"] {
+  --brand:#0070F3; --brand-mid:#2080FF; --brand-pale:rgba(0,112,243,.08); --brand-dim:rgba(0,112,243,.05);
+  --success:#0E9F6E; --success-pale:#DEF7EC; --success-dim:rgba(14,159,110,.10);
+  --danger:#E02424;  --danger-pale:#FDE8E8; --danger-dim:rgba(224,36,36,.10);
+  --warning:#C27803; --warning-pale:#FDF6B2; --warning-dim:rgba(194,120,3,.10);
+  --bg:#FFFFFF; --surface:#FFFFFF; --surface-2:#F9FAFB; --surface-3:#F3F4F6;
+  --overlay:rgba(0,0,0,.50);
+  --border:rgba(0,0,0,.06); --border-mid:rgba(0,0,0,.10);
+  --text-1:#111111; --text-2:#404040; --text-3:#888888; --text-inv:#FFFFFF;
+  --nav-bg:rgba(255,255,255,.98); --header-bg:rgba(255,255,255,.98);
+  --sh-xs:0 1px 2px rgba(0,0,0,.04);
+  --sh-sm:0 1px 4px rgba(0,0,0,.05),0 4px 14px rgba(0,0,0,.04);
+  --sh-md:0 2px 8px rgba(0,0,0,.06),0 10px 28px rgba(0,0,0,.04);
+  --sh-lg:0 6px 20px rgba(0,0,0,.08),0 24px 64px rgba(0,0,0,.05);
+  --sh-focus:0 0 0 3px rgba(0,112,243,.18);
+  --r-xs:3px; --r-sm:6px; --r-md:8px; --r-lg:12px; --r-xl:16px;
+  --radius-sm:6px; --radius:8px; --radius-lg:12px; --radius-xl:16px;
+  --primary-dark:#0058D6; --primary-glow:rgba(0,112,243,.18);
+  --primary-bg:var(--brand-pale); --bg-card:var(--surface); --bg-2:var(--surface-2); --bg-input:var(--surface-2);
+  --bg-nav:var(--nav-bg); --bg-header:var(--header-bg); --text:var(--text-1);
+  --success-bg:var(--success-pale); --danger-bg:var(--danger-pale); --warning-bg:var(--warning-pale);
+}
+
 /* ─── 3. Reset ─── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 html { height: 100%; font-size: 16px; -webkit-text-size-adjust: 100%; }
@@ -987,4 +1259,158 @@ details.acc-card[open] > summary.acc-summary { margin-bottom: 12px; padding-bott
   #app-content { overflow: visible !important; }
   .hero-card, .hero-v2 { box-shadow: none !important; }
 }
+
+/* ─── 47. Effets visuels par thème ─── */
+
+/* Nebula – halos de profondeur */
+[data-theme="nebula"] body {
+  background:
+    radial-gradient(ellipse 70% 50% at 15% 80%, rgba(34,211,238,.04) 0%, transparent 60%),
+    radial-gradient(ellipse 70% 50% at 85% 20%, rgba(96,50,200,.04) 0%, transparent 60%),
+    #080B14;
+}
+[data-theme="nebula"] .hero-v2 {
+  background: linear-gradient(135deg,#0E1626 0%,#1A2540 100%);
+  border: 1px solid rgba(34,211,238,.16);
+  box-shadow: 0 0 32px rgba(34,211,238,.06);
+}
+[data-theme="nebula"] .nav-item.active::before { box-shadow: 0 0 8px rgba(34,211,238,.60); }
+
+/* Urban Canvas – header accent line */
+[data-theme="urban"] #app-header { border-bottom: 2px solid var(--brand); }
+[data-theme="urban"] .nav-item.active::before { border-radius: 0; width: 100%; height: 2px; }
+
+/* Organic Flow – transitions douces */
+[data-theme="organic"] .card,
+[data-theme="organic"] .btn,
+[data-theme="organic"] .action-chip {
+  transition: transform var(--dur-s) var(--ease), box-shadow var(--dur-s) var(--ease), background var(--dur-s) var(--ease);
+}
+
+/* Pulse – lueur néon sur les éléments actifs */
+[data-theme="pulse"] .btn-primary {
+  box-shadow: 0 0 12px rgba(0,229,160,.30), 0 2px 8px rgba(0,0,0,.60);
+}
+[data-theme="pulse"] .nav-item.active { color: var(--brand); text-shadow: 0 0 10px rgba(0,229,160,.60); }
+[data-theme="pulse"] .nav-item.active::before { box-shadow: 0 0 8px rgba(0,229,160,.70); }
+[data-theme="pulse"] .hero-v2 {
+  background: #101010;
+  border: 1px solid rgba(0,229,160,.18);
+  box-shadow: 0 0 28px rgba(0,229,160,.07);
+}
+
+/* Bento – séparateurs nets, hiérarchie forte */
+[data-theme="bento"] .settings-group { border: 1.5px solid var(--border-mid); }
+[data-theme="bento"] .card          { border: 1.5px solid var(--border-mid); }
+
+/* Crystal – glassmorphisme complet */
+[data-theme="crystal"] body {
+  background: linear-gradient(135deg,#B8CCEE 0%,#CCC0E8 50%,#B8CCEC 100%) fixed;
+}
+[data-theme="crystal"] .card,
+[data-theme="crystal"] .settings-group,
+[data-theme="crystal"] .hub-bilan,
+[data-theme="crystal"] .hero-v2 {
+  backdrop-filter: blur(18px) saturate(1.5);
+  -webkit-backdrop-filter: blur(18px) saturate(1.5);
+  background: rgba(255,255,255,.56);
+  border: 1px solid rgba(255,255,255,.50);
+}
+[data-theme="crystal"] #app-header,
+[data-theme="crystal"] #bottom-nav {
+  backdrop-filter: blur(20px) saturate(1.6);
+  -webkit-backdrop-filter: blur(20px) saturate(1.6);
+}
+
+/* Clay – boutons et cartes en relief néomorphique */
+[data-theme="clay"] .btn-primary {
+  box-shadow: 4px 4px 8px rgba(155,130,104,.38), -2px -2px 6px rgba(255,248,238,.78);
+}
+[data-theme="clay"] .btn-primary:active,
+[data-theme="clay"] .btn:active {
+  box-shadow: 1px 1px 3px rgba(155,130,104,.38), -1px -1px 2px rgba(255,248,238,.78);
+  transform: scale(0.98);
+}
+[data-theme="clay"] .form-input,
+[data-theme="clay"] .form-select {
+  box-shadow: inset 2px 2px 5px rgba(155,130,104,.30), inset -1px -1px 3px rgba(255,248,238,.80);
+  background: #E8E2D9;
+  border: none;
+}
+
+/* Motion – micro-interactions avancées */
+[data-theme="motion"] .btn:hover { transform: translateY(-2px); }
+[data-theme="motion"] .btn:active { transform: scale(0.96); }
+[data-theme="motion"] .card { transition: transform var(--dur-b) var(--ease), box-shadow var(--dur-b) var(--ease); }
+[data-theme="motion"] .action-chip:hover { transform: scale(1.06); }
+[data-theme="motion"] .action-chip:active { transform: scale(0.94); }
+[data-theme="motion"] .nav-item { transition: color var(--dur-f) var(--ease), transform var(--dur-b) var(--ease-spring); }
+[data-theme="motion"] .nav-item:active { transform: scale(0.88); }
+[data-theme="motion"] .nav-item.active svg { transform: scale(1.14) translateY(-2px); }
+
+/* Midnight Pro – barre header ultra fine, bordures subtiles */
+[data-theme="midnight"] #app-header { border-bottom-color: rgba(255,255,255,.06); }
+[data-theme="midnight"] #bottom-nav  { border-top-color: rgba(255,255,255,.06); }
+[data-theme="midnight"] .card { border: 1px solid rgba(255,255,255,.06); }
+[data-theme="midnight"] .hero-v2 { border: 1px solid rgba(255,255,255,.08); }
+
+/* Aurora – reflets de lumière polaire */
+[data-theme="aurora"] body {
+  background:
+    radial-gradient(ellipse 90% 40% at 5% 95%, rgba(52,211,153,.06) 0%, transparent 55%),
+    radial-gradient(ellipse 90% 40% at 95% 5%,  rgba(251,113,133,.05) 0%, transparent 55%),
+    #0E0B18;
+}
+[data-theme="aurora"] .hero-v2 {
+  background: linear-gradient(135deg,#16122A 0%,#231844 100%);
+  border: 1px solid rgba(139,92,246,.24);
+}
+[data-theme="aurora"] .nav-item.active::before { box-shadow: 0 0 8px rgba(139,92,246,.70); }
+
+/* Atlas – lignes topographiques en diagonale */
+[data-theme="atlas"] body {
+  background-image:
+    repeating-linear-gradient(-45deg, transparent 0px, transparent 36px, rgba(80,60,36,.03) 36px, rgba(80,60,36,.03) 37px),
+    repeating-linear-gradient( 45deg, transparent 0px, transparent 36px, rgba(80,60,36,.025) 36px, rgba(80,60,36,.025) 37px);
+  background-color: #F4EFE6;
+}
+[data-theme="atlas"] .card { border: 1px solid rgba(80,60,36,.12); }
+
+/* Horizon – hiérarchie très nette, ombres minimales */
+[data-theme="horizon"] .card { border: 1px solid rgba(0,0,0,.07); box-shadow: none; }
+[data-theme="horizon"] .card:hover { box-shadow: var(--sh-sm); }
+[data-theme="horizon"] #app-header { border-bottom: 1px solid rgba(0,0,0,.08); }
+
+/* ─── 48. Sélecteur de thème visuel ─── */
+.theme-picker {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  padding: 4px 0;
+}
+.theme-card {
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  padding: 8px 4px 9px;
+  border-radius: var(--r-sm);
+  border: 2px solid transparent;
+  background: var(--surface-2);
+  cursor: pointer;
+  transition: border-color var(--dur-b) var(--ease), background var(--dur-b) var(--ease), transform var(--dur-f);
+  font-size: 0.67rem; font-weight: 600; color: var(--text-2);
+  line-height: 1.2; text-align: center;
+}
+.theme-card:active { transform: scale(.95); }
+.theme-card.active {
+  border-color: var(--brand);
+  background: var(--brand-pale);
+  color: var(--brand);
+}
+.theme-card-preview {
+  width: 100%; height: 26px;
+  border-radius: calc(var(--r-sm) - 3px);
+  display: flex; overflow: hidden;
+  border: 1px solid rgba(0,0,0,.06);
+}
+.tcp-bg    { flex: 3; }
+.tcp-ac    { flex: 1; }
 
