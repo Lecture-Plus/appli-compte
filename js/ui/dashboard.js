@@ -131,7 +131,7 @@ async function _renderContent(container, s, users) {
 async function _renderResume(container, s, users) {
   const { year, month } = State;
 
-  const customBudgets = s.customBudgets || [];
+  const customBudgets = (s.customBudgets || []).filter(b => !b.yearMonth || b.yearMonth === `${year}-${month}`);
   const pinnedBudgets = s.pinnedBudgets || [];
 
   const [md, charges, achats, repCfg, savInfo, allSavOps, allBudgetOps, allAchats] = await Promise.all([
@@ -1025,7 +1025,7 @@ async function _renderPrevisionnel(container, s, users) {
       const budgCourses = totalCourses > 0 ? totalCourses : (Number(cibles.courses) || 0);
       const budgExtras  = totalExtras  > 0 ? totalExtras  : (Number(cibles.extras)  || 0);
       const budgImpr    = Number(cibles.imprevus) || 0;
-      const customBudgets = s.customBudgets || [];
+      const customBudgets = (s.customBudgets || []).filter(b => !b.yearMonth || b.yearMonth === `${year}-${month}`);
       const spentCustom = id => budgetOps.filter(o => o.category === id).reduce((sum, o) => sum + (Number(o.amount)||0), 0);
       const customCards = customBudgets.length > 0
         ? customBudgets.map(b => {

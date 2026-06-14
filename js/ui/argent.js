@@ -236,7 +236,7 @@ async function renderHub(container) {
   const txEp       = kpi?.txEpargne?.total;
 
   // ── Budgets variables — uniquement les customBudgets gérés par le spoke Budgets ──
-  const customBudgets = s?.customBudgets || [];
+  const customBudgets = (s?.customBudgets || []).filter(b => !b.yearMonth || b.yearMonth === `${year}-${month}`);
   const hubBudgets = [];
   for (const b of customBudgets) {
     const sp = budgetOps.filter(o => o.category === b.id).reduce((a, o) => a + (Number(o.amount)||0), 0);
