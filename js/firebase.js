@@ -43,9 +43,10 @@ export async function initFirebase() {
   const existing = getApps().find(a => a.name === FB_APP_NAME);
   _app = existing ?? initializeApp(cfg, FB_APP_NAME);
 
-  const { getAuth }      = await _sdkAuth();
+  const { getAuth, browserLocalPersistence, setPersistence } = await _sdkAuth();
   const { getFirestore } = await _sdkFirestore();
   _auth = getAuth(_app);
+  await setPersistence(_auth, browserLocalPersistence);
   _db   = getFirestore(_app);
 
   return true;
