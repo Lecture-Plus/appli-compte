@@ -11,12 +11,12 @@ import { getMonthlyData, getChargesForMonth,
          deleteSavingsOperation, getAllSavingsConfirmed,
          getAllCharges, getAllBudgetOps,
          getBudgetOpsForMonth, saveBudgetOp,
-         getActiveUsers, setSetting }                                  from '../db.js';
+         getActiveUsers, setSetting, saveMonthlyData }                from '../db.js';
 import { calcMonth, calcPrevisionnel, calcBudgetScore } from '../calculs.js';
 import { eur, pct, nomMois, addMonth, signClass,
          txEparClass, completenessStatus, MOIS,
          progressColor, escHtml, showToast, showToastWithUndo,
-         openModal, closeModal }                          from '../utils.js';
+         openModal, closeModal, uid }                     from '../utils.js';
 import { showCraquageModal }                              from './saisie.js';
 import { showEditBudgetModal, showAchatModal }             from './charges.js';
 import { on }                                             from '../events.js';
@@ -380,6 +380,7 @@ async function _renderResume(container, s, users) {
         : ''}
       <button class="action-chip" id="btn-add-achat">💳 Dépense</button>
       <button class="action-chip" id="btn-go-craquage">💸 Craquage</button>
+      <button class="action-chip" id="btn-go-imprevu">🚨 Inattendue</button>
     </div>
 
     <!-- ── Suivi budgets épinglés ── -->
@@ -539,6 +540,53 @@ async function _renderResume(container, s, users) {
   el.querySelector('#btn-go-analyse-detail')?.addEventListener('click', () => navigateTo('stats'));
   el.querySelector('#btn-go-craquage')?.addEventListener('click', () => {
     showCraquageModal(null, month, year, users, async () => {
+      await _renderResume(container, s, users);
+    });
+  });
+
+  el.querySelector('#btn-go-imprevu')?.addEventListener('click', async () => {
+    const quiOpts = users.map(u => `<option value="${u.id}">${escHtml(u.name)}</option>`).join('');
+    const now = new Date();
+    openModal('🚨 Dépense inattendue', `
+      <div class="form-group">
+        <label class="form-label">Description</label>
+        <input type="text" class="form-input" id="impr-label" placeholder="Ex : Plombier, Médicaments…" autofocus>
+      </div>
+      <div class="form-grid-2">
+        <div class="form-group">
+          <label class="form-label">Montant</label>
+          <div class="input-wrap">
+            <input type="number" class="form-input input-euro" id="impr-amount" inputmode="decimal" min="0" step="0.01" placeholder="0">
+            <span class="input-suffix">€</span>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Jour</label>
+          <input type="number" class="form-input" id="impr-day" min="1" max="31" value="${now.getDate()}">
+        </div>
+      </div>
+      ${users.length > 1
+        ? `<div class="form-group"><label class="form-label">Qui ?</label><select class="form-select" id="impr-qui"><option value="shared">🤝 Partagé</option>${quiOpts}</select></div>`
+        : `<input type="hidden" id="impr-qui" value="${users[0]?.id || 0}">`}
+    `, `
+      <button class="btn btn-outline" id="impr-cancel">Annuler</button>
+      <button class="btn btn-danger" id="impr-save">Enregistrer</button>
+    `);
+    document.getElementById('impr-cancel')?.addEventListener('click', closeModal);
+    document.getElementById('impr-save')?.addEventListener('click', async () => {
+      const label  = document.getElementById('impr-label')?.value.trim();
+      const amount = Number(document.getElementById('impr-amount')?.value);
+      const day    = Number(document.getElementById('impr-day')?.value) || now.getDate();
+      const quiRaw = document.getElementById('impr-qui')?.value;
+      const qui    = quiRaw === 'shared' ? 'shared' : Number(quiRaw);
+      if (!label)  { showToast('La description est requise', 'error'); return; }
+      if (!amount) { showToast('Montant invalide', 'error'); return; }
+      const freshMd = await getMonthlyData(year, month) || { year, month, users: {}, imprévusList: [] };
+      if (!freshMd.imprévusList) freshMd.imprévusList = [];
+      freshMd.imprévusList.push({ id: uid(), label, amount, qui, day, createdAt: new Date().toISOString() });
+      await saveMonthlyData(freshMd);
+      closeModal();
+      showToast('Dépense inattendue ajoutée ✅', 'success');
       await _renderResume(container, s, users);
     });
   });

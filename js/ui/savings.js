@@ -5,7 +5,7 @@
 import { getAllSavingsOperations, saveSavingsOperation,
          deleteSavingsOperation, getLatestSavingsConfirmed,
          saveSavingsConfirmed, getAllSettings, setSetting,
-         getActiveUsers, getChargesForMonth,
+         getActiveUsers, getChargesForMonth, getAllCharges, saveCharge,
          getAllSalarySavings, saveSalarySaving, deleteSalarySaving,
          getAllSalaryAbondements, saveSalaryAbondement, deleteSalaryAbondement,
          getAllSavingsGoals, saveSavingsGoal, deleteSavingsGoal }
@@ -993,6 +993,14 @@ async function _renderSalariale(el, container) {
   });
 
   el.innerHTML = `
+    <!-- Bannière initialisation mi-année (affichée une seule fois) -->
+    ${!s.salarialeInitialized ? `
+    <div class="card" style="border:2px solid var(--primary);margin-bottom:12px;padding:14px;">
+      <div style="font-weight:700;margin-bottom:4px;">🏦 Vous commencez en cours d'année ?</div>
+      <p style="font-size:0.82rem;color:var(--text-2);margin-bottom:10px;">Si vous avez déjà un solde ou des versements effectués, renseignez vos montants de départ pour un suivi précis.</p>
+      <button class="btn btn-primary btn-sm" id="sal-init-btn" style="font-size:0.8rem;padding:6px 14px;">Initialiser mon solde</button>
+    </div>` : ''}
+
     <!-- KPI résumé -->
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
       <div class="kpi-card" style="--kpi-color:var(--primary);padding:14px;text-align:center;">
@@ -1127,6 +1135,7 @@ async function _renderSalariale(el, container) {
   // ── Événements ──
   el.querySelector('#sal-btn-params')?.addEventListener('click', () => _showSalParamsModal(users, s, () => _renderPage(container)));
   el.querySelector('#sal-btn-add')?.addEventListener('click', () => _showSalAddModal(users, () => _renderPage(container)));
+  el.querySelector('#sal-init-btn')?.addEventListener('click', () => _showSalInitModal(users, s, () => _renderPage(container)));
   el.querySelector('#sal-btn-abon')?.addEventListener('click', () => _showSalAbonModal(allOps, allAbons, users, () => _renderPage(container)));
   el.querySelector('#sal-btn-abon-recu')?.addEventListener('click', () => _showSalAbonRecuModal(allAbons, () => _renderPage(container)));
   el.querySelector('#sal-btn-transfer')?.addEventListener('click', () => _showSalTransferModal(totalBrut, users, () => _renderPage(container)));
@@ -1156,6 +1165,96 @@ async function _renderSalariale(el, container) {
   });
 }
 
+
+// ── Modal : initialisation solde mi-année (une seule fois) ──
+async function _showSalInitModal(users, s, onSave) {
+  const { year } = today();
+  const N = users.length;
+  const userSelect = N > 1 ? `
+    <div class="form-group" style="margin-bottom:10px;">
+      <label class="form-label">Utilisateur principal</label>
+      <select class="form-select" id="init-user">
+        ${users.map(u => `<option value="${u.id}">${escHtml(u.name)}</option>`).join('')}
+      </select>
+    </div>` : '';
+
+  openModal('🏦 Initialiser le solde', `
+    <p style="font-size:0.82rem;color:var(--text-2);margin-bottom:14px;">Renseignez vos soldes actuels pour que le suivi soit précis dès le départ. Cette étape n'apparaîtra qu'une seule fois.</p>
+    ${userSelect}
+    <div class="form-group" style="margin-bottom:10px;">
+      <label class="form-label">Solde total actuel (€)</label>
+      <div class="input-wrap">
+        <input type="number" class="form-input input-euro" id="init-balance" min="0" step="0.01" placeholder="Ex : 3500">
+        <span class="input-suffix">€</span>
+      </div>
+      <div style="font-size:0.72rem;color:var(--text-3);margin-top:3px;">Tout ce que vous avez versé sur votre épargne salariale à ce jour.</div>
+    </div>
+    <div class="form-group" style="margin-bottom:10px;">
+      <label class="form-label">Abondement reçu cette année (€)</label>
+      <div class="input-wrap">
+        <input type="number" class="form-input input-euro" id="init-abon" min="0" step="0.01" placeholder="0" value="0">
+        <span class="input-suffix">€</span>
+      </div>
+      <div style="font-size:0.72rem;color:var(--text-3);margin-top:3px;">Laisser à 0 si vous n'avez pas encore reçu d'abondement cette année.</div>
+    </div>
+    <div class="form-group" style="margin-bottom:4px;">
+      <label class="form-label">Versements effectués cette année (€)</label>
+      <div class="input-wrap">
+        <input type="number" class="form-input input-euro" id="init-contrib" min="0" step="0.01" placeholder="0" value="0">
+        <span class="input-suffix">€</span>
+      </div>
+      <div style="font-size:0.72rem;color:var(--text-3);margin-top:3px;">Montant que vous avez versé depuis janvier (inclus dans le solde total).</div>
+    </div>
+  `, `
+    <button class="btn btn-outline" id="init-cancel">Annuler</button>
+    <button class="btn btn-primary" id="init-save">Enregistrer</button>
+  `);
+
+  document.getElementById('init-cancel')?.addEventListener('click', closeModal);
+  document.getElementById('init-save')?.addEventListener('click', async () => {
+    const balance  = Number(document.getElementById('init-balance')?.value) || 0;
+    const abon     = Number(document.getElementById('init-abon')?.value)    || 0;
+    const contrib  = Number(document.getElementById('init-contrib')?.value) || 0;
+    const userId   = N > 1 ? (document.getElementById('init-user')?.value || null) : (users[0]?.id ?? null);
+    const now      = new Date();
+
+    // Solde antérieur à l'année en cours (hors versements de cette année)
+    const prevBalance = Math.max(0, balance - contrib);
+    if (prevBalance > 0) {
+      await saveSalarySaving({
+        amount: prevBalance, label: 'Solde initial', type: 'initial_balance',
+        year: year - 1, month: 12, day: 31,
+        userId: userId ? String(userId) : undefined,
+        createdAt: now.toISOString(),
+      });
+    }
+
+    // Versements de l'année en cours (pour le calcul d'abondement)
+    if (contrib > 0) {
+      await saveSalarySaving({
+        amount: contrib, label: `Versements antérieurs ${year}`, type: 'year_carry',
+        year, month: 1, day: 1,
+        userId: userId ? String(userId) : undefined,
+        createdAt: now.toISOString(),
+      });
+    }
+
+    // Abondement déjà reçu cette année
+    if (abon > 0) {
+      await saveSalaryAbondement({
+        period: 'initial', year,
+        amount: abon, contributions: contrib,
+        note: 'Abondement antérieur (initialisation)',
+        confirmedAt: now.toISOString(),
+      });
+    }
+
+    await setSetting('salarialeInitialized', true);
+    closeModal();
+    showToast('Solde initial enregistré ✅', 'success');
+    onSave();
+  });
+}
 
 // ── Modal : paramètres épargne salariale ──
 async function _showSalParamsModal(users, s, onSave) {
@@ -1327,8 +1426,38 @@ function _showSalAddModal(users, onSave) {
     const y      = Number(document.getElementById('sal-year')?.value)  || year;
     const type   = document.getElementById('sal-type')?.value || 'salary_savings';
     const userId = N > 1 ? (document.getElementById('sal-user')?.value || null) : (users[0]?.id ?? null);
+
+    let opExtra = {};
+    if (type === 'salary_savings') {
+      const allChgs = await getAllCharges();
+      const existingChg = allChgs.find(c =>
+        c.active &&
+        /[ée]pargne\s+salariale/i.test(c.label || '') &&
+        Math.abs((Number(c.amount) || 0) - amount) < 0.01
+      );
+      let chargeId;
+      if (existingChg) {
+        chargeId = existingChg.id;
+      } else {
+        chargeId = await saveCharge({
+          label,
+          category: 'banque',
+          amount,
+          qui: userId ? String(userId) : 'shared',
+          months: 'all',
+          active: true,
+          perso: false,
+          dayOfMonth: null,
+          notes: 'Créé automatiquement depuis épargne salariale',
+          createdAt: now.toISOString(),
+        });
+        showToast(`Charge mensuelle créée : ${eur(amount)}/mois 📅`, 'info');
+      }
+      opExtra = { source: 'charge_auto', chargeId };
+    }
+
     await saveSalarySaving({ amount, label, type, year: y, month: m, day: now.getDate(),
-      userId: userId ? String(userId) : undefined, createdAt: now.toISOString() });
+      userId: userId ? String(userId) : undefined, ...opExtra, createdAt: now.toISOString() });
     closeModal();
     showToast(`+${eur(amount)} enregistré ✅`, 'success');
     onSave();
