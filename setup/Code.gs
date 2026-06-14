@@ -136,8 +136,6 @@ function doPost(e) {
 }
 
  *
- *  ▶ INSTRUCTIONS D'INSTALLATION (à faire UNE seule fois) :
- *
  *  1. Aller sur https://script.google.com
  *  2. Créer un nouveau projet : "Nouveau projet"
  *  3. Nommer le projet : "Budget Foyer Sync"
