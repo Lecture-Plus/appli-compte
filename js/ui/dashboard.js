@@ -354,19 +354,19 @@ async function _renderResume(container, s, users) {
           </div>
           ${!guideDone2 ? '<span class="guide-step-arrow">›</span>' : ''}
         </button>
-        <button class="guide-step ${guideDoneOpt ? 'done' : ''}" id="gs-m-step-opt" type="button">
-          <div class="guide-step-num ${guideDoneOpt ? 'done' : ''}">${guideDoneOpt ? '✓' : '3'}</div>
+        <button class="guide-step ${allBudgetOps.length > 0 ? 'done' : ''}" id="gs-m-step-opt" type="button">
+          <div class="guide-step-num ${allBudgetOps.length > 0 ? 'done' : ''}">${allBudgetOps.length > 0 ? '✓' : '3'}</div>
           <div class="guide-step-body">
             <div class="guide-step-title">📊 Budgets <span style="font-size:0.72rem;font-weight:400;color:var(--text-3);">(optionnel)</span></div>
-            <div class="guide-step-sub">${guideDoneOpt ? 'Budgets configurés ✓' : 'Enveloppes courses, loisirs…'}</div>
+            <div class="guide-step-sub">${allBudgetOps.length > 0 ? 'Budgets configurés ✓' : 'Enveloppes courses, loisirs…'}</div>
           </div>
-          ${!guideDoneOpt ? '<span class="guide-step-arrow">›</span>' : ''}
+          ${allBudgetOps.length === 0 ? '<span class="guide-step-arrow">›</span>' : ''}
         </button>
       </div>
     </div>`;
     el.querySelector('#gs-m-step1')?.addEventListener('click', () => navigateTo('argent', { tab: 'saisie', section: 'revenus' }));
-    if (!guideDone2)   el.querySelector('#gs-m-step2')?.addEventListener('click', () => navigateTo('argent', { tab: 'saisie', section: 'charges' }));
-    if (!guideDoneOpt) el.querySelector('#gs-m-step-opt')?.addEventListener('click', () => navigateTo('argent', { tab: 'budgets' }));
+    if (!guideDone2)              el.querySelector('#gs-m-step2')?.addEventListener('click', () => navigateTo('argent', { tab: 'saisie', section: 'charges' }));
+    if (allBudgetOps.length === 0) el.querySelector('#gs-m-step-opt')?.addEventListener('click', () => navigateTo('argent', { tab: 'budgets' }));
     return;
   }
 
