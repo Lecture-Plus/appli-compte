@@ -1322,7 +1322,7 @@ async function _showEndOfMonthWizard(container, month, year) {
     closeModal();
     showToast('Mois clôturé ✅', 'success');
     emit('month:complete:done');
-    const btn = container.querySelector('#btn-complete');
-    if (btn) btn.style.color = 'var(--success)';
+    const { navigateTo } = await import('../app.js');
+    navigateTo('dashboard');
   });
 }

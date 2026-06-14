@@ -471,6 +471,38 @@ async function _renderResume(container, s, users) {
     aPayerPerUser[payerUid] -= amt;
   }
 
+  // ── Filet de sécurité : mois vide non capté par les conditions précédentes ──
+  // (ex : mois clôturé sans données, ou première ouverture PWA avec localStorage réinitialisé)
+  if (isFirstUse) {
+    el.innerHTML = `
+    <div class="guide-card">
+      <div style="font-size:1.5rem;margin-bottom:8px;">📅</div>
+      <div class="guide-card-title">Saisie de ${nomMois(month)} ${year}</div>
+      <div class="guide-card-sub">Renseignez vos revenus pour voir votre bilan mensuel.</div>
+      <div class="guide-steps-list">
+        <button class="guide-step" id="gs-fu-step1" type="button">
+          <div class="guide-step-num">1</div>
+          <div class="guide-step-body">
+            <div class="guide-step-title">💰 Saisir les revenus</div>
+            <div class="guide-step-sub">Salaires, aides, primes…</div>
+          </div>
+          <span class="guide-step-arrow">›</span>
+        </button>
+        <button class="guide-step" id="gs-fu-step2" type="button">
+          <div class="guide-step-num">2</div>
+          <div class="guide-step-body">
+            <div class="guide-step-title">🏠 Charges fixes</div>
+            <div class="guide-step-sub">Loyer, abonnements…</div>
+          </div>
+          <span class="guide-step-arrow">›</span>
+        </button>
+      </div>
+    </div>`;
+    el.querySelector('#gs-fu-step1')?.addEventListener('click', () => navigateTo('argent', { tab: 'saisie', section: 'revenus' }));
+    el.querySelector('#gs-fu-step2')?.addEventListener('click', () => navigateTo('argent', { tab: 'saisie', section: 'charges' }));
+    return;
+  }
+
   el.innerHTML = `
     <!-- ── HERO ── -->
     <div class="hero-v2 ${heroStateClass}" style="margin-bottom:14px;">
