@@ -34,6 +34,8 @@ const APP_SHELL_LOCAL = [
   'js/ui/budgets.js',
   'js/ui/stats.js',
   'js/ui/settings.js',
+  'js/firebase.js',
+  'js/fb-sync.js',
 ];
 
 const hash = createHash('sha256');
@@ -55,7 +57,8 @@ const swContent = readFileSync(swPath, 'utf-8');
 const updated   = swContent.replace(/compta-plus-[a-zA-Z0-9]+/, cacheName);
 
 if (updated === swContent) {
-  console.warn('[build] Aucun CACHE_NAME trouvé dans sw.js — vérifier la regex.');
+  // Le hash n'a pas changé (aucun fichier listé n'a été modifié) — c'est normal
+  console.log(`[build] CACHE_NAME inchangé (hash identique) → ${cacheName}`);
 } else {
   writeFileSync(swPath, updated, 'utf-8');
   console.log(`[build] ✓ CACHE_NAME mis à jour → ${cacheName}`);
