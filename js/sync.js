@@ -78,6 +78,10 @@ export async function initDriveSync() {
   const url = await getSetting(DRIVE_URL_KEY);
   if (!isValidDriveUrl(url)) { setSyncStatus('none'); return false; }
 
+  // Si l'import Drive est désactivé (ex: Firebase actif), on ne tire pas le backup
+  const importDisabled = await getSetting('driveImportDisabled');
+  if (importDisabled) { setSyncStatus('ok'); return false; }
+
   const overlay = document.getElementById('sync-overlay');
   if (overlay) overlay.classList.remove('hidden');
   setSyncStatus('syncing');

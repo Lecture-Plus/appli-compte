@@ -264,6 +264,11 @@ async function buildHTML(s, users, archived, N) {
           <p id="drive-last-sync" style="font-size:0.7rem;color:var(--text-3);text-align:center;margin-top:8px;">
             ${s[DRIVE_SYNC_KEY] ? 'Dernière sync : ' + new Date(s[DRIVE_SYNC_KEY]).toLocaleString('fr-FR') : ''}
           </p>
+          <label style="display:flex;align-items:center;gap:8px;margin-top:10px;font-size:0.8rem;cursor:pointer;">
+            <input type="checkbox" id="s-drive-import-disabled" ${s.driveImportDisabled ? 'checked' : ''}>
+            Bloquer l'importation automatique depuis Drive
+            <span style="font-size:0.72rem;color:var(--text-3);">(recommandé si Firebase actif)</span>
+          </label>
         </div>
 
         <div class="card" style="margin-bottom:10px;">
@@ -692,6 +697,11 @@ function bindEvents(container, s, users, archived, N) {
     container.querySelector('#drive-status').textContent = url ? '● Configuré' : '○ Non configuré';
     container.querySelector('#drive-status').className   = `chip ${url ? 'success' : ''}`;
     showToast(url ? 'URL Drive enregistrée ✅' : 'URL supprimée', 'success');
+  });
+
+  container.querySelector('#s-drive-import-disabled')?.addEventListener('change', async (e) => {
+    await setSetting('driveImportDisabled', e.target.checked);
+    showToast(e.target.checked ? 'Import Drive désactivé ✅' : 'Import Drive réactivé', 'success');
   });
 
   // ── Drive : QR code ──
