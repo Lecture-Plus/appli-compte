@@ -545,7 +545,7 @@ export function validateImportData(data) {
   return { ok: errors.length === 0, errors };
 }
 
-export async function importAllData(data) {
+export async function importAllData(data, { silent = false } = {}) {
   const { ok, errors } = validateImportData(data);
   if (!ok) throw new Error('Import invalide : ' + errors.join(' | '));
 
@@ -577,7 +577,7 @@ export async function importAllData(data) {
   });
 
   _settingsCache = null; _usersCache = null; _chargesCache = null; _achatsCache = null;
-  emit('db:write', { store: 'all' });
+  if (!silent) emit('db:write', { store: 'all' });
   await setSetting('lastBackup', new Date().toISOString());
 }
 

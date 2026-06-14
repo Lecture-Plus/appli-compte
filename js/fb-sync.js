@@ -133,7 +133,7 @@ export async function pullFromFirebase(foyerId) {
 
     _isImporting = true;
     try {
-      await importAllData(remote.data);
+      await importAllData(remote.data, { silent: true });
       await setSetting(FB_SYNC_KEY, new Date().toISOString());
       _lastImportAt = Date.now();
     } finally {
@@ -197,7 +197,7 @@ export async function startFirebaseSync(foyerId) {
     setFbStatus('syncing');
     _isImporting = true;
     try {
-      await importAllData(remote.data);
+      await importAllData(remote.data, { silent: true });
       await setSetting(FB_SYNC_KEY, new Date().toISOString());
       _lastImportAt = Date.now();
       _isDirty = false;
