@@ -848,10 +848,13 @@ async function _renderResume(container, s, users) {
   });
 
   // ── Toggle bilan prévisionnel/réel ──
-  const _toggleDashBilan = () => {
+  const _toggleDashBilan = async () => {
     _dashBilanMode = _dashBilanMode === 'previsionnel' ? 'reel' : 'previsionnel';
     localStorage.setItem('compta-dash-bilan-mode', _dashBilanMode);
-    _renderResume(container, s, users);
+    await _renderResume(container, s, users);
+    // Rouvrir l'accordéon s'il était ouvert avant le re-render
+    const details = el.querySelector('details');
+    if (details) details.open = true;
   };
   el.querySelector('#dash-bilan-toggle')?.addEventListener('click', _toggleDashBilan);
   el.querySelector('#dash-bilan-hint-switch')?.addEventListener('click', _toggleDashBilan);
