@@ -1018,7 +1018,7 @@ details.acc-card[open] > summary.acc-summary { margin-bottom: 12px; padding-bott
 /* Firebase sync dot — couleurs orange/firebase */
 #fb-sync-dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; flex-shrink: 0; margin-right: 4px; transition: background 0.4s, box-shadow 0.4s; }
 #fb-sync-dot[data-status="none"]    { background: var(--text-3); opacity: 0.3; }
-#fb-sync-dot[data-status="ok"]      { background: #FF6F00; box-shadow: 0 0 0 3px rgba(255,111,0,0.2); }
+#fb-sync-dot[data-status="ok"]      { background: #22C55E; box-shadow: 0 0 0 3px rgba(34,197,94,0.2); }
 #fb-sync-dot[data-status="error"]   { background: var(--danger); box-shadow: 0 0 0 3px rgba(220,38,38,0.2); }
 #fb-sync-dot[data-status="syncing"] { background: #FF6F00; animation: fbPulse 1s ease-in-out infinite; }
 @keyframes fbPulse { 0%,100%{opacity:1;box-shadow:0 0 0 2px rgba(255,111,0,0.3);}50%{opacity:0.6;box-shadow:0 0 0 5px rgba(255,111,0,0.1);} }
