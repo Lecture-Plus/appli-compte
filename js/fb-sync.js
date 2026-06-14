@@ -29,6 +29,7 @@ let _unsubscribe  = null;
 let _syncTimer    = null;
 let _isSyncing    = false;
 let _isDirty      = false;
+let _isImporting  = false; // bloque markFirebaseDirty pendant un import Firestore
 let _lastPushAt   = 0;
 
 // ── Indicateur visuel dans le header ──────────────────────────────────────
@@ -52,7 +53,7 @@ export function getFbStatus() {
 
 // ── Marquer les données comme modifiées ───────────────────────────────────
 
-export function markFirebaseDirty() { _isDirty = true; }
+export function markFirebaseDirty() { if (!_isImporting) _isDirty = true; }
 
 // ── Push ──────────────────────────────────────────────────────────────────
 
@@ -120,8 +121,14 @@ export async function pullFromFirebase(foyerId) {
 
     if (remoteTs <= localTs + 3_000) return false; // local déjà à jour
 
-    await importAllData(remote.data);
-    await setSetting(FB_SYNC_KEY, new Date().toISOString());
+    _isImporting = true;
+    try {
+      await importAllData(remote.data);
+      await setSetting(FB_SYNC_KEY, new Date().toISOString());
+    } finally {
+      _isImporting = false;
+      _isDirty = false;
+    }
     emit('db:write', { store: 'firebase-pull' });
     return true;
   } catch (e) {
@@ -176,15 +183,19 @@ export async function startFirebaseSync(foyerId) {
 
     console.log('[FB-Sync] Mise à jour distante détectée — import…');
     setFbStatus('syncing');
+    _isImporting = true;
     try {
       await importAllData(remote.data);
       await setSetting(FB_SYNC_KEY, new Date().toISOString());
+      _isDirty = false;
       emit('db:write', { store: 'firebase-pull' });
       showToast('🔄 Données synchronisées depuis un autre appareil', 'info', 3000);
       setFbStatus('ok');
     } catch (e) {
       console.warn('[FB-Sync] Import échoué :', e.message);
       setFbStatus('error');
+    } finally {
+      _isImporting = false;
     }
   }, (err) => {
     console.warn('[FB-Sync] Listener error :', err.message);
