@@ -31,7 +31,8 @@ let _isSyncing    = false;
 let _isDirty      = false;
 let _isImporting  = false; // bloque markFirebaseDirty pendant un import Firestore
 let _lastPushAt   = 0;
-let _lastImportAt = 0;    // timestamp du dernier import reçu (anti-boucle)
+let _lastImportAt = 0;    // timestamp local du dernier import (anti-dirty-loop)
+let _lastRemoteTs = 0;    // updatedAt Firestore du dernier snapshot traité (anti-reconnect-loop)
 
 // ── Indicateur visuel dans le header ──────────────────────────────────────
 
@@ -122,6 +123,9 @@ export async function pullFromFirebase(foyerId) {
     if (!remote?.data?.appName) return false;
 
     const remoteTs = remote.updatedAt?.toDate?.()?.getTime() ?? 0;
+    // Mémoriser le remoteTs même si on n'importe pas (pour bloquer l'onSnapshot initial)
+    if (remoteTs > _lastRemoteTs) _lastRemoteTs = remoteTs;
+
     const localStr = await getSetting(FB_SYNC_KEY);
     const localTs  = localStr ? new Date(localStr).getTime() : 0;
 
@@ -132,7 +136,6 @@ export async function pullFromFirebase(foyerId) {
       await importAllData(remote.data);
       await setSetting(FB_SYNC_KEY, new Date().toISOString());
       _lastImportAt = Date.now();
-      setTimeout(() => { _isDirty = false; }, 200);
     } finally {
       _isImporting = false;
       _isDirty = false;
@@ -181,11 +184,14 @@ export async function startFirebaseSync(foyerId) {
     const remote = snap.data();
     if (!remote?.data?.appName) return;
 
-    // Ignorer nos propres pushes (éviter la boucle locale)
+    // Ignorer nos propres pushes (nous avons poussé ce snapshot)
     if (remote.updatedBy === _getDeviceId()) return;
 
-    // Ignorer si on vient d'importer (évite le ping-pong entre appareils)
-    if (Date.now() - _lastImportAt < LOOP_GAP_MS) return;
+    // Ignorer si c'est le même snapshot qu'on a déjà traité
+    // (Firestore re-envoie l'état courant à chaque reconnexion réseau)
+    const remoteTs = remote.updatedAt?.toDate?.()?.getTime() ?? 0;
+    if (remoteTs <= _lastRemoteTs) return;
+    _lastRemoteTs = remoteTs;
 
     console.log('[FB-Sync] Mise à jour distante détectée — import…');
     setFbStatus('syncing');
