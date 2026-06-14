@@ -31,6 +31,7 @@ let _isSyncing    = false;
 let _isDirty      = false;
 let _isImporting  = false; // bloque markFirebaseDirty pendant un import Firestore
 let _lastPushAt   = 0;
+let _lastImportAt = 0;    // timestamp du dernier import reçu (anti-boucle)
 
 // ── Indicateur visuel dans le header ──────────────────────────────────────
 
@@ -125,6 +126,8 @@ export async function pullFromFirebase(foyerId) {
     try {
       await importAllData(remote.data);
       await setSetting(FB_SYNC_KEY, new Date().toISOString());
+      _lastImportAt = Date.now();
+      setTimeout(() => { _isDirty = false; }, 200);
     } finally {
       _isImporting = false;
       _isDirty = false;
@@ -187,10 +190,12 @@ export async function startFirebaseSync(foyerId) {
     try {
       await importAllData(remote.data);
       await setSetting(FB_SYNC_KEY, new Date().toISOString());
-      _isDirty = false;
+      _lastImportAt = Date.now();
       emit('db:write', { store: 'firebase-pull' });
       showToast('🔄 Données synchronisées depuis un autre appareil', 'info', 3000);
       setFbStatus('ok');
+      // Reset dirty après un tick pour annuler les markDirty() async déclenchés par importAllData
+      setTimeout(() => { _isDirty = false; }, 200);
     } catch (e) {
       console.warn('[FB-Sync] Import échoué :', e.message);
       setFbStatus('error');
@@ -205,6 +210,8 @@ export async function startFirebaseSync(foyerId) {
   // Timer de push automatique (debounce)
   _syncTimer = setInterval(async () => {
     if (!_isDirty || _isSyncing) return;
+    // Ne pas pousser si un import vient d'avoir lieu (anti-boucle)
+    if (Date.now() - _lastImportAt < LOOP_GAP_MS) { _isDirty = false; return; }
     await pushToFirebase(foyerId);
   }, DEBOUNCE_MS);
 
