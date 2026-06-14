@@ -228,21 +228,21 @@ async function buildHTML(s, users, archived, N) {
             <p class="form-hint">Partagez cette URL entre vos appareils.</p>
           </div>
           <button class="btn btn-outline btn-full btn-sm" id="s-save-drive-url" style="margin-bottom:10px;">Enregistrer l'URL</button>
-          <div style="display:flex;gap:8px;margin-bottom:8px;">
-            <button class="btn btn-sm btn-secondary" style="flex:1;" id="btn-drive-test">🔍 Tester</button>
-            <button class="btn btn-sm btn-outline" style="flex:1;" id="btn-drive-qr">📲 QR Code</button>
+          <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px;">
+            <button class="btn btn-sm btn-secondary" style="flex:1;min-width:100px;" id="btn-drive-test">🔍 Tester</button>
+            <button class="btn btn-sm btn-outline" style="flex:1;min-width:100px;" id="btn-drive-qr">📲 QR Code</button>
           </div>
           <div id="drive-qr-wrap" style="display:none;text-align:center;margin-bottom:10px;padding:12px;background:var(--bg-2);border-radius:10px;">
             <canvas id="drive-qr-canvas" style="border-radius:6px;"></canvas>
             <p style="font-size:0.72rem;color:var(--text-3);margin-top:6px;">Scannez ce QR code sur un autre appareil.</p>
           </div>
           <div id="drive-test-result" style="display:none;font-size:0.75rem;padding:8px 10px;border-radius:8px;margin-bottom:10px;"></div>
-          <div style="display:flex;gap:8px;">
-            <button class="btn btn-secondary" style="flex:1;" id="btn-push-drive">
+          <div style="display:flex;flex-wrap:wrap;gap:8px;">
+            <button class="btn btn-secondary" style="flex:1;min-width:120px;" id="btn-push-drive">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/><path d="M5 21h14"/></svg>
               Envoyer ☁️
             </button>
-            <button class="btn btn-outline" style="flex:1;" id="btn-pull-drive">
+            <button class="btn btn-outline" style="flex:1;min-width:120px;" id="btn-pull-drive">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><polyline points="7 16 12 21 17 16"/><line x1="12" y1="21" x2="12" y2="9"/><path d="M5 3h14"/></svg>
               Récupérer ⬇️
             </button>
