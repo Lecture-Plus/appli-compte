@@ -227,12 +227,19 @@ export async function initFirebaseSync() {
     const { getFirebaseAuth }    = await import('./firebase.js');
     const auth = getFirebaseAuth();
 
-    // Attendre la résolution de l'état auth (max 3s)
-    const user = await new Promise(resolve => {
-      const unsub = onAuthStateChanged(auth, u => { unsub(); resolve(u); });
-      setTimeout(() => resolve(null), 3000);
-    });
+    // authStateReady() attend que Firebase ait lu son état persisté (localStorage/IDB)
+    // sans timeout arbitraire — bien plus fiable qu'un setTimeout
+    if (auth.authStateReady) {
+      await auth.authStateReady();
+    } else {
+      // Fallback pour SDK < 10.9 : attendre le premier événement (max 8s)
+      await new Promise(resolve => {
+        const unsub = onAuthStateChanged(auth, () => { unsub(); resolve(); });
+        setTimeout(resolve, 8000);
+      });
+    }
 
+    const user = auth.currentUser;
     if (!user) { setFbStatus('none'); return; }
 
     const foyerId = await getSavedFoyerId();
