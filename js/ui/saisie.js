@@ -28,8 +28,17 @@ let _chargesCache = [];
 let _achatsCache  = [];
 let _budgetOpsCache = [];
 let _settings = null;
-let _coursesFoyerMode = localStorage.getItem('coursesFoyerMode') === '1';
-let _extrasFoyerMode  = localStorage.getItem('extrasFoyerMode')  === '1';
+// Migration automatique des anciennes clés sans préfixe
+if (localStorage.getItem('coursesFoyerMode') !== null) {
+  localStorage.setItem('compta-coursesFoyerMode', localStorage.getItem('coursesFoyerMode'));
+  localStorage.removeItem('coursesFoyerMode');
+}
+if (localStorage.getItem('extrasFoyerMode') !== null) {
+  localStorage.setItem('compta-extrasFoyerMode', localStorage.getItem('extrasFoyerMode'));
+  localStorage.removeItem('extrasFoyerMode');
+}
+let _coursesFoyerMode = localStorage.getItem('compta-coursesFoyerMode') === '1';
+let _extrasFoyerMode  = localStorage.getItem('compta-extrasFoyerMode')  === '1';
 
 // ── Déclenchement du wizard fin de mois (appelé depuis argent.js) ──
 export async function triggerMonthComplete(body) {
@@ -366,7 +375,7 @@ export async function render(container, opts = {}) {
   container.querySelector('#btn-courses-mode')?.addEventListener('click', () => {
     syncFormToState(container);
     _coursesFoyerMode = !_coursesFoyerMode;
-    localStorage.setItem('coursesFoyerMode', _coursesFoyerMode ? '1' : '0');
+    localStorage.setItem('compta-coursesFoyerMode', _coursesFoyerMode ? '1' : '0');
     const btn = container.querySelector('#btn-courses-mode');
     if (btn) btn.textContent = _coursesFoyerMode ? '👤 Par personne' : '🏠 Foyer';
     const contentEl = container.querySelector('#courses-content');
@@ -378,7 +387,7 @@ export async function render(container, opts = {}) {
   container.querySelector('#btn-extras-mode')?.addEventListener('click', () => {
     syncFormToState(container);
     _extrasFoyerMode = !_extrasFoyerMode;
-    localStorage.setItem('extrasFoyerMode', _extrasFoyerMode ? '1' : '0');
+    localStorage.setItem('compta-extrasFoyerMode', _extrasFoyerMode ? '1' : '0');
     const btn = container.querySelector('#btn-extras-mode');
     if (btn) btn.textContent = _extrasFoyerMode ? '👤 Par personne' : '🏠 Foyer';
     const contentEl = container.querySelector('#extras-content');

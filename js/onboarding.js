@@ -82,8 +82,14 @@ let _obExtraCount = 0;
     document.getElementById('ob-colors-1')?.dispatchEvent(new CustomEvent('ob-rerender'));
   });
 
-  // ── Ajouter une personne supplémentaire (sans limite) ──
+  // ── Ajouter une personne supplémentaire (max 6 au total) ──
   document.getElementById('ob-add-person')?.addEventListener('click', () => {
+    if (_obExtraCount >= 4) {
+      // 2 personnes de base + 4 extras = 6 maximum
+      const btn = document.getElementById('ob-add-person');
+      if (btn) { btn.textContent = '(6 personnes max)'; btn.disabled = true; }
+      return;
+    }
     _obExtraCount++;
     const color   = USER_COLORS[_obExtraCount % USER_COLORS.length] || USER_COLORS[0];
     const colorId = `ob-colors-extra-${_obExtraCount}`;

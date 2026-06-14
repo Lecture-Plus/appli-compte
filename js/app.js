@@ -3,11 +3,12 @@
 // ============================================================
 
 import { getAllSettings, getSetting, setSetting, getActiveUsers, getMonthsByYear, onWrite,
-         getAllBudgetOps, getDeviceSetting, setDeviceSetting }    from './db.js';
+         getAllBudgetOps, getDeviceSetting, setDeviceSetting,
+         getMonthlyData, getBudgetOpsForMonth }               from './db.js';
 import { initDriveSync, startAutoSave, initActivityTracking,
          markDirty, testDriveConnection, startDrivePoll }         from './sync.js';
 import { today, showToast, closeModal, openModal, nomMois,
-         addMonth, isMonthEmpty }                                 from './utils.js';
+         addMonth, isMonthEmpty, eur, escHtml }                from './utils.js';
 import { copyCodeGs }                                             from './code-gs.js';
 import { DRIVE_URL_KEY, isValidDriveUrl }                         from './drive.js';
 
@@ -46,11 +47,20 @@ let _currentCleanup = null;
 export async function navigateTo(page, params = {}) {
   if (!PAGES[page]) page = 'dashboard';
 
+  // M2 : la page charges n'a pas de bouton nav — rediriger vers argent avec vue charges
+  if (page === 'charges') {
+    return navigateTo('argent', { ...params, view: 'charges' });
+  }
+
   // Fermer toute modal ouverte (filet de sécurité si un await a échoué avant closeModal)
   const _ov = document.getElementById('modal-overlay');
   if (_ov && !_ov.classList.contains('hidden')) closeModal();
 
   if (_currentCleanup) { try { _currentCleanup(); } catch (e) {} }
+
+  // R7 : annuler les animations RAF de la page précédente immédiatement
+  _counterRafs.forEach(id => cancelAnimationFrame(id));
+  _counterRafs = [];
 
   State.page = page;
   if (params.year)  State.year  = params.year;
@@ -123,10 +133,9 @@ async function checkUnfilledMonths() {
 async function checkBudgetAlerts() {
   try {
     const { year, month } = State;
-    const db              = await import('./db.js');
     const [md, ops, s, users] = await Promise.all([
-      db.getMonthlyData(year, month),
-      db.getBudgetOpsForMonth(year, month),
+      getMonthlyData(year, month),
+      getBudgetOpsForMonth(year, month),
       getAllSettings(),
       getActiveUsers(),
     ]);
@@ -277,12 +286,10 @@ async function _renderSharedBilan(base64) {
   if (!content) return;
   try {
     const data = JSON.parse(decodeURIComponent(atob(base64)));
-    const { nomMois, eur } = await import('./utils.js');
     const isPrevo = (data.mode || 'previsionnel') === 'previsionnel';
     const bilanBudgets = isPrevo ? (data.totalBudgetsCeilings || 0) : (data.totalBudgets || 0);
     const bilanSolde   = (data.totalRev || 0) - (data.totalChg || 0) - bilanBudgets - (data.totalDep || 0);
     const bilanColor   = bilanSolde >= 0 ? 'var(--success)' : 'var(--danger)';
-    const { escHtml }  = await import('./utils.js');
     document.getElementById('page-title').textContent = `Bilan ${nomMois(data.month)} ${data.year}`;
 
     content.innerHTML = `

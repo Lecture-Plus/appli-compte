@@ -29,7 +29,7 @@ export async function render(container) {
   bindEvents(container, s, users, archived, N);
 }
 
-async function buildHTML(s, users, archived, N) {
+function buildHTML(s, users, archived, N) {
   const driveOk = s[DRIVE_URL_KEY] && isValidDriveUrl(s[DRIVE_URL_KEY]);
 
   return `

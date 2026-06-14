@@ -216,6 +216,8 @@ export function startDrivePoll() {
     const importDisabled = await getSetting('driveImportDisabled');
     if (importDisabled) return;
 
+    // Mutex : bloquer l'auto-save pendant toute la vérification du poll
+    _isSyncing = true;
     try {
       const backups = await listBackups(url);
       if (!backups?.length) return;
@@ -227,27 +229,22 @@ export function startDrivePoll() {
       if (driveTs <= localTs + 5_000) return; // déjà à jour
 
       // Backup Drive plus récent → importer
-      console.log('[Poll] Nouvelle version Drive détectée — import…');
       setSyncStatus('syncing');
-      _isSyncing = true;
-      try {
-        const data = await pullBackup(url, backups[0].filename);
-        if (data?.appName) {
-          const { emit } = await import('./events.js');
-          await importAllData(data);
-          await setSetting(DRIVE_SYNC_KEY, new Date().toISOString());
-          _lastImportAt = Date.now();
-          _isDirty = false;
-          emit('db:write', { store: 'drive-poll' });
-          showToast('🔄 Données synchronisées depuis Drive', 'info', 3000);
-          setSyncStatus('ok');
-        }
-      } finally {
-        _isSyncing = false;
+      const data = await pullBackup(url, backups[0].filename);
+      if (data?.appName) {
+        const { emit } = await import('./events.js');
+        await importAllData(data);
+        await setSetting(DRIVE_SYNC_KEY, new Date().toISOString());
+        _lastImportAt = Date.now();
+        _isDirty = false;
+        emit('db:write', { store: 'drive-poll' });
+        showToast('🔄 Données synchronisées depuis Drive', 'info', 3000);
+        setSyncStatus('ok');
       }
     } catch (e) {
       console.warn('[Poll] Vérification Drive échouée :', e.message);
-      // Silencieux — pas de changement de status pour une erreur de poll
+    } finally {
+      _isSyncing = false;
     }
   }, POLL_INTERVAL_MS);
 

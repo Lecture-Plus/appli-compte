@@ -1,7 +1,7 @@
 // Service Worker – Compta+
 // Stratégie : Network First pour l'app shell (auto-update), Cache pour CDN
 
-const CACHE_NAME = 'compta-plus-f29dc3f7';
+const CACHE_NAME = 'compta-plus-fd746233';
 
 const APP_SHELL = [
   './index.html',
@@ -23,6 +23,7 @@ const APP_SHELL = [
   './js/ui/budgets.js',
   './js/ui/stats.js',
   './js/ui/settings.js',
+  './js/code-gs.js',
   './icons/icon.svg',
   './icons/icon-maskable.svg',
   'https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js'

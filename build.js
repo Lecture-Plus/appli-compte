@@ -34,6 +34,7 @@ const APP_SHELL_LOCAL = [
   'js/ui/budgets.js',
   'js/ui/stats.js',
   'js/ui/settings.js',
+  'js/code-gs.js',
 ];
 
 const hash = createHash('sha256');

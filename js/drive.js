@@ -51,13 +51,6 @@ export async function pushVersionedBackup(webAppUrl, data) {
 }
 
 /**
- * Alias : comportement identique à pushVersionedBackup.
- */
-export async function pushToDrive(webAppUrl, data) {
-  return pushVersionedBackup(webAppUrl, data);
-}
-
-/**
  * Liste tous les backups disponibles sur Drive.
  * @returns {Array} [{filename, savedAt, size}] triés du plus récent au plus ancien
  */

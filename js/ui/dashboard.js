@@ -23,7 +23,7 @@ import { on }                                             from '../events.js';
 
 let _activeTab     = 'resume';
 let _detailMode    = 'reel'; // 'reel' | 'previsionnel'
-let _dashBilanMode = localStorage.getItem('compta-dash-bilan-mode') || 'previsionnel';
+let _dashBilanMode = localStorage.getItem('compta-bilan-mode') || 'previsionnel';
 let _lastBilanData = null; // cache pour toggle sans re-fetch IDB
 
 // ── Phrase narrative contextuelle (1 ligne) ──
@@ -119,10 +119,6 @@ export async function render(container) {
   });
 
 
-  await _renderResume(container, s, users);
-}
-
-async function _renderContent(container, s, users) {
   await _renderResume(container, s, users);
 }
 
@@ -877,7 +873,7 @@ async function _renderResume(container, s, users) {
   // ── Toggle bilan prévisionnel/réel (sans re-fetch IDB) ──
   const _toggleDashBilan = () => {
     _dashBilanMode = _dashBilanMode === 'previsionnel' ? 'reel' : 'previsionnel';
-    localStorage.setItem('compta-dash-bilan-mode', _dashBilanMode);
+    localStorage.setItem('compta-bilan-mode', _dashBilanMode);
     if (!_lastBilanData) { _renderResume(container, s, users); return; }
     const body = el.querySelector('#bilan-accordion-body');
     if (!body) { _renderResume(container, s, users); return; }
