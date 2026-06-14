@@ -23,7 +23,11 @@ let _nextRetryAt = 0;
 const _RETRY_DELAYS = [30_000, 120_000, 600_000]; // 30s, 2min, 10min
 
 /** Marquer les données comme modifiées (appelé après toute écriture IDB) */
-export function markDirty() { _isDirty = true; }
+export function markDirty() {
+  _isDirty = true;
+  // Propager à Firebase (lazy import pour ne pas bloquer si Firebase non configuré)
+  import('./fb-sync.js').then(m => m.markFirebaseDirty()).catch(() => {});
+}
 
 // ── Indicateur de sync ──
 let _syncStatus = 'none'; // 'none' | 'ok' | 'syncing' | 'error'

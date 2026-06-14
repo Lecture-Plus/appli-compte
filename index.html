@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' cdn.jsdelivr.net 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://cdn.jsdelivr.net https://script.google.com https://script.googleusercontent.com;">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' cdn.jsdelivr.net 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://cdn.jsdelivr.net https://script.google.com https://script.googleusercontent.com https://*.googleapis.com https://*.firebaseio.com https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://*.cloudfunctions.net https://www.gstatic.com;">
 
   <!-- PWA -->
   <meta name="theme-color" content="#7C5CFC" media="(prefers-color-scheme: light)">
@@ -98,6 +98,7 @@
       </div>
       <div class="header-right">
         <span id="sync-dot" data-status="none" title="Drive non configuré" aria-label="Statut synchronisation Drive"></span>
+        <span id="fb-sync-dot" data-status="none" title="Firebase non configuré" aria-label="Statut synchronisation Firebase"></span>
         <button id="btn-notif" class="btn-icon" aria-label="Notifications" title="Notifications">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>

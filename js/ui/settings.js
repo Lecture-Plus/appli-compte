@@ -24,11 +24,25 @@ export async function render(container) {
   const archived = allUsers.filter(u => u.active === false);
   const N = users.length;
 
-  container.innerHTML = buildHTML(s, users, archived, N);
+  container.innerHTML = await buildHTML(s, users, archived, N);
   bindEvents(container, s, users, archived, N);
 }
 
-function buildHTML(s, users, archived, N) {
+// ── Statut Firebase pour le chip dans la card ──
+async function _fbCardStatus() {
+  try {
+    const { isFirebaseConfigured, isFirebaseReady, getCurrentUser } = await import('../firebase.js');
+    if (!(await isFirebaseConfigured())) return '○ Non configuré';
+    if (!isFirebaseReady())              return '◌ Configuré';
+    const user = await getCurrentUser();
+    if (!user)                           return '◌ Non connecté';
+    const foyerId = await (await import('../db.js')).getSetting('foyerId');
+    if (!foyerId)                        return '○ Pas de foyer';
+    return '● Sync actif';
+  } catch { return ''; }
+}
+
+async function buildHTML(s, users, archived, N) {
   const driveOk = s[DRIVE_URL_KEY] && isValidDriveUrl(s[DRIVE_URL_KEY]);
 
   return `
@@ -249,6 +263,70 @@ function buildHTML(s, users, archived, N) {
           </div>
           <p id="drive-last-sync" style="font-size:0.7rem;color:var(--text-3);text-align:center;margin-top:8px;">
             ${s[DRIVE_SYNC_KEY] ? 'Dernière sync : ' + new Date(s[DRIVE_SYNC_KEY]).toLocaleString('fr-FR') : ''}
+          </p>
+        </div>
+
+        <div class="card" style="margin-bottom:10px;">
+          <div class="card-header">
+            <span class="card-title">🔥 Firebase (sync temps réel)</span>
+            <span id="fb-card-status" class="chip" style="font-size:0.68rem;">${await _fbCardStatus()}</span>
+          </div>
+          <p style="font-size:0.78rem;color:var(--text-2);margin-bottom:10px;">Synchronisation instantanée entre vos appareils via Firestore. <a href="https://console.firebase.google.com" target="_blank" rel="noopener" style="color:var(--brand);">Créer un projet Firebase →</a></p>
+
+          <details id="fb-config-details" style="margin-bottom:10px;">
+            <summary style="font-size:0.8rem;font-weight:600;cursor:pointer;padding:4px 0;">Configuration SDK (coller le JSON firebaseConfig)</summary>
+            <div style="margin-top:8px;">
+              <textarea id="s-fb-config" class="form-input" rows="5" placeholder='{
+  "apiKey": "...",
+  "authDomain": "...",
+  "projectId": "...",
+  "storageBucket": "...",
+  "messagingSenderId": "...",
+  "appId": "..."
+}' style="font-size:0.72rem;font-family:monospace;">${escHtml(s.firebaseConfig || '')}</textarea>
+              <button class="btn btn-sm btn-outline btn-full" id="btn-fb-save-config" style="margin-top:6px;">Enregistrer la config</button>
+            </div>
+          </details>
+
+          <div id="fb-auth-section">
+            <div style="display:flex;gap:8px;margin-bottom:8px;">
+              <input type="email"    class="form-input" id="fb-email"    placeholder="Email" style="flex:1;">
+              <input type="password" class="form-input" id="fb-password" placeholder="Mot de passe" style="flex:1;">
+            </div>
+            <div style="display:flex;gap:8px;margin-bottom:10px;">
+              <button class="btn btn-sm btn-primary" style="flex:1;" id="btn-fb-signin">Connexion</button>
+              <button class="btn btn-sm btn-outline" style="flex:1;" id="btn-fb-signup">Créer un compte</button>
+            </div>
+          </div>
+
+          <div id="fb-foyer-section" style="display:none;">
+            <p id="fb-user-info" style="font-size:0.75rem;color:var(--text-3);margin-bottom:8px;"></p>
+            <div id="fb-foyer-create" style="margin-bottom:10px;">
+              <button class="btn btn-sm btn-primary btn-full" id="btn-fb-create-foyer">Créer un nouveau foyer</button>
+              <p style="font-size:0.72rem;color:var(--text-3);margin-top:4px;text-align:center;">ou</p>
+              <div style="display:flex;gap:8px;">
+                <input type="text" class="form-input" id="fb-foyer-id-input" placeholder="ID du foyer (partagé par l'autre appareil)" style="flex:1;font-size:0.75rem;">
+                <button class="btn btn-sm btn-outline" id="btn-fb-join-foyer">Rejoindre</button>
+              </div>
+            </div>
+            <div id="fb-foyer-connected" style="display:none;">
+              <div style="background:var(--surface-2);border-radius:var(--r-sm);padding:10px;margin-bottom:8px;">
+                <div style="font-size:0.72rem;color:var(--text-3);margin-bottom:4px;">ID de votre foyer (partagez-le)</div>
+                <div style="display:flex;align-items:center;gap:6px;">
+                  <code id="fb-foyer-id-display" style="font-size:0.7rem;flex:1;word-break:break-all;color:var(--text-1);"></code>
+                  <button class="btn btn-sm btn-outline" id="btn-fb-copy-foyer">Copier</button>
+                </div>
+              </div>
+              <div style="display:flex;gap:8px;">
+                <button class="btn btn-sm btn-secondary" style="flex:1;" id="btn-fb-push-now">&#x2191; Envoyer maintenant</button>
+                <button class="btn btn-sm btn-outline"    style="flex:1;" id="btn-fb-pull-now">&#x2193; Recevoir maintenant</button>
+              </div>
+            </div>
+            <button class="btn btn-sm" style="width:100%;margin-top:8px;color:var(--text-3);font-size:0.72rem;" id="btn-fb-signout">Déconnexion Firebase</button>
+          </div>
+
+          <p id="fb-last-sync" style="font-size:0.7rem;color:var(--text-3);text-align:center;margin-top:8px;">
+            ${s.fbLastSync ? 'Dernière sync Firebase : ' + new Date(s.fbLastSync).toLocaleString('fr-FR') : ''}
           </p>
         </div>
 
@@ -737,7 +815,149 @@ function bindEvents(container, s, users, archived, N) {
       setTimeout(() => { location.href = location.pathname; }, 1200);
     });
   });
+
+  // ── Firebase : enregistrer config ──
+  container.querySelector('#btn-fb-save-config')?.addEventListener('click', async () => {
+    const raw = container.querySelector('#s-fb-config')?.value.trim();
+    if (!raw) { showToast('Collez votre firebaseConfig JSON.', 'error'); return; }
+    try {
+      const cfg = JSON.parse(raw);
+      if (!cfg.apiKey || !cfg.projectId) throw new Error('apiKey ou projectId manquant');
+      await setSetting('firebaseConfig', raw);
+      showToast('Config Firebase enregistrée ✅ — reconnectez-vous.', 'success');
+    } catch (e) { showToast('JSON invalide : ' + e.message, 'error'); }
+  });
+
+  // ── Firebase : connexion / inscription ──
+  async function _fbAuthAction(isSignUp) {
+    const email    = container.querySelector('#fb-email')?.value.trim();
+    const password = container.querySelector('#fb-password')?.value;
+    if (!email || !password) { showToast('Email et mot de passe requis.', 'error'); return; }
+    try {
+      const { initFirebase, signIn, signUp } = await import('../firebase.js');
+      await initFirebase();
+      const user = isSignUp ? await signUp(email, password) : await signIn(email, password);
+      showToast(`✅ ${isSignUp ? 'Compte créé' : 'Connecté'} : ${user.email}`, 'success');
+      await _updateFbUI(container);
+    } catch (e) {
+      const msg = e.code === 'auth/user-not-found' ? 'Compte introuvable.'
+                : e.code === 'auth/wrong-password'  ? 'Mot de passe incorrect.'
+                : e.code === 'auth/email-already-in-use' ? 'Email déjà utilisé.'
+                : e.message;
+      showToast('Erreur : ' + msg, 'error');
+    }
+  }
+  container.querySelector('#btn-fb-signin')?.addEventListener('click', () => _fbAuthAction(false));
+  container.querySelector('#btn-fb-signup')?.addEventListener('click', () => _fbAuthAction(true));
+
+  // ── Firebase : déconnexion ──
+  container.querySelector('#btn-fb-signout')?.addEventListener('click', async () => {
+    const { signOutFirebase, stopFirebaseSync } = await Promise.all([
+      import('../firebase.js'), import('../fb-sync.js')
+    ]).then(([a, b]) => ({ signOutFirebase: a.signOutFirebase, stopFirebaseSync: b.stopFirebaseSync }));
+    await signOutFirebase();
+    stopFirebaseSync();
+    showToast('Déconnecté de Firebase.', 'info');
+    await _updateFbUI(container);
+  });
+
+  // ── Firebase : créer foyer ──
+  container.querySelector('#btn-fb-create-foyer')?.addEventListener('click', async () => {
+    try {
+      const { createFoyer } = await import('../firebase.js');
+      const foyerId = await createFoyer();
+      showToast('Foyer créé ✅ — partagez l\'ID avec votre partenaire.', 'success');
+      const { startFirebaseSync } = await import('../fb-sync.js');
+      await startFirebaseSync(foyerId);
+      await _updateFbUI(container);
+    } catch (e) { showToast('Erreur : ' + e.message, 'error'); }
+  });
+
+  // ── Firebase : rejoindre foyer ──
+  container.querySelector('#btn-fb-join-foyer')?.addEventListener('click', async () => {
+    const id = container.querySelector('#fb-foyer-id-input')?.value.trim();
+    if (!id) { showToast('Saisissez l\'ID du foyer.', 'error'); return; }
+    try {
+      const { joinFoyer } = await import('../firebase.js');
+      await joinFoyer(id);
+      showToast('Foyer rejoint ✅', 'success');
+      const { startFirebaseSync } = await import('../fb-sync.js');
+      await startFirebaseSync(id);
+      await _updateFbUI(container);
+    } catch (e) { showToast('Erreur : ' + e.message, 'error'); }
+  });
+
+  // ── Firebase : copier foyerId ──
+  container.querySelector('#btn-fb-copy-foyer')?.addEventListener('click', async () => {
+    const id = container.querySelector('#fb-foyer-id-display')?.textContent;
+    if (id) { await navigator.clipboard.writeText(id).catch(() => {}); showToast('ID copié ✅', 'success'); }
+  });
+
+  // ── Firebase : push/pull manuels ──
+  container.querySelector('#btn-fb-push-now')?.addEventListener('click', async () => {
+    const foyerId = await getSetting('foyerId');
+    if (!foyerId) return;
+    const { pushToFirebase } = await import('../fb-sync.js');
+    await pushToFirebase(foyerId);
+    showToast('Données envoyées vers Firebase ✅', 'success');
+  });
+  container.querySelector('#btn-fb-pull-now')?.addEventListener('click', async () => {
+    const foyerId = await getSetting('foyerId');
+    if (!foyerId) return;
+    const { pullFromFirebase } = await import('../fb-sync.js');
+    const ok = await pullFromFirebase(foyerId);
+    showToast(ok ? 'Données récupérées depuis Firebase ✅' : 'Déjà à jour.', ok ? 'success' : 'info');
+    if (ok) render(container);
+  });
+
+  // Mettre à jour l'UI Firebase selon l'état d'auth
+  _updateFbUI(container);
 }
+
+async function _updateFbUI(container) {
+  try {
+    const { isFirebaseConfigured, isFirebaseReady, initFirebase, getCurrentUser } = await import('../firebase.js');
+
+    const configured = await isFirebaseConfigured();
+    if (configured && !isFirebaseReady()) {
+      try { await initFirebase(); } catch { /* pas encore connecté */ }
+    }
+
+    const user     = configured ? await getCurrentUser() : null;
+    const foyerId  = user ? await getSetting('foyerId') : null;
+
+    const authSec  = container.querySelector('#fb-auth-section');
+    const foyerSec = container.querySelector('#fb-foyer-section');
+    const connSec  = container.querySelector('#fb-foyer-connected');
+    const createSec = container.querySelector('#fb-foyer-create');
+    const chip     = container.querySelector('#fb-card-status');
+
+    if (!authSec || !foyerSec) return;
+
+    if (!user) {
+      authSec.style.display  = '';
+      foyerSec.style.display = 'none';
+      if (chip) chip.textContent = '○ Non connecté';
+    } else {
+      authSec.style.display  = 'none';
+      foyerSec.style.display = '';
+      const info = container.querySelector('#fb-user-info');
+      if (info) info.textContent = `Connecté : ${user.email}`;
+
+      if (foyerId) {
+        if (createSec) createSec.style.display = 'none';
+        if (connSec)   connSec.style.display   = '';
+        const disp = container.querySelector('#fb-foyer-id-display');
+        if (disp) disp.textContent = foyerId;
+        if (chip) { chip.textContent = '● Sync actif'; chip.classList.add('success'); }
+      } else {
+        if (createSec) createSec.style.display = '';
+        if (connSec)   connSec.style.display   = 'none';
+        if (chip) chip.textContent = '◔ Pas de foyer';
+      }
+    }
+  } catch { /* Firebase pas encore init */ }
+
 
 // ── Modal : créer / modifier un utilisateur ──
 function showUserModal(user, onSave) {

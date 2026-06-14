@@ -6,6 +6,7 @@ import { getAllSettings, getSetting, setSetting, getActiveUsers, getMonthsByYear
          getAllBudgetOps, getDeviceSetting, setDeviceSetting }    from './db.js';
 import { initDriveSync, startAutoSave, initActivityTracking,
          markDirty, testDriveConnection }                         from './sync.js';
+import { initFirebaseSync }                                       from './fb-sync.js';
 import { today, showToast, closeModal, openModal, nomMois,
          addMonth, isMonthEmpty }                                 from './utils.js';
 import { DRIVE_URL_KEY, isValidDriveUrl }                         from './drive.js';
@@ -455,6 +456,9 @@ async function init() {
 
   // ── Synchronisation Drive au lancement ──
   await initDriveSync();
+
+  // ── Synchronisation Firebase temps réel ──
+  initFirebaseSync(); // non-bloquant : démarre en arrière-plan
 
   // Re-charger les users après import potentiel depuis Drive
   await reloadUsers();
