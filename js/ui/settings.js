@@ -957,7 +957,7 @@ async function _updateFbUI(container) {
       }
     }
   } catch { /* Firebase pas encore init */ }
-
+}
 
 // ── Modal : créer / modifier un utilisateur ──
 function showUserModal(user, onSave) {
