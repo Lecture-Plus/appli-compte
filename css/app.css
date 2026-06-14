@@ -500,7 +500,7 @@
   --bg:#191918; --surface:#222221; --surface-2:#2B2B2A; --surface-3:#333332;
   --overlay:rgba(20,20,18,.92);
   --border:rgba(255,255,255,.08); --border-mid:rgba(255,255,255,.14);
-  --text-1:#F0EFE8; --text-2:#AAAAA5; --text-3:rgba(170,170,165,.50); --text-inv:#191918;
+  --text-1:#F0EFE8; --text-2:#AAAAA5; --text-3:rgba(170,170,165,.50); --text-inv:#FFFFFF;
   --nav-bg:rgba(20,20,18,.97); --header-bg:rgba(20,20,18,.97);
   --sh-xs:0 1px 3px rgba(0,0,0,.45);
   --sh-sm:0 2px 8px rgba(0,0,0,.55),0 0 12px rgba(255,69,0,.05);
@@ -526,7 +526,7 @@
   --bg:#09001A; --surface:#130028; --surface-2:#1C0038; --surface-3:#260048;
   --overlay:rgba(9,0,26,.92);
   --border:rgba(255,45,120,.12); --border-mid:rgba(255,45,120,.24);
-  --text-1:#FDF0FF; --text-2:#C89CDE; --text-3:rgba(200,156,222,.50); --text-inv:#09001A;
+  --text-1:#FDF0FF; --text-2:#C89CDE; --text-3:rgba(200,156,222,.50); --text-inv:#FFFFFF;
   --nav-bg:rgba(9,0,26,.97); --header-bg:rgba(9,0,26,.97);
   --sh-xs:0 1px 3px rgba(255,45,120,.10),0 0 8px rgba(255,45,120,.05);
   --sh-sm:0 2px 8px rgba(255,45,120,.15),0 0 18px rgba(255,45,120,.08);
@@ -1514,9 +1514,11 @@ details.acc-card[open] > summary.acc-summary { margin-bottom: 12px; padding-bott
 [data-theme="cyber"] body {
   background-color: #050A0E;
   background-image:
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='60'%3E%3Cpath d='M60 0H0v60' fill='none' stroke='rgba(0%2C245%2C255%2C.06)' stroke-width='.5'/%3E%3C/svg%3E"),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cpath d='M0 50H60V20H130V50H190V30H260V70H300' fill='none' stroke='rgba(0,245,255,.11)' stroke-width='1'/%3E%3Cpath d='M0 150H30V120H90V160H150V140H210V170H270V150H300' fill='none' stroke='rgba(0,245,255,.10)' stroke-width='1'/%3E%3Cpath d='M0 250H40V220H110V250H170V230H240V260H300' fill='none' stroke='rgba(0,245,255,.10)' stroke-width='1'/%3E%3Cpath d='M50 0V40H20V100H50V140H30V200H60V300' fill='none' stroke='rgba(0,245,255,.09)' stroke-width='1'/%3E%3Cpath d='M150 0V30H120V80H160V120H140V180H160V300' fill='none' stroke='rgba(0,245,255,.08)' stroke-width='1'/%3E%3Cpath d='M250 0V60H230V110H260V160H240V220H260V300' fill='none' stroke='rgba(0,245,255,.08)' stroke-width='1'/%3E%3Ccircle cx='60' cy='50' r='3.5' fill='rgba(0,245,255,.16)'/%3E%3Ccircle cx='130' cy='20' r='2.5' fill='rgba(0,245,255,.13)'/%3E%3Ccircle cx='190' cy='50' r='3.5' fill='rgba(0,245,255,.15)'/%3E%3Ccircle cx='260' cy='30' r='2.5' fill='rgba(0,245,255,.12)'/%3E%3Ccircle cx='90' cy='120' r='3' fill='rgba(0,245,255,.12)'/%3E%3Ccircle cx='150' cy='160' r='4' fill='rgba(0,245,255,.14)'/%3E%3Ccircle cx='210' cy='140' r='2.5' fill='rgba(0,245,255,.11)'/%3E%3Ccircle cx='60' cy='50' r='7' fill='none' stroke='rgba(0,245,255,.09)' stroke-width='1'/%3E%3Ccircle cx='150' cy='160' r='8' fill='none' stroke='rgba(0,245,255,.08)' stroke-width='1'/%3E%3Crect x='118' y='56' width='28' height='18' rx='2' fill='none' stroke='rgba(0,245,255,.09)' stroke-width='1'/%3E%3Crect x='198' y='140' width='26' height='16' rx='2' fill='none' stroke='rgba(0,245,255,.08)' stroke-width='1'/%3E%3C/svg%3E"),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='60'%3E%3Cpath d='M60 0H0v60' fill='none' stroke='rgba(0,245,255,.06)' stroke-width='.5'/%3E%3C/svg%3E"),
     linear-gradient(180deg,#050A0E 0%,#071220 50%,#050A0E 100%);
-  background-size:60px 60px,100% 100%;
+  background-size: 300px 300px, 60px 60px, 100% 100%;
+  background-repeat: repeat, repeat, no-repeat;
 }
 
 /* Scanlines fixes semi-transparentes */
@@ -1598,12 +1600,15 @@ details.acc-card[open] > summary.acc-summary { margin-bottom: 12px; padding-bott
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━ STREET ART ━━━━━━━━━━━━━━━━━━━━━━━ */
 
-/* Corps : béton avec grain SVG (feTurbulence) */
+/* Corps : béton + tags graffiti SVG + grain */
 [data-theme="street"] body {
   background-color:#191918;
   background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='600' height='480'%3E%3Cpath d='M30 90 C25 50,70 20,110 40 C150 60,145 100,120 115 C95 130,40 120,30 90Z M55 80 C52 60,75 45,95 52 C115 59,112 78,100 85 C88 92,58 94,55 80Z' fill='none' stroke='rgba(255,69,0,.22)' stroke-width='5' stroke-linejoin='round'/%3E%3Cpath d='M-10 200 C80 140,200 270,300 180 C400 90,510 220,610 160' fill='none' stroke='rgba(255,230,0,.18)' stroke-width='4.5' stroke-linecap='round'/%3E%3Cpath d='M420 30 C455 5,505 15,515 55 C525 95,498 118,468 110 C438 102,415 65,420 30Z M445 48 C447 30,468 24,480 34 C492 44,488 62,476 65 C464 68,443 60,445 48Z' fill='none' stroke='rgba(126,255,0,.20)' stroke-width='5' stroke-linejoin='round'/%3E%3Cpath d='M-10 360 C90 310,200 390,300 340 C400 290,510 380,620 330' fill='none' stroke='rgba(0,204,255,.16)' stroke-width='4' stroke-linecap='round'/%3E%3Cpath d='M295 400 C330 365,390 375,400 415 C410 455,380 475,350 462 C320 449,285 428,295 400Z' fill='none' stroke='rgba(255,45,120,.22)' stroke-width='5' stroke-linejoin='round'/%3E%3Cpath d='M75 118 C73 155,77 210,74 260 C72 285,76 300,73 320' fill='none' stroke='rgba(255,69,0,.16)' stroke-width='3.5' stroke-linecap='round'/%3E%3Cpath d='M465 112 C463 140,467 175,464 200' fill='none' stroke='rgba(126,255,0,.14)' stroke-width='3' stroke-linecap='round'/%3E%3Cpath d='M485 320 C510 285,555 295,565 330 C575 365,550 385,522 378 C494 371,476 346,485 320Z' fill='none' stroke='rgba(255,140,0,.20)' stroke-width='5' stroke-linejoin='round'/%3E%3Cline x1='160' y1='0' x2='260' y2='90' stroke='rgba(255,255,255,.06)' stroke-width='1.5'/%3E%3Cline x1='380' y1='180' x2='480' y2='260' stroke='rgba(255,255,255,.05)' stroke-width='1'/%3E%3Cpath d='M180 300 L190 280 L200 300 L220 295 L205 308 L212 328 L192 316 L172 328 L179 308 L164 295 Z' fill='none' stroke='rgba(255,230,0,.18)' stroke-width='3' stroke-linejoin='round'/%3E%3C/svg%3E"),
     url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.80' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)' opacity='.048'/%3E%3C/svg%3E");
-  background-size:200px 200px;
+  background-size: cover, 200px 200px;
+  background-position: top center, 0 0;
+  background-repeat: no-repeat, repeat;
 }
 
 /* Cartes */
@@ -1678,13 +1683,17 @@ details.acc-card[open] > summary.acc-summary { margin-bottom: 12px; padding-bott
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━ SYNTHWAVE ━━━━━━━━━━━━━━━━━━━━━━━ */
 
-/* Corps : violet profond + halos néon rose et cyan */
+/* Corps : violet profond + soleil rétrowave SVG + halos */
 [data-theme="synthwave"] body {
   background-color:#09001A;
   background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='520' height='360'%3E%3Cdefs%3E%3CclipPath id='sc'%3E%3Crect x='80' y='0' width='360' height='160'/%3E%3C/clipPath%3E%3ClinearGradient id='sg' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='rgba(255,140,0,1)'/%3E%3Cstop offset='.5' stop-color='rgba(255,70,100,1)'/%3E%3Cstop offset='1' stop-color='rgba(255,45,120,1)'/%3E%3C/linearGradient%3E%3C/defs%3E%3Ccircle cx='260' cy='160' r='150' fill='url(%23sg)' clip-path='url(%23sc)'/%3E%3Crect x='80' y='58' width='360' height='10' fill='rgba(9,0,26,.95)'/%3E%3Crect x='80' y='78' width='360' height='9' fill='rgba(9,0,26,.95)'/%3E%3Crect x='80' y='97' width='360' height='9' fill='rgba(9,0,26,.95)'/%3E%3Crect x='80' y='116' width='360' height='9' fill='rgba(9,0,26,.95)'/%3E%3Crect x='80' y='135' width='360' height='10' fill='rgba(9,0,26,.95)'/%3E%3Crect x='80' y='155' width='360' height='12' fill='rgba(9,0,26,.95)'/%3E%3Crect x='0' y='158' width='520' height='3' fill='rgba(255,45,120,.90)'/%3E%3Cline x1='260' y1='160' x2='0' y2='360' stroke='rgba(255,45,120,.45)' stroke-width='1'/%3E%3Cline x1='260' y1='160' x2='65' y2='360' stroke='rgba(255,45,120,.45)' stroke-width='1'/%3E%3Cline x1='260' y1='160' x2='150' y2='360' stroke='rgba(255,45,120,.45)' stroke-width='1'/%3E%3Cline x1='260' y1='160' x2='210' y2='360' stroke='rgba(255,45,120,.45)' stroke-width='1'/%3E%3Cline x1='260' y1='160' x2='237' y2='360' stroke='rgba(255,45,120,.42)' stroke-width='1'/%3E%3Cline x1='260' y1='160' x2='283' y2='360' stroke='rgba(255,45,120,.42)' stroke-width='1'/%3E%3Cline x1='260' y1='160' x2='310' y2='360' stroke='rgba(255,45,120,.45)' stroke-width='1'/%3E%3Cline x1='260' y1='160' x2='370' y2='360' stroke='rgba(255,45,120,.45)' stroke-width='1'/%3E%3Cline x1='260' y1='160' x2='455' y2='360' stroke='rgba(255,45,120,.45)' stroke-width='1'/%3E%3Cline x1='260' y1='160' x2='520' y2='360' stroke='rgba(255,45,120,.45)' stroke-width='1'/%3E%3Cline x1='0' y1='200' x2='520' y2='200' stroke='rgba(0,255,212,.30)' stroke-width='1'/%3E%3Cline x1='0' y1='232' x2='520' y2='232' stroke='rgba(0,255,212,.24)' stroke-width='1'/%3E%3Cline x1='0' y1='260' x2='520' y2='260' stroke='rgba(0,255,212,.18)' stroke-width='1'/%3E%3Cline x1='0' y1='285' x2='520' y2='285' stroke='rgba(0,255,212,.13)' stroke-width='1'/%3E%3Cline x1='0' y1='308' x2='520' y2='308' stroke='rgba(0,255,212,.10)' stroke-width='1'/%3E%3Cline x1='0' y1='332' x2='520' y2='332' stroke='rgba(0,255,212,.07)' stroke-width='1'/%3E%3C/svg%3E"),
     radial-gradient(ellipse 100% 50% at 50% 88%,rgba(255,45,120,.08) 0%,transparent 60%),
     radial-gradient(ellipse 80%  40% at 25% 15%,rgba(0,255,212,.05) 0%,transparent 55%),
     linear-gradient(180deg,#09001A 0%,#130028 55%,#09001A 100%);
+  background-size: 100% 55%, 100% 100%, 100% 100%, 100% 100%;
+  background-position: center bottom, center, center, center;
+  background-repeat: no-repeat, no-repeat, no-repeat, no-repeat;
 }
 
 /* Grille rétro synth sur la zone de contenu */
@@ -1759,4 +1768,10 @@ details.acc-card[open] > summary.acc-summary { margin-bottom: 12px; padding-bott
   border-color:rgba(255,45,120,.45);
   box-shadow:0 0 14px rgba(255,45,120,.22);
 }
+
+/* Contraste texte sur boutons colorés */
+[data-theme="street"] .btn-primary { color:#FFFFFF; }
+[data-theme="synthwave"] .btn-primary { color:#FFFFFF; }
+[data-theme="street"] .btn-secondary { color:var(--text-1); }
+[data-theme="synthwave"] .btn-secondary { color:var(--text-1); }
 
