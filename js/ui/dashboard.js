@@ -21,8 +21,9 @@ import { showCraquageModal }                              from './saisie.js';
 import { showEditBudgetModal, showAchatModal }             from './charges.js';
 import { on }                                             from '../events.js';
 
-let _activeTab = 'resume';
-let _detailMode = 'reel'; // 'reel' | 'previsionnel'
+let _activeTab     = 'resume';
+let _detailMode    = 'reel'; // 'reel' | 'previsionnel'
+let _dashBilanMode = localStorage.getItem('compta-dash-bilan-mode') || 'previsionnel';
 
 // ── Phrase narrative contextuelle (1 ligne) ──
 function _buildNarrative(kpi, s, daysLeft, isCurrentMonth) {
@@ -351,6 +352,85 @@ async function _renderResume(container, s, users) {
     return;
   }
 
+  // ── Bilan mensuel : variables ──
+  const isDone        = md?.isComplete === true;
+  const totalRev      = (kpiPrev?.revenus?.total||0) + (kpiPrev?.aides?.total||0) + (kpiPrev?.primes?.total||0);
+  const totalChg      = kpiPrev?.charges?.total || 0;
+  const totalDep      = achats.reduce((a, x) => a + (Number(x.amount)||0), 0);
+  const imprévus      = md?.imprévusList || [];
+  const hubBudgets    = customBudgets.map(b => {
+    const sp = allBudgetOps.filter(o => o.category === b.id).reduce((a, o) => a + (Number(o.amount)||0), 0);
+    const effectiveBudget = b.allocation === 'equal' ? (Number(b.amount)||0) * users.length
+                          : b.allocation === 'custom' ? Object.values(b.amountByUser||{}).reduce((s,v)=>s+(Number(v)||0),0)
+                          : Number(b.amount)||0;
+    return { id: b.id, icon: b.icon || '📌', label: b.name, budget: effectiveBudget, spent: sp };
+  });
+  const totalBudgets         = hubBudgets.reduce((a, b) => a + b.spent, 0);
+  const totalBudgetsCeilings = hubBudgets.reduce((a, b) => a + b.budget, 0);
+  const _bilanIsPrevo        = _dashBilanMode === 'previsionnel';
+  const bilanBudgets         = _bilanIsPrevo ? totalBudgetsCeilings : totalBudgets;
+  const bilanSolde           = totalRev - totalChg - bilanBudgets - totalDep;
+  const bilanColor           = bilanSolde >= 0 ? 'var(--success)' : 'var(--danger)';
+  const _bTotalPart          = kpiPrev?.part?.total || 1;
+  const bilanUserSolde = uid => {
+    if (!_bilanIsPrevo) return kpi?.solde?.byUser?.[uid] ?? 0;
+    const uShare = _bTotalPart > 0 ? (kpiPrev?.part?.byUser?.[uid]||0) / _bTotalPart : 1 / (users.length||1);
+    return (kpiPrev?.revenus?.byUser?.[uid]||0) + (kpiPrev?.aides?.byUser?.[uid]||0) + (kpiPrev?.primes?.byUser?.[uid]||0)
+      - (kpiPrev?.charges?.byUser?.[uid]||0) - bilanBudgets * uShare - totalDep * uShare;
+  };
+  const _bN = users.length || 1;
+  const _bShare = uid => {
+    const uId = String(uid);
+    if (_bN <= 1) return 1;
+    const mode = repCfg?.mode || 'separe';
+    if (mode === 'equitable') {
+      const base = users.reduce((s, u) => s + (kpiPrev?.revenus?.byUser?.[String(u.id)]||0), 0);
+      return base > 0 ? (kpiPrev?.revenus?.byUser?.[uId]||0) / base : 1 / _bN;
+    } else if (mode === 'fixe') {
+      const pcts = repCfg?.pcts ?? {};
+      const sum  = Object.values(pcts).reduce((s, v) => s + (Number(v)||0), 0) || 100;
+      return (Number(pcts[uId])||0) / sum;
+    }
+    return 1 / _bN;
+  };
+  const aPayerPerUser = {};
+  for (const _bu of users) {
+    const uId = String(_bu.id);
+    const chgShare = kpiPrev?.charges?.byUser?.[uId] || 0;
+    let budgShare = 0;
+    for (const b of customBudgets) {
+      const alloc = b.allocation || 'shared';
+      if (alloc === 'custom') budgShare += Number((b.amountByUser||{})[uId]) || 0;
+      else if (alloc === 'equal') budgShare += Number(b.amount) || 0;
+      else budgShare += (Number(b.amount)||0) * _bShare(_bu.id);
+    }
+    let impShare = 0;
+    for (const imp of imprévus) {
+      const amt = Number(imp.amount) || 0;
+      if (imp.qui === 'shared' || !imp.qui) impShare += amt * _bShare(_bu.id);
+      else if (String(imp.qui) === uId) impShare += amt;
+    }
+    aPayerPerUser[uId] = chgShare + budgShare + impShare;
+  }
+  for (const c of charges) {
+    if (!c.payerViaPerso || c.perso) continue;
+    const amt = Number(c.amount) || 0;
+    if (!amt) continue;
+    const payerUid = String(c.payerViaPerso);
+    if (aPayerPerUser[payerUid] === undefined) continue;
+    const qui = c.qui ? String(c.qui) : 'shared';
+    let payerShare = 0;
+    if (c.splitPcts && typeof c.splitPcts === 'object') {
+      const sumPcts = users.reduce((s, u) => s + (Number(c.splitPcts[String(u.id)])||0), 0) || 100;
+      payerShare = amt * ((Number(c.splitPcts[payerUid])||0) / sumPcts);
+    } else if (qui !== 'shared' && users.some(u => String(u.id) === qui)) {
+      payerShare = qui === payerUid ? amt : 0;
+    } else {
+      payerShare = amt * _bShare(payerUid);
+    }
+    aPayerPerUser[payerUid] -= amt;
+  }
+
   el.innerHTML = `
     <!-- ── HERO ── -->
     <div class="hero-v2 ${heroStateClass}" style="margin-bottom:14px;">
@@ -634,65 +714,15 @@ async function _renderResume(container, s, users) {
     }, users);
   });
 
-  // ── Toggle détail prévisionnel/réel ──
-  let _dashDetailMode = 'previsionnel';
-  el.querySelectorAll('.dash-dmode').forEach(btn => {
-    btn.addEventListener('click', () => {
-      _dashDetailMode = btn.dataset.dmode;
-      el.querySelectorAll('.dash-dmode').forEach(b => {
-        b.classList.toggle('btn-primary', b.dataset.dmode === _dashDetailMode);
-        b.classList.toggle('btn-outline',  b.dataset.dmode !== _dashDetailMode);
-      });
-      const hint  = el.querySelector('#dash-detail-hint');
-      const table = el.querySelector('#dash-detail-table');
-      const isReel = _dashDetailMode === 'reel';
-      if (hint) hint.textContent = isReel
-        ? '✅ Dépenses et charges réelles constatées'
-        : '📅 Simulation avec tous les budgets et charges du mois configurés';
-      // Rebuild table inline (closure over kpiPrev/kpiReel/realCourses/realExtras)
-      if (table) {
-        const dk = isReel ? kpiReel : kpiPrev;
-        const courses = isReel ? realCourses.total : (kpiPrev.courses?.total || 0);
-        const extras  = isReel ? realExtras.total  : (kpiPrev.extras?.total  || 0);
-        const uCols   = users.length > 1;
-        const hdr = uCols ? users.map(u => `<th style="text-align:right"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${escHtml(u.color||'#7C5CFC')};margin-right:3px;"></span>${escHtml(u.name)}</th>`).join('') : '';
-        const bRow = (label, cat) => {
-          if (!cat) return '';
-          const uc = uCols ? users.map(u => `<td style="text-align:right">${eur(cat.byUser?.[u.id]??0)}</td>`).join('') : '';
-          return `<tr><td>${label}</td>${uc}<td style="text-align:right">${eur(cat.total)}</td></tr>`;
-        };
-        const sTotal = dk.solde?.total ?? 0;
-        table.innerHTML = `<table class="data-table" style="width:100%;">
-          <thead><tr><th>Catégorie</th>${hdr}<th style="text-align:right">Total</th></tr></thead>
-          <tbody>
-            ${bRow('Revenus &amp; Aides', { total:(dk.revenus?.total||0)+(dk.aides?.total||0), byUser: uCols?Object.fromEntries(users.map(u=>[u.id,(dk.revenus?.byUser?.[u.id]??0)+(dk.aides?.byUser?.[u.id]??0)])):{}  })}
-            ${(dk.primes?.total??0)>0 ? bRow('Primes', dk.primes) : ''}
-            ${bRow('Charges', dk.charges)}
-            ${courses > 0 ? `<tr><td>${isReel?'Courses (confirmé)':'Budget courses'}</td>${uCols?users.map(u=>`<td style="text-align:right">${eur(dk.courses?.byUser?.[u.id]??0)}</td>`).join(''):''}<td style="text-align:right">${eur(courses)}</td></tr>` : ''}
-            ${extras > 0 ? `<tr><td>${isReel?'Loisirs (confirmé)':'Budget loisirs'}</td>${uCols?users.map(u=>`<td style="text-align:right">${eur(dk.extras?.byUser?.[u.id]??0)}</td>`).join(''):''}<td style="text-align:right">${eur(extras)}</td></tr>` : ''}
-            ${bRow('Dép. ponctuelles', dk.achats ?? {total:0,byUser:{}})}
-            ${bRow('Imprévus', dk.imprevus ?? {total:0,byUser:{}})}
-            ${customBudgets.map(b => {
-              if (isReel) {
-                const bOps2 = allBudgetOps.filter(o=>o.category===b.id);
-                const spent = bOps2.reduce((s,o)=>s+(Number(o.amount)||0),0);
-                const bByUser2 = uCols ? (() => { const acc={}; for(const o of bOps2){if(o.userId){const k=String(o.userId);acc[k]=(acc[k]||0)+(Number(o.amount)||0);}else{const share=(Number(o.amount)||0)/users.length;for(const u of users){const k=String(u.id);acc[k]=(acc[k]||0)+share;}}} return acc; })() : {};
-                return `<tr><td>${b.icon||'📌'} ${escHtml(b.name)}</td>${uCols?users.map(u=>`<td style="text-align:right">${eur(bByUser2[String(u.id)]??0)}</td>`).join(''):''}<td style="text-align:right">${eur(spent)}</td></tr>`;
-              } else {
-                const bgt2 = b.allocation==='equal'?(Number(b.amount)||0)*users.length:b.allocation==='custom'?Object.values(b.amountByUser||{}).reduce((s,v)=>s+(Number(v)||0),0):Number(b.amount)||0;
-                const bByUserP2 = uCols ? (() => { const acc={}; if(b.allocation==='custom'){for(const u of users)acc[String(u.id)]=Number(b.amountByUser?.[u.id]??b.amountByUser?.[String(u.id)])||0;}else if(b.allocation==='equal'){for(const u of users)acc[String(u.id)]=Number(b.amount)||0;}else{const sh=users.length?bgt2/users.length:bgt2;for(const u of users)acc[String(u.id)]=sh;} return acc; })() : {};
-                return `<tr><td>${b.icon||'📌'} ${escHtml(b.name)}</td>${uCols?users.map(u=>`<td style="text-align:right">${eur(bByUserP2[String(u.id)]??0)}</td>`).join(''):''}<td style="text-align:right">${eur(bgt2)}</td></tr>`;
-              }
-            }).join('')}
-          </tbody>
-          <tfoot>
-            ${uCols ? `<tr class="row-total"><td>${isReel?'À payer':'À envoyer (prév.)'}</td>${users.map(u=>`<td style="text-align:right">${eur(dk.aPayer?.byUser?.[u.id]??0)}</td>`).join('')}<td style="text-align:right">${eur(dk.aPayer?.total||0)}</td></tr>` : ''}
-            <tr class="row-total"><td>Solde ${isReel?'net':'prévisionnel'}</td>${uCols?users.map(u=>{const v=dk.solde?.byUser?.[u.id]??0;return`<td style="text-align:right;color:${v>=0?'var(--success)':'var(--danger)'}">${eur(v)}</td>`;}).join(''):''}<td style="text-align:right;color:${sTotal>=0?'var(--success)':'var(--danger)'}">${eur(sTotal)}</td></tr>
-          </tfoot>
-        </table>${!isReel?'<p style="font-size:0.72rem;color:var(--text-3);margin:8px 0 4px;">💡 Ce calcul utilise les plafonds de budget et la répartition configurée.</p>':''}`;
-      }
-    });
-  });
+  // ── Toggle bilan prévisionnel/réel ──
+  const _toggleDashBilan = () => {
+    _dashBilanMode = _dashBilanMode === 'previsionnel' ? 'reel' : 'previsionnel';
+    localStorage.setItem('compta-dash-bilan-mode', _dashBilanMode);
+    _renderResume(container, s, users);
+  };
+  el.querySelector('#dash-bilan-toggle')?.addEventListener('click', _toggleDashBilan);
+  el.querySelector('#dash-bilan-hint-switch')?.addEventListener('click', _toggleDashBilan);
+  // (dead code guard — kept for future use)
 }
 // ── Modal : épingler un budget ──
 function _showPinBudgetModal(currentPinned, customBudgets, onPin, users = []) {
