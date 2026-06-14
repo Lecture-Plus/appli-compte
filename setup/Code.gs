@@ -18,8 +18,8 @@
  * ================================================================
  */
 
-const FOLDER_NAME = 'Budget Foyer';
-const MAX_BACKUPS = 5;
+const FOLDER_NAME = 'Backup Compta+';
+const MAX_BACKUPS = 25;
 
 // ── Utilitaires Drive ──
 
