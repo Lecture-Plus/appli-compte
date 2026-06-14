@@ -54,7 +54,12 @@ export function getFbStatus() {
 
 // ── Marquer les données comme modifiées ───────────────────────────────────
 
-export function markFirebaseDirty() { if (!_isImporting) _isDirty = true; }
+export function markFirebaseDirty() {
+  if (_isImporting) return;
+  // Bloquer pendant LOOP_GAP_MS après un import pour casser les boucles push/pull
+  if (Date.now() - _lastImportAt < LOOP_GAP_MS) return;
+  _isDirty = true;
+}
 
 // ── Push ──────────────────────────────────────────────────────────────────
 
@@ -160,6 +165,10 @@ export async function startFirebaseSync(foyerId) {
     showToast('✅ Données récupérées depuis Firestore', 'success', 3000);
     emit('db:write', { store: 'firebase-pull' });
   }
+  // Marquer le timestamp d'import AVANT d'attacher le listener pour bloquer
+  // le premier trigger onSnapshot (Firestore envoie toujours l'état actuel à l'abonnement)
+  _lastImportAt = Date.now();
+  _isDirty = false;
   setFbStatus('ok');
 
   // Listener temps réel
@@ -172,17 +181,11 @@ export async function startFirebaseSync(foyerId) {
     const remote = snap.data();
     if (!remote?.data?.appName) return;
 
-    // Ignorer nos propres pushes (éviter la boucle)
-    if (remote.updatedBy === _getDeviceId()) {
-      const remoteTs = remote.updatedAt?.toDate?.()?.getTime() ?? 0;
-      if (Date.now() - remoteTs < LOOP_GAP_MS) return;
-    }
+    // Ignorer nos propres pushes (éviter la boucle locale)
+    if (remote.updatedBy === _getDeviceId()) return;
 
-    // Vérifier si le snapshot distant est plus récent
-    const remoteTs = remote.updatedAt?.toDate?.()?.getTime() ?? 0;
-    const localStr = await getSetting(FB_SYNC_KEY);
-    const localTs  = localStr ? new Date(localStr).getTime() : 0;
-    if (remoteTs <= localTs + 3_000) return;
+    // Ignorer si on vient d'importer (évite le ping-pong entre appareils)
+    if (Date.now() - _lastImportAt < LOOP_GAP_MS) return;
 
     console.log('[FB-Sync] Mise à jour distante détectée — import…');
     setFbStatus('syncing');
@@ -191,11 +194,10 @@ export async function startFirebaseSync(foyerId) {
       await importAllData(remote.data);
       await setSetting(FB_SYNC_KEY, new Date().toISOString());
       _lastImportAt = Date.now();
+      _isDirty = false;
       emit('db:write', { store: 'firebase-pull' });
       showToast('🔄 Données synchronisées depuis un autre appareil', 'info', 3000);
       setFbStatus('ok');
-      // Reset dirty après un tick pour annuler les markDirty() async déclenchés par importAllData
-      setTimeout(() => { _isDirty = false; }, 200);
     } catch (e) {
       console.warn('[FB-Sync] Import échoué :', e.message);
       setFbStatus('error');
