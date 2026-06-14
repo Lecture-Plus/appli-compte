@@ -561,7 +561,7 @@ function _showImportChargesOptions(container) {
 // ── Synchronise les inputs vers _md et _repCfg ──
 function syncFormToState(container) {
   if (!_md.users) _md.users = {};
-  const _v = id => Math.max(0, Number(container.querySelector(`#${id}`)?.value) || 0);
+  const _v = id => Math.min(999999, Math.max(0, Number(container.querySelector(`#${id}`)?.value) || 0));
   _users.forEach(u => {
     const uid = String(u.id);
     if (!_md.users[uid]) _md.users[uid] = {};
@@ -861,7 +861,7 @@ function showImprévuModal(container, month, year) {
       <div class="form-group">
         <label class="form-label">Montant (€)</label>
         <div class="input-wrap">
-          <input type="number" class="form-input input-euro" id="imp-amount" min="0" step="0.01" placeholder="0.00">
+          <input type="number" class="form-input input-euro" id="imp-amount" min="0" max="999999" step="0.01" placeholder="0.00">
           <span class="input-suffix">€</span>
         </div>
       </div>
@@ -921,6 +921,7 @@ function showImprévuModal(container, month, year) {
     if (!label) { showToast('La description est requise', 'error'); return; }
     const amount = Number(document.getElementById('imp-amount')?.value);
     if (!amount || amount <= 0) { showToast('Montant invalide', 'error'); return; }
+    if (amount > 999999) { showToast('Montant trop élevé (max 999 999 €)', 'error'); return; }
     const quiRaw = document.getElementById('imp-qui')?.value;
     const qui = quiRaw === 'shared' ? 'shared' : Number(quiRaw);
     const splitInputs = document.querySelectorAll('.imp-split-pct');
@@ -1005,7 +1006,7 @@ export async function showCraquageModal(container, month, year, usersOverride = 
       <div class="craquage-row" style="padding:10px;background:var(--bg-2);border-radius:var(--radius-sm);margin-bottom:8px;" data-i="${i}">
         <div style="display:flex;gap:8px;align-items:center;margin-bottom:${r.source !== 'savings' || _users.length <= 1 ? (r.source === 'balance' || r.source === 'perso' ? '6px' : '0') : '6px'}">
           <div class="input-wrap" style="flex:1.2;">
-            <input type="number" class="form-input input-euro crq-amount" min="0" step="0.01" placeholder="0.00" value="${r.amount}" style="font-size:0.9rem;">
+            <input type="number" class="form-input input-euro crq-amount" min="0" max="999999" step="0.01" placeholder="0.00" value="${r.amount}" style="font-size:0.9rem;">
             <span class="input-suffix">€</span>
           </div>
           <select class="form-input crq-source" style="flex:1.4;font-size:0.82rem;padding:8px;">
@@ -1105,6 +1106,7 @@ export async function showCraquageModal(container, month, year, usersOverride = 
     if (!label) { showToast('Ajoutez une description', 'error'); return; }
     const validRows = rows.filter(r => Number(r.amount) > 0);
     if (!validRows.length) { showToast('Montant invalide', 'error'); return; }
+    if (validRows.some(r => Number(r.amount) > 999999)) { showToast('Montant trop élevé (max 999 999 €)', 'error'); return; }
 
     const N = users.length || 1;
 
@@ -1220,7 +1222,7 @@ function _buildCoursesContent(N) {
       <div class="form-hint" style="margin-bottom:8px;">Budget commun du foyer (réparti équitablement)</div>
       <div class="input-wrap" style="max-width:200px;">
         <input type="number" class="form-input input-euro" id="crs-foyer"
-          min="0" step="0.01" placeholder="0.00" value="${total || ''}">
+          min="0" max="999999" step="0.01" placeholder="0.00" value="${total || ''}">
         <span class="input-suffix">€</span>
       </div>`;
   }
@@ -1238,7 +1240,7 @@ function _buildExtrasContent(N) {
       <div class="form-hint" style="margin-bottom:8px;">Budget loisirs commun du foyer (réparti équitablement)</div>
       <div class="input-wrap" style="max-width:200px;">
         <input type="number" class="form-input input-euro" id="ext-foyer"
-          min="0" step="0.01" placeholder="0.00" value="${total || ''}">
+          min="0" max="999999" step="0.01" placeholder="0.00" value="${total || ''}">
         <span class="input-suffix">€</span>
       </div>`;
   }
@@ -1265,7 +1267,7 @@ function inputField(id, user, value, suffix) {
       </label>
       <div class="input-wrap">
         <input type="number" class="form-input input-euro" id="${id}"
-          min="0" step="0.01" placeholder="0.00" value="${Number(value) || ''}">
+          min="0" max="999999" max="999999" step="0.01" placeholder="0.00" value="${Number(value) || ''}">
         <span class="input-suffix">${suffix}</span>
       </div>
     </div>`;

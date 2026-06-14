@@ -24,6 +24,7 @@ import { on }                                             from '../events.js';
 let _activeTab     = 'resume';
 let _detailMode    = 'reel'; // 'reel' | 'previsionnel'
 let _dashBilanMode = localStorage.getItem('compta-dash-bilan-mode') || 'previsionnel';
+let _lastBilanData = null; // cache pour toggle sans re-fetch IDB
 
 // ── Phrase narrative contextuelle (1 ligne) ──
 function _buildNarrative(kpi, s, daysLeft, isCurrentMonth) {
@@ -123,6 +124,139 @@ export async function render(container) {
 
 async function _renderContent(container, s, users) {
   await _renderResume(container, s, users);
+}
+
+// ══════════════════════════════════════════════════
+// BILAN HTML (indépendant du fetch IDB — toggle rapide)
+// ══════════════════════════════════════════════════
+function _buildBilanHTML(d, mode) {
+  const _bilanIsPrevo        = mode === 'previsionnel';
+  const bilanBudgets         = _bilanIsPrevo ? d.totalBudgetsCeilings : d.totalBudgets;
+  const bilanSolde           = d.totalRev - d.totalChg - bilanBudgets - d.totalDep;
+  const bilanColor           = bilanSolde >= 0 ? 'var(--success)' : 'var(--danger)';
+  const bilanUserSolde = uid => {
+    if (!_bilanIsPrevo) return d.kpi?.solde?.byUser?.[uid] ?? 0;
+    const _bTotalPart = d.kpiPrev?.part?.total || 1;
+    const uShare = _bTotalPart > 0 ? (d.kpiPrev?.part?.byUser?.[uid]||0) / _bTotalPart : 1 / (d.users.length||1);
+    return (d.kpiPrev?.revenus?.byUser?.[uid]||0) + (d.kpiPrev?.aides?.byUser?.[uid]||0) + (d.kpiPrev?.primes?.byUser?.[uid]||0)
+      - (d.kpiPrev?.charges?.byUser?.[uid]||0) - bilanBudgets * uShare - d.totalDep * uShare;
+  };
+
+  return `<div class="hub-bilan" style="border-radius:0 0 var(--radius) var(--radius);border-top:none;">
+      <div class="hub-bilan-header">
+        <span class="hub-bilan-title">Bilan ${nomMois(d.month)} ${d.year}</span>
+        <div style="display:flex;align-items:center;gap:6px;">
+          ${d.isDone ? `<span class="chip" style="background:var(--success-pale);color:var(--success);font-size:0.68rem;">✓ Clôturé</span>` : ''}
+          <button id="dash-bilan-toggle" type="button" class="hub-bilan-mode-btn ${_bilanIsPrevo ? 'prevo' : 'reel'}" title="Basculer Prévisionnel / Réel">
+            ${_bilanIsPrevo ? '📊 Prévisionnel' : '📈 Réel'}
+          </button>
+        </div>
+      </div>
+      ${_bilanIsPrevo
+        ? `<p class="hub-bilan-mode-hint">Basé sur vos plafonds de budget. <span style="color:var(--primary);cursor:pointer;" id="dash-bilan-hint-switch">Voir le réel →</span></p>`
+        : `<p class="hub-bilan-mode-hint" style="color:var(--primary);">Dépenses réelles validées. <span style="color:var(--text-3);cursor:pointer;" id="dash-bilan-hint-switch">← Prévisionnel</span></p>`}
+
+      <!-- Revenus -->
+      <div class="hub-bilan-section-title">Revenus</div>
+      <div class="hub-bilan-rows">
+        ${d.users.length > 1 ? d.users.map(u => `
+          <div class="hub-bilan-row hub-bilan-row-sub">
+            <span style="display:flex;align-items:center;gap:5px;">
+              <span style="width:7px;height:7px;border-radius:50%;background:${escHtml(u.color||'#7C5CFC')};display:inline-block;"></span>
+              ${escHtml(u.name)}
+            </span>
+            <span style="color:var(--success);">+ ${eur(d.kpiPrev?.revenus?.byUser?.[u.id]||0)}</span>
+          </div>`).join('') : ''}
+        ${(d.kpiPrev?.aides?.total||0) > 0 ? `<div class="hub-bilan-row hub-bilan-row-sub"><span>Aides</span><span style="color:var(--success);">+ ${eur(d.kpiPrev.aides.total)}</span></div>` : ''}
+        ${(d.kpiPrev?.primes?.total||0) > 0 ? `<div class="hub-bilan-row hub-bilan-row-sub"><span>Primes &amp; bonus</span><span style="color:var(--success);">+ ${eur(d.kpiPrev.primes.total)}</span></div>` : ''}
+        <div class="hub-bilan-row hub-bilan-row-total">
+          <span>Total revenus</span>
+          <span style="color:var(--success);font-weight:800;">+ ${eur(d.totalRev)}</span>
+        </div>
+      </div>
+
+      <!-- Charges fixes -->
+      ${d.totalChg > 0 ? `
+      <div class="hub-bilan-section-title">Charges fixes</div>
+      <div class="hub-bilan-rows">
+        <div class="hub-bilan-row"><span>${d.charges.length} charge${d.charges.length>1?'s':''}</span><span>− ${eur(d.totalChg)}</span></div>
+      </div>` : ''}
+
+      <!-- Budgets variables -->
+      ${d.hubBudgets.length > 0 ? `
+      <div class="hub-bilan-section-title">Budgets variables ${_bilanIsPrevo ? '<span style="font-size:0.65rem;color:var(--text-3);font-weight:400;">(plafonds)</span>' : '<span style="font-size:0.65rem;color:var(--text-3);font-weight:400;">(réel)</span>'}</div>
+      <div class="hub-bilan-rows">
+        ${d.hubBudgets.map(b => {
+          const showAmt = _bilanIsPrevo ? b.budget : b.spent;
+          const isOver  = b.budget > 0 && b.spent > b.budget;
+          const color   = !_bilanIsPrevo && isOver ? 'var(--danger)' : 'var(--text-2)';
+          return `<div class="hub-bilan-row hub-bilan-row-sub">
+            <span>${b.icon} ${escHtml(b.label)}${!_bilanIsPrevo && b.budget > 0 ? ` <span style="color:var(--text-3);font-size:0.65rem;">/ ${eur(b.budget)}</span>` : ''}</span>
+            <span style="color:${color};">− ${eur(showAmt)}</span>
+          </div>`;
+        }).join('')}
+        <div class="hub-bilan-row hub-bilan-row-total"><span>Total budgets</span><span>− ${eur(bilanBudgets)}</span></div>
+      </div>` : ''}
+
+      <!-- Dépenses ponctuelles -->
+      ${d.achats.length > 0 ? `
+      <div class="hub-bilan-section-title">Dépenses ponctuelles</div>
+      <div class="hub-bilan-rows">
+        ${d.achats.map(a => `
+          <div class="hub-bilan-row hub-bilan-row-sub">
+            <span>${escHtml(a.label || a.description || 'Achat')}</span>
+            <span style="color:var(--danger);">− ${eur(Number(a.amount)||0)}</span>
+          </div>`).join('')}
+      </div>` : ''}
+
+      <!-- Imprévus -->
+      ${d.imprévus.length > 0 ? `
+      <div class="hub-bilan-section-title">Dépenses imprévues</div>
+      <div class="hub-bilan-rows">
+        ${d.imprévus.map(i => `
+          <div class="hub-bilan-row hub-bilan-row-sub">
+            <span>${escHtml(i.label || 'Imprévu')}</span>
+            <span style="color:var(--danger);">− ${eur(Number(i.amount)||0)}</span>
+          </div>`).join('')}
+      </div>` : ''}
+
+      <!-- Il reste -->
+      <div class="hub-bilan-total">
+        <span>Il reste</span>
+        <span style="color:${bilanColor};font-size:1.35rem;font-weight:900;">${eur(bilanSolde)}</span>
+      </div>
+
+      <!-- Par utilisateur -->
+      ${d.users.length > 1 ? `
+      <div class="hub-bilan-peruser">
+        ${d.users.map(u => {
+          const uSolde = bilanUserSolde(u.id);
+          const uAp    = d.aPayerPerUser[String(u.id)] || 0;
+          const uColor = uSolde >= 0 ? 'var(--success)' : 'var(--danger)';
+          const uRevU  = (d.kpiPrev?.revenus?.byUser?.[u.id]||0) + (d.kpiPrev?.aides?.byUser?.[u.id]||0) + (d.kpiPrev?.primes?.byUser?.[u.id]||0);
+          const uTx    = uRevU > 0 ? uSolde / uRevU : 0;
+          return `<div class="hub-bilan-user-row">
+            <div style="display:flex;align-items:center;gap:5px;">
+              <span style="width:8px;height:8px;border-radius:50%;background:${escHtml(u.color||'#7C5CFC')};display:inline-block;"></span>
+              <span style="font-size:0.8rem;font-weight:600;">${escHtml(u.name)}</span>
+            </div>
+            <div style="text-align:right;">
+              <div style="font-size:0.68rem;color:var(--text-3);margin-bottom:1px;">à payer : ${eur(uAp)}</div>
+              <div style="font-size:0.9rem;font-weight:800;color:${uColor};">${eur(uSolde)}</div>
+              ${uRevU > 0 ? `<div style="font-size:0.66rem;color:var(--text-3);">${_bilanIsPrevo ? 'prévu ' : ''}épargne ${Math.max(0, Math.round(uTx*100))} %</div>` : ''}
+            </div>
+          </div>`;
+        }).join('')}
+      </div>` : ''}
+
+      ${d.totalRev > 0 ? `
+      <div class="hub-bilan-rate">${_bilanIsPrevo ? 'Taux d\'épargne prévu' : 'Taux d\'épargne réel'} : <strong>${Math.round(Math.max(0, bilanSolde / (d.totalRev||1)) * 100)} %</strong></div>` : ''}
+
+      <!-- Bouton partager -->
+      <div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;">
+        <button id="btn-share-bilan" type="button" class="btn btn-sm btn-outline" style="font-size:0.78rem;">🔗 Partager ce bilan</button>
+      </div>
+    </div>`;
 }
 
 // ══════════════════════════════════════════════════
@@ -407,17 +541,6 @@ async function _renderResume(container, s, users) {
   });
   const totalBudgets         = hubBudgets.reduce((a, b) => a + b.spent, 0);
   const totalBudgetsCeilings = hubBudgets.reduce((a, b) => a + b.budget, 0);
-  const _bilanIsPrevo        = _dashBilanMode === 'previsionnel';
-  const bilanBudgets         = _bilanIsPrevo ? totalBudgetsCeilings : totalBudgets;
-  const bilanSolde           = totalRev - totalChg - bilanBudgets - totalDep;
-  const bilanColor           = bilanSolde >= 0 ? 'var(--success)' : 'var(--danger)';
-  const _bTotalPart          = kpiPrev?.part?.total || 1;
-  const bilanUserSolde = uid => {
-    if (!_bilanIsPrevo) return kpi?.solde?.byUser?.[uid] ?? 0;
-    const uShare = _bTotalPart > 0 ? (kpiPrev?.part?.byUser?.[uid]||0) / _bTotalPart : 1 / (users.length||1);
-    return (kpiPrev?.revenus?.byUser?.[uid]||0) + (kpiPrev?.aides?.byUser?.[uid]||0) + (kpiPrev?.primes?.byUser?.[uid]||0)
-      - (kpiPrev?.charges?.byUser?.[uid]||0) - bilanBudgets * uShare - totalDep * uShare;
-  };
   const _bN = users.length || 1;
   const _bShare = uid => {
     const uId = String(uid);
@@ -470,6 +593,16 @@ async function _renderResume(container, s, users) {
     }
     aPayerPerUser[payerUid] -= amt;
   }
+
+  // ── Stocker les données bilan pour le toggle rapide (sans re-fetch IDB) ──
+  _lastBilanData = {
+    kpiPrev, kpi, users, charges, achats, imprévus,
+    hubBudgets, totalBudgetsCeilings, totalBudgets,
+    totalRev, totalChg, totalDep,
+    repCfg, isDone, month, year,
+    aPayerPerUser,
+    customBudgets,
+  };
 
   // ── Filet de sécurité : mois vide non capté par les conditions précédentes ──
   // (ex : mois clôturé sans données, ou première ouverture PWA avec localStorage réinitialisé)
@@ -524,6 +657,9 @@ async function _renderResume(container, s, users) {
       </div>
       ${kpi.primes.total > 0 ? `<div style="margin-top:8px;"><span class="chip warning" style="font-size:0.68rem;">+${eur(kpi.primes.total)} primes</span></div>` : ''}
     </div>
+
+    <!-- ── Insights contextuels (rempli dynamiquement) ── -->
+    <div id="dash-insights-area"></div>
 
     <!-- ── Actions contextuelles ── -->
     <div class="action-chips" id="dash-cta-area" style="margin-bottom:16px;">
@@ -580,117 +716,8 @@ async function _renderResume(container, s, users) {
           ${isDone ? `<span class="chip" style="background:var(--success-pale);color:var(--success);font-size:0.65rem;padding:2px 6px;">✓ Clôturé</span>` : ''}
         </span>
       </summary>
-      <div class="settings-group-body" style="padding:0;">
-    <div class="hub-bilan" style="border-radius:0 0 var(--radius) var(--radius);border-top:none;">
-      <div class="hub-bilan-header">
-        <span class="hub-bilan-title">Bilan ${nomMois(month)} ${year}</span>
-        <div style="display:flex;align-items:center;gap:6px;">
-          ${isDone ? `<span class="chip" style="background:var(--success-pale);color:var(--success);font-size:0.68rem;">✓ Clôturé</span>` : ''}
-          <button id="dash-bilan-toggle" type="button" class="hub-bilan-mode-btn ${_bilanIsPrevo ? 'prevo' : 'reel'}" title="Basculer Prévisionnel / Réel">
-            ${_bilanIsPrevo ? '📊 Prévisionnel' : '📈 Réel'}
-          </button>
-        </div>
-      </div>
-      ${_bilanIsPrevo
-        ? `<p class="hub-bilan-mode-hint">Basé sur vos plafonds de budget. <span style="color:var(--primary);cursor:pointer;" id="dash-bilan-hint-switch">Voir le réel →</span></p>`
-        : `<p class="hub-bilan-mode-hint" style="color:var(--primary);">Dépenses réelles validées. <span style="color:var(--text-3);cursor:pointer;" id="dash-bilan-hint-switch">← Prévisionnel</span></p>`}
-
-      <!-- Revenus -->
-      <div class="hub-bilan-section-title">Revenus</div>
-      <div class="hub-bilan-rows">
-        ${users.length > 1 ? users.map(u => `
-          <div class="hub-bilan-row hub-bilan-row-sub">
-            <span style="display:flex;align-items:center;gap:5px;">
-              <span style="width:7px;height:7px;border-radius:50%;background:${escHtml(u.color||'#7C5CFC')};display:inline-block;"></span>
-              ${escHtml(u.name)}
-            </span>
-            <span style="color:var(--success);">+ ${eur(kpiPrev?.revenus?.byUser?.[u.id]||0)}</span>
-          </div>`).join('') : ''}
-        ${(kpiPrev?.aides?.total||0) > 0 ? `<div class="hub-bilan-row hub-bilan-row-sub"><span>Aides</span><span style="color:var(--success);">+ ${eur(kpiPrev.aides.total)}</span></div>` : ''}
-        ${(kpiPrev?.primes?.total||0) > 0 ? `<div class="hub-bilan-row hub-bilan-row-sub"><span>Primes &amp; bonus</span><span style="color:var(--success);">+ ${eur(kpiPrev.primes.total)}</span></div>` : ''}
-        <div class="hub-bilan-row hub-bilan-row-total">
-          <span>Total revenus</span>
-          <span style="color:var(--success);font-weight:800;">+ ${eur(totalRev)}</span>
-        </div>
-      </div>
-
-      <!-- Charges fixes -->
-      ${totalChg > 0 ? `
-      <div class="hub-bilan-section-title">Charges fixes</div>
-      <div class="hub-bilan-rows">
-        <div class="hub-bilan-row"><span>${charges.length} charge${charges.length>1?'s':''}</span><span>− ${eur(totalChg)}</span></div>
-      </div>` : ''}
-
-      <!-- Budgets variables -->
-      ${hubBudgets.length > 0 ? `
-      <div class="hub-bilan-section-title">Budgets variables ${_bilanIsPrevo ? '<span style="font-size:0.65rem;color:var(--text-3);font-weight:400;">(plafonds)</span>' : '<span style="font-size:0.65rem;color:var(--text-3);font-weight:400;">(réel)</span>'}</div>
-      <div class="hub-bilan-rows">
-        ${hubBudgets.map(b => {
-          const showAmt = _bilanIsPrevo ? b.budget : b.spent;
-          const isOver  = b.budget > 0 && b.spent > b.budget;
-          const color   = !_bilanIsPrevo && isOver ? 'var(--danger)' : 'var(--text-2)';
-          return `<div class="hub-bilan-row hub-bilan-row-sub">
-            <span>${b.icon} ${escHtml(b.label)}${!_bilanIsPrevo && b.budget > 0 ? ` <span style="color:var(--text-3);font-size:0.65rem;">/ ${eur(b.budget)}</span>` : ''}</span>
-            <span style="color:${color};">− ${eur(showAmt)}</span>
-          </div>`;
-        }).join('')}
-        <div class="hub-bilan-row hub-bilan-row-total"><span>Total budgets</span><span>− ${eur(bilanBudgets)}</span></div>
-      </div>` : ''}
-
-      <!-- Dépenses ponctuelles -->
-      ${achats.length > 0 ? `
-      <div class="hub-bilan-section-title">Dépenses ponctuelles</div>
-      <div class="hub-bilan-rows">
-        ${achats.map(a => `
-          <div class="hub-bilan-row hub-bilan-row-sub">
-            <span>${escHtml(a.label || a.description || 'Achat')}</span>
-            <span style="color:var(--danger);">− ${eur(Number(a.amount)||0)}</span>
-          </div>`).join('')}
-      </div>` : ''}
-
-      <!-- Imprévus -->
-      ${imprévus.length > 0 ? `
-      <div class="hub-bilan-section-title">Dépenses imprévues</div>
-      <div class="hub-bilan-rows">
-        ${imprévus.map(i => `
-          <div class="hub-bilan-row hub-bilan-row-sub">
-            <span>${escHtml(i.label || 'Imprévu')}</span>
-            <span style="color:var(--danger);">− ${eur(Number(i.amount)||0)}</span>
-          </div>`).join('')}
-      </div>` : ''}
-
-      <!-- Il reste -->
-      <div class="hub-bilan-total">
-        <span>Il reste</span>
-        <span style="color:${bilanColor};font-size:1.35rem;font-weight:900;">${eur(bilanSolde)}</span>
-      </div>
-
-      <!-- Par utilisateur -->
-      ${users.length > 1 ? `
-      <div class="hub-bilan-peruser">
-        ${users.map(u => {
-          const uSolde = bilanUserSolde(u.id);
-          const uAp    = aPayerPerUser[String(u.id)] || 0;
-          const uColor = uSolde >= 0 ? 'var(--success)' : 'var(--danger)';
-          const uRevU  = (kpiPrev?.revenus?.byUser?.[u.id]||0) + (kpiPrev?.aides?.byUser?.[u.id]||0) + (kpiPrev?.primes?.byUser?.[u.id]||0);
-          const uTx    = uRevU > 0 ? uSolde / uRevU : 0;
-          return `<div class="hub-bilan-user-row">
-            <div style="display:flex;align-items:center;gap:5px;">
-              <span style="width:8px;height:8px;border-radius:50%;background:${escHtml(u.color||'#7C5CFC')};display:inline-block;"></span>
-              <span style="font-size:0.8rem;font-weight:600;">${escHtml(u.name)}</span>
-            </div>
-            <div style="text-align:right;">
-              <div style="font-size:0.68rem;color:var(--text-3);margin-bottom:1px;">à payer : ${eur(uAp)}</div>
-              <div style="font-size:0.9rem;font-weight:800;color:${uColor};">${eur(uSolde)}</div>
-              ${uRevU > 0 ? `<div style="font-size:0.66rem;color:var(--text-3);">${_bilanIsPrevo ? 'prévu ' : ''}épargne ${Math.max(0, Math.round(uTx*100))} %</div>` : ''}
-            </div>
-          </div>`;
-        }).join('')}
-      </div>` : ''}
-
-      ${totalRev > 0 ? `
-      <div class="hub-bilan-rate">${_bilanIsPrevo ? 'Taux d\'épargne prévu' : 'Taux d\'épargne réel'} : <strong>${Math.round(Math.max(0, bilanSolde / (totalRev||1)) * 100)} %</strong></div>` : ''}
-    </div>
+      <div class="settings-group-body" style="padding:0;" id="bilan-accordion-body">
+    ${_buildBilanHTML(_lastBilanData, _dashBilanMode)}
       </div>
     </details>
 
@@ -847,18 +874,92 @@ async function _renderResume(container, s, users) {
     }, users);
   });
 
-  // ── Toggle bilan prévisionnel/réel ──
-  const _toggleDashBilan = async () => {
+  // ── Toggle bilan prévisionnel/réel (sans re-fetch IDB) ──
+  const _toggleDashBilan = () => {
     _dashBilanMode = _dashBilanMode === 'previsionnel' ? 'reel' : 'previsionnel';
     localStorage.setItem('compta-dash-bilan-mode', _dashBilanMode);
-    await _renderResume(container, s, users);
-    // Rouvrir l'accordéon s'il était ouvert avant le re-render
-    const details = el.querySelector('details');
-    if (details) details.open = true;
+    if (!_lastBilanData) { _renderResume(container, s, users); return; }
+    const body = el.querySelector('#bilan-accordion-body');
+    if (!body) { _renderResume(container, s, users); return; }
+    const wasOpen = el.querySelector('details')?.open;
+    body.innerHTML = _buildBilanHTML(_lastBilanData, _dashBilanMode);
+    if (wasOpen) el.querySelector('details').open = true;
+    // Re-attacher les listeners sur les nouveaux boutons injectés
+    body.querySelector('#dash-bilan-toggle')?.addEventListener('click', _toggleDashBilan);
+    body.querySelector('#dash-bilan-hint-switch')?.addEventListener('click', _toggleDashBilan);
+    body.querySelector('#btn-share-bilan')?.addEventListener('click', _shareBilan);
+  };
+
+  // ── Partager le bilan en lecture seule (URL base64) ──
+  const _shareBilan = () => {
+    if (!_lastBilanData) return;
+    const d = _lastBilanData;
+    const payload = {
+      month: d.month,
+      year:  d.year,
+      mode:  _dashBilanMode,
+      totalRev:  d.totalRev,
+      totalChg:  d.totalChg,
+      totalDep:  d.totalDep,
+      totalBudgetsCeilings: d.totalBudgetsCeilings,
+      totalBudgets:         d.totalBudgets,
+      users: d.users.map(u => ({ name: u.name, color: u.color, id: u.id })),
+      kpiPrev: {
+        revenus: d.kpiPrev?.revenus,
+        aides:   d.kpiPrev?.aides,
+        primes:  d.kpiPrev?.primes,
+        charges: d.kpiPrev?.charges,
+        solde:   d.kpiPrev?.solde,
+        part:    d.kpiPrev?.part,
+      },
+      kpiSolde: d.kpi?.solde,
+      hubBudgets: d.hubBudgets,
+      achats:    d.achats.map(a => ({ label: a.label || a.description, amount: a.amount })),
+      imprévus:  d.imprévus.map(i => ({ label: i.label, amount: i.amount })),
+      isDone:    d.isDone,
+    };
+    try {
+      const base64 = btoa(encodeURIComponent(JSON.stringify(payload)));
+      const url    = `${location.origin}${location.pathname}#share=${base64}`;
+      if (navigator.share) {
+        navigator.share({ title: `Bilan ${month}/${year}`, url }).catch(() => {});
+      } else {
+        navigator.clipboard.writeText(url)
+          .then(() => showToast('Lien copié dans le presse-papier ✅', 'success'))
+          .catch(() => {
+            openModal('🔗 Lien de partage',
+              `<div style="word-break:break-all;font-size:0.78rem;background:var(--surface-2);padding:10px;border-radius:var(--radius);">${url}</div>`,
+              `<button class="btn btn-primary" onclick="navigator.clipboard.writeText('${url.replace(/'/g, "\\'")}').then(()=>document.getElementById('modal-close').click())">Copier</button>`
+            );
+          });
+      }
+    } catch (_) {
+      showToast('Impossible de générer le lien', 'error');
+    }
   };
   el.querySelector('#dash-bilan-toggle')?.addEventListener('click', _toggleDashBilan);
   el.querySelector('#dash-bilan-hint-switch')?.addEventListener('click', _toggleDashBilan);
+  el.querySelector('#dash-bilan-toggle')?.addEventListener('click', _toggleDashBilan);
+  el.querySelector('#btn-share-bilan')?.addEventListener('click', _shareBilan);
   // (dead code guard — kept for future use)
+
+  // ── Insights contextuels (chargés en arrière-plan) ──
+  const _insightsContainer = el.querySelector('#dash-insights-area');
+  if (_insightsContainer) {
+    import('../insights.js').then(({ computeInsights }) =>
+      computeInsights(year, month, users, s)
+    ).then(insights => {
+      if (!insights?.length) return;
+      _insightsContainer.innerHTML = `
+        <div style="margin-bottom:12px;">
+          ${insights.map(ins => `
+            <div style="display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border-radius:var(--radius);background:var(--surface-2);margin-bottom:8px;font-size:0.8rem;line-height:1.5;">
+              <span style="font-size:1.1rem;flex-shrink:0;">${ins.icon}</span>
+              <span style="color:${ins.type === 'warning' ? 'var(--warning)' : ins.type === 'success' ? 'var(--success)' : 'var(--text-2)'};">${ins.text}</span>
+            </div>`).join('')}
+        </div>`;
+    }).catch(() => {});
+  }
 }
 // ── Modal : épingler un budget ──
 function _showPinBudgetModal(currentPinned, customBudgets, onPin, users = []) {

@@ -5,7 +5,7 @@
 import { emit, on } from './events.js';
 
 const DB_NAME    = 'budgetFoyer';
-const DB_VERSION = 7;  // v7 : fix savings_goals manquant pour users bloqués à v6
+const DB_VERSION = 8;  // v8 : _achatsCache + device_settings store + yearMonth index achats
 
 let _db = null;
 
@@ -18,9 +18,10 @@ export { on as onDbEvent };
 let _settingsCache = null; // invalidé par setSetting / importAllData / resetAllData
 let _usersCache    = null; // invalidé par saveUser / softDeleteUser / restoreUser / importAllData / resetAllData
 let _chargesCache  = null; // invalidé par saveCharge / deleteCharge / importAllData / resetAllData
+let _achatsCache   = null; // invalidé par saveAchat / deleteAchat / importAllData / resetAllData
 
 /** Invalider les deux caches (ex: après import/reset) */
-export function invalidateCache() { _settingsCache = null; _usersCache = null; _chargesCache = null; }
+export function invalidateCache() { _settingsCache = null; _usersCache = null; _chargesCache = null; _achatsCache = null; }
 
 /** Ouvre (ou réutilise) la connexion IndexedDB */
 async function openDB() {
@@ -123,6 +124,11 @@ async function openDB() {
       // ── v6-v7 : Objectifs d'épargne multiples ──
       if (!db.objectStoreNames.contains('savings_goals')) {
         db.createObjectStore('savings_goals', { keyPath: 'id', autoIncrement: true });
+      }
+
+      // ── v8 : Paramètres de l'appareil (currentDeviceUserId) ──
+      if (!db.objectStoreNames.contains('device_settings')) {
+        db.createObjectStore('device_settings', { keyPath: 'key' });
       }
     };
   });
@@ -415,14 +421,22 @@ export async function getAchatsForMonth(year, month) {
 }
 
 export async function getAllAchats() {
-  return _getAll('achats');
+  if (!_achatsCache) _achatsCache = await _getAll('achats');
+  return _achatsCache;
+}
+
+export async function getAchatsForYear(year) {
+  const all = await getAllAchats();
+  return all.filter(a => a.year === year);
 }
 
 export async function saveAchat(achat) {
+  _achatsCache = null;
   return _put('achats', achat);
 }
 
 export async function deleteAchat(id) {
+  _achatsCache = null;
   await _delete('achats', id);
 }
 
@@ -479,6 +493,7 @@ export async function exportAllData() {
 
   return {
     version:    4,   // v4 du format JSON (+ savings_goals)
+    dbVersion:  DB_VERSION,
     appName:    'ComptaPlus',
     exportedAt: new Date().toISOString(),
     users, settings, monthlyData, charges, achats,
@@ -520,10 +535,10 @@ export function validateImportData(data) {
       if (typeof m.month !== 'number') errors.push(`monthlyData[${i}] : "month" doit être un nombre.`);
     });
   }
-  // Vérification des charges : name + amount requis
+  // Vérification des charges : label + amount requis (accepte aussi "name" pour compat exports anciens)
   if (Array.isArray(data.charges)) {
     data.charges.forEach((c, i) => {
-      if (!c.name) errors.push(`charges[${i}] : "name" manquant.`);
+      if (!c.label && !c.name) errors.push(`charges[${i}] : "label" manquant.`);
       if (c.amount === undefined) errors.push(`charges[${i}] : "amount" manquant.`);
     });
   }
@@ -534,49 +549,35 @@ export async function importAllData(data) {
   const { ok, errors } = validateImportData(data);
   if (!ok) throw new Error('Import invalide : ' + errors.join(' | '));
 
+  // Normaliser "name" → "label" pour les charges (compat exports anciens)
+  if (Array.isArray(data.charges)) {
+    data.charges = data.charges.map(c => c.label ? c : { ...c, label: c.name || '' });
+  }
 
-
-  // Backup automatique des données actuelles avant détruction
+  // Backup automatique des données actuelles avant destruction
   let _rollbackData = null;
   try { _rollbackData = await exportAllData(); } catch (_) {}
 
   const stores = ['users', 'settings', 'monthlyData', 'charges', 'achats',
                   'repartition', 'archives', 'savings_operations', 'savings_confirmed',
                   'budget_ops', 'salary_savings', 'salary_abondements', 'savings_goals'];
-  const db     = await openDB();
+  const db = await openDB();
 
-  try {
+  // Transaction atomique multi-stores pour rollback IDB natif en cas d'échec
+  await new Promise((resolve, reject) => {
+    const tx = db.transaction(stores, 'readwrite');
+    tx.oncomplete = resolve;
+    tx.onerror    = () => reject(tx.error);
+    tx.onabort    = () => reject(new Error('Import annulé'));
     for (const storeName of stores) {
-      await new Promise((resolve, reject) => {
-        const tx    = db.transaction(storeName, 'readwrite');
-        const store = tx.objectStore(storeName);
-        store.clear();
-        (data[storeName] || []).forEach(item => store.put(item));
-        tx.oncomplete = resolve;
-        tx.onerror    = () => reject(tx.error);
-      });
+      const store = tx.objectStore(storeName);
+      store.clear();
+      for (const item of (data[storeName] || [])) store.put(item);
     }
-  } catch (err) {
-    // Tentative de rollback en cas d'échec
-    if (_rollbackData) {
-      try {
-        for (const storeName of stores) {
-          await new Promise((resolve, reject) => {
-            const tx    = db.transaction(storeName, 'readwrite');
-            const store = tx.objectStore(storeName);
-            store.clear();
-            (_rollbackData[storeName] || []).forEach(item => store.put(item));
-            tx.oncomplete = resolve;
-            tx.onerror    = () => reject(tx.error);
-          });
-        }
-      } catch (_) {}
-    }
-    throw err;
-  }
+  });
 
-  _settingsCache = null; _usersCache = null; _chargesCache = null; // invalider après import
-  emit('db:write', { store: 'all' }); // invalider _calcCache dans calculs.js
+  _settingsCache = null; _usersCache = null; _chargesCache = null; _achatsCache = null;
+  emit('db:write', { store: 'all' });
   await setSetting('lastBackup', new Date().toISOString());
 }
 
@@ -585,10 +586,24 @@ export async function resetAllData() {
                   'repartition', 'archives', 'savings_operations', 'savings_confirmed',
                   'budget_ops', 'salary_savings', 'salary_abondements', 'savings_goals'];
   for (const s of stores) await _clear(s);
-  _settingsCache = null; _usersCache = null; _chargesCache = null;
+  _settingsCache = null; _usersCache = null; _chargesCache = null; _achatsCache = null;
   emit('db:write', { store: 'all' }); // invalider _calcCache dans calculs.js
   if (_db) { try { _db.close(); } catch (_) {} }
   _db = null;
+}
+
+/* ══════════════════════════════════════════════════
+   PARAMÈTRES APPAREIL (device_settings)
+   Stocke les préférences liées à l'appareil physique.
+══════════════════════════════════════════════════ */
+
+export async function getDeviceSetting(key) {
+  const item = await _get('device_settings', key);
+  return item ? item.value : null;
+}
+
+export async function setDeviceSetting(key, value) {
+  await _put('device_settings', { key, value });
 }
 
 /* ══════════════════════════════════════════════════

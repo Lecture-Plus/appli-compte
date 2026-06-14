@@ -243,7 +243,7 @@ function _renderHistorySection(el, history, onUpdate) {
   addForm.innerHTML = `
     <input type="month" class="form-input hist-vf" style="flex:1;min-width:120px;font-size:0.8rem;padding:5px 8px;">
     <div class="input-wrap" style="flex:1;min-width:80px;">
-      <input type="number" class="form-input input-euro hist-amt" min="0" step="0.01" placeholder="Montant" style="padding-right:22px;font-size:0.8rem;">
+      <input type="number" class="form-input input-euro hist-amt" min="0" max="999999" step="0.01" placeholder="Montant" style="padding-right:22px;font-size:0.8rem;">
       <span class="input-suffix">€</span>
     </div>
     <button type="button" class="btn btn-outline btn-sm hist-add-btn">+</button>
@@ -283,7 +283,7 @@ function _renderLineRow(line, idx, container) {
   row.style.cssText = 'display:flex;align-items:center;gap:6px;margin-bottom:4px;';
   row.innerHTML = `
     <div class="input-wrap" style="flex:1;min-width:70px;">
-      <input type="number" class="form-input input-euro cl-amount" min="0" step="0.01" placeholder="0" value="${line.amount || ''}" style="padding-right:22px;">
+      <input type="number" class="form-input input-euro cl-amount" min="0" max="999999" step="0.01" placeholder="0" value="${line.amount || ''}" style="padding-right:22px;">
       <span class="input-suffix">€</span>
     </div>
     <select class="form-select cl-qui" style="flex:1.4;">${quiOpts}</select>
@@ -1021,7 +1021,7 @@ async function _showAddBudgetOpModal({ catId, catLabel }, users, year, month, on
     <div class="form-group" style="margin-bottom:10px;"><label class="form-label">Enseigne / Description *</label><input type="text" class="form-input" id="bop-label" placeholder="Ex: Carrefour, restaurant…" autocomplete="off"></div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
       <div class="form-group"><label class="form-label">Jour</label><input type="number" class="form-input" id="bop-day" min="1" max="${daysInMonth}" value="${todayDay}"></div>
-      <div class="form-group"><label class="form-label">Montant (€) *</label><div class="input-wrap"><input type="number" class="form-input input-euro" id="bop-amount" min="0.01" step="0.01" placeholder="0.00"><span class="input-suffix">€</span></div></div>
+      <div class="form-group"><label class="form-label">Montant (€) *</label><div class="input-wrap"><input type="number" class="form-input input-euro" id="bop-amount" min="0.01" max="999999" step="0.01" placeholder="0.00"><span class="input-suffix">€</span></div></div>
     </div>
     ${userSelect}
     <p style="font-size:0.72rem;color:var(--text-3);">Mois : ${nomMois(month)} ${year}</p>
@@ -1049,6 +1049,7 @@ async function _showAddBudgetOpModal({ catId, catLabel }, users, year, month, on
     const userVal = (() => { const el = document.getElementById('bop-user'); return el ? (el.value || null) : (users.length === 1 ? String(users[0].id) : null); })();
     if (!label)              { showToast('Saisissez une description', 'error'); return; }
     if (!amount || amount <= 0) { showToast('Montant invalide', 'error'); return; }
+    if (amount > 999999) { showToast('Montant trop élevé (max 999 999 €)', 'error'); return; }
 
     // Overflow detection using values fetched before modal opened (captured in closure)
     const remaining    = catBudget > 0 ? Math.max(0, catBudget - catSpent) : Infinity;
@@ -1318,7 +1319,7 @@ export async function showAchatModal(achat, onSave) {
       <div class="form-group">
         <label class="form-label">Montant (€)</label>
         <div class="input-wrap">
-          <input type="number" class="form-input input-euro" id="a-amount" min="0" step="0.01" value="${a.amount || ''}">
+          <input type="number" class="form-input input-euro" id="a-amount" min="0" max="999999" step="0.01" value="${a.amount || ''}">
           <span class="input-suffix">€</span>
         </div>
       </div>
@@ -1404,6 +1405,8 @@ export async function showAchatModal(achat, onSave) {
   document.getElementById('a-save')?.addEventListener('click', async () => {
     const label = document.getElementById('a-label')?.value.trim();
     if (!label) { showToast('Le libellé est requis', 'error'); return; }
+    const _aamt = Number(document.getElementById('a-amount')?.value) || 0;
+    if (_aamt > 999999) { showToast('Montant trop élevé (max 999 999 €)', 'error'); return; }
     const quiRaw = document.getElementById('a-qui')?.value;
     if (!quiRaw) { showToast('Veuillez sélectionner qui paie', 'error'); return; }
     const qui    = quiRaw === 'shared' ? 'shared' : Number(quiRaw);

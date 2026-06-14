@@ -3,7 +3,7 @@
 // ============================================================
 
 import { getAllSettings, getSetting, setSetting, getActiveUsers, getMonthsByYear, onWrite,
-         getAllBudgetOps }                                        from './db.js';
+         getAllBudgetOps, getDeviceSetting, setDeviceSetting }    from './db.js';
 import { initDriveSync, startAutoSave, initActivityTracking,
          markDirty, testDriveConnection }                         from './sync.js';
 import { today, showToast, closeModal, openModal, nomMois,
@@ -16,7 +16,7 @@ export const State = {
   year:          today().year,
   month:         today().month,
   users:         [],   // utilisateurs actifs chargés en mémoire
-  currentUserId: null, // ID de l'utilisateur de cet appareil (localStorage)
+  currentUserId: null, // ID de l'utilisateur de cet appareil (IDB device_settings)
   settings:      {},
 };
 
@@ -270,6 +270,65 @@ function _initCounters(root) {
   });
 }
 
+// ── Rendu d'un bilan partagé en lecture seule (fragment base64) ──
+async function _renderSharedBilan(base64) {
+  const content = document.getElementById('app-content');
+  if (!content) return;
+  try {
+    const data = JSON.parse(decodeURIComponent(atob(base64)));
+    const { nomMois, eur } = await import('./utils.js');
+    const isPrevo = (data.mode || 'previsionnel') === 'previsionnel';
+    const bilanBudgets = isPrevo ? (data.totalBudgetsCeilings || 0) : (data.totalBudgets || 0);
+    const bilanSolde   = (data.totalRev || 0) - (data.totalChg || 0) - bilanBudgets - (data.totalDep || 0);
+    const bilanColor   = bilanSolde >= 0 ? 'var(--success)' : 'var(--danger)';
+    const { escHtml }  = await import('./utils.js');
+    document.getElementById('page-title').textContent = `Bilan ${nomMois(data.month)} ${data.year}`;
+
+    content.innerHTML = `
+      <div class="card" style="padding:16px;margin-bottom:12px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+          <span style="font-size:1rem;font-weight:800;">Bilan ${nomMois(data.month)} ${data.year}</span>
+          <span class="chip" style="background:var(--surface-2);font-size:0.7rem;">${isPrevo ? '📊 Prévisionnel' : '📈 Réel'}</span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px;font-size:0.84rem;">
+          <div style="display:flex;justify-content:space-between;"><span>Revenus</span><span style="color:var(--success);">+ ${eur(data.totalRev || 0)}</span></div>
+          <div style="display:flex;justify-content:space-between;"><span>Charges fixes</span><span>− ${eur(data.totalChg || 0)}</span></div>
+          <div style="display:flex;justify-content:space-between;"><span>Budgets</span><span>− ${eur(bilanBudgets)}</span></div>
+          ${(data.totalDep || 0) > 0 ? `<div style="display:flex;justify-content:space-between;"><span>Dépenses ponctuelles</span><span style="color:var(--danger);">− ${eur(data.totalDep)}</span></div>` : ''}
+          <div style="display:flex;justify-content:space-between;font-size:1rem;font-weight:800;padding-top:8px;border-top:1px solid var(--border);">
+            <span>Il reste</span><span style="color:${bilanColor};">${eur(bilanSolde)}</span>
+          </div>
+        </div>
+        ${(data.users?.length > 1) ? `
+          <div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border);">
+            <div style="font-size:0.75rem;font-weight:600;color:var(--text-3);margin-bottom:6px;">Par personne</div>
+            ${data.users.map(u => {
+              const uSolde = data.kpiSolde?.byUser?.[u.id] ?? 0;
+              const uColor = uSolde >= 0 ? 'var(--success)' : 'var(--danger)';
+              return `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+                <span style="display:flex;align-items:center;gap:6px;font-size:0.82rem;">
+                  <span style="width:8px;height:8px;border-radius:50%;background:${escHtml(u.color||'#7C5CFC')};display:inline-block;"></span>
+                  ${escHtml(u.name)}
+                </span>
+                <span style="font-weight:700;color:${uColor};">${eur(uSolde)}</span>
+              </div>`;
+            }).join('')}
+          </div>` : ''}
+        <div style="margin-top:12px;text-align:center;">
+          <button class="btn btn-outline btn-sm" id="share-open-app">Ouvrir l'application</button>
+        </div>
+      </div>
+      <div style="text-align:center;font-size:0.72rem;color:var(--text-3);">Vue partagée en lecture seule · Compta+</div>`;
+
+    document.getElementById('share-open-app')?.addEventListener('click', () => {
+      window.location.hash = 'dashboard';
+      window.location.reload();
+    });
+  } catch (e) {
+    content.innerHTML = `<div class="empty-state"><div class="empty-state-icon">⚠️</div><div class="empty-state-title">Lien invalide</div><div class="empty-state-text">Ce lien de partage est expiré ou corrompu.</div></div>`;
+  }
+}
+
 // ── Initialisation ──
 async function init() {
   try {
@@ -278,8 +337,16 @@ async function init() {
     console.warn('[App] Impossible de charger les réglages :', e);
   }
 
-  // Utilisateur de cet appareil
-  State.currentUserId = localStorage.getItem('currentDeviceUserId');
+  // Utilisateur de cet appareil — IDB en priorité, migration automatique depuis localStorage
+  State.currentUserId = await getDeviceSetting('currentDeviceUserId');
+  if (!State.currentUserId) {
+    const fromLS = localStorage.getItem('currentDeviceUserId');
+    if (fromLS) {
+      State.currentUserId = fromLS;
+      await setDeviceSetting('currentDeviceUserId', fromLS);
+      localStorage.removeItem('currentDeviceUserId');
+    }
+  }
 
   // Utilisateurs actifs en mémoire
   await reloadUsers();
@@ -395,6 +462,9 @@ async function init() {
   // Alias #saisie → page argent onglet saisir
   if (hash === 'saisie') {
     await navigateTo('argent', { tab: 'saisir' });
+  } else if (hash.startsWith('share=')) {
+    // ── Mode lecture seule : bilan partagé via URL base64 ──
+    await _renderSharedBilan(hash.slice(6));
   } else {
     const urlPage = hash && PAGES[hash] ? hash : 'dashboard';
     await navigateTo(urlPage);
@@ -473,7 +543,7 @@ async function showFirstRunModal() {
     if (closeBtn) closeBtn.style.display = '';
     closeModal();
     if (uid) {
-      localStorage.setItem('currentDeviceUserId', String(uid));
+      setDeviceSetting('currentDeviceUserId', String(uid));
       State.currentUserId = String(uid);
     }
   };
