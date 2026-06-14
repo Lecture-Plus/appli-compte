@@ -569,8 +569,20 @@ async function _renderResume(container, s, users) {
       </div>`;
     })()}
 
-    <!-- ── Bilan mensuel ── -->
-    <div class="hub-bilan">
+    <!-- ── Bilan mensuel (accordéon) ── -->
+    <details class="settings-group" style="margin-bottom:12px;">
+      <summary class="settings-group-title" style="justify-content:space-between;">
+        <span style="display:flex;align-items:center;gap:8px;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+          Bilan ${nomMois(month)} ${year}
+        </span>
+        <span style="display:flex;align-items:center;gap:6px;font-size:0.82rem;font-weight:700;color:${bilanColor};">
+          ${isDone ? `<span class="chip" style="background:var(--success-pale);color:var(--success);font-size:0.65rem;padding:2px 6px;">✓ Clôturé</span>` : ''}
+          ${totalRev > 0 ? eur(bilanSolde) : ''}
+        </span>
+      </summary>
+      <div class="settings-group-body" style="padding:0;">
+    <div class="hub-bilan" style="border-radius:0 0 var(--radius) var(--radius);border-top:none;">
       <div class="hub-bilan-header">
         <span class="hub-bilan-title">Bilan ${nomMois(month)} ${year}</span>
         <div style="display:flex;align-items:center;gap:6px;">
@@ -680,6 +692,8 @@ async function _renderResume(container, s, users) {
       ${totalRev > 0 ? `
       <div class="hub-bilan-rate">${_bilanIsPrevo ? 'Taux d\'épargne prévu' : 'Taux d\'épargne réel'} : <strong>${Math.round(Math.max(0, bilanSolde / (totalRev||1)) * 100)} %</strong></div>` : ''}
     </div>
+      </div>
+    </details>
 
     <div style="height:16px;"></div>
   `;
