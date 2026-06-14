@@ -330,6 +330,46 @@ async function _renderResume(container, s, users) {
     return;
   }
 
+  // ── Mois non saisi (après onboarding) : guide mensuel simplififié ──
+  if (guideDismissed && !guideDone1) {
+    el.innerHTML = `
+    <div class="guide-card">
+      <div style="font-size:1.5rem;margin-bottom:8px;">📅</div>
+      <div class="guide-card-title">Saisie de ${nomMois(month)} ${year}</div>
+      <div class="guide-card-sub">Renseignez vos revenus pour voir votre bilan mensuel.</div>
+      <div class="guide-steps-list">
+        <button class="guide-step" id="gs-m-step1" type="button">
+          <div class="guide-step-num">1</div>
+          <div class="guide-step-body">
+            <div class="guide-step-title">💰 Saisir les revenus</div>
+            <div class="guide-step-sub">Salaires, aides, primes…</div>
+          </div>
+          <span class="guide-step-arrow">›</span>
+        </button>
+        <button class="guide-step ${guideDone2 ? 'done' : ''}" id="gs-m-step2" type="button">
+          <div class="guide-step-num ${guideDone2 ? 'done' : ''}">${guideDone2 ? '✓' : '2'}</div>
+          <div class="guide-step-body">
+            <div class="guide-step-title">🏠 Charges du mois</div>
+            <div class="guide-step-sub">${guideDone2 ? 'Charges importées ✓' : 'Importer les charges fixes'}</div>
+          </div>
+          ${!guideDone2 ? '<span class="guide-step-arrow">›</span>' : ''}
+        </button>
+        <button class="guide-step ${guideDoneOpt ? 'done' : ''}" id="gs-m-step-opt" type="button">
+          <div class="guide-step-num ${guideDoneOpt ? 'done' : ''}">${guideDoneOpt ? '✓' : '3'}</div>
+          <div class="guide-step-body">
+            <div class="guide-step-title">📊 Budgets <span style="font-size:0.72rem;font-weight:400;color:var(--text-3);">(optionnel)</span></div>
+            <div class="guide-step-sub">${guideDoneOpt ? 'Budgets configurés ✓' : 'Enveloppes courses, loisirs…'}</div>
+          </div>
+          ${!guideDoneOpt ? '<span class="guide-step-arrow">›</span>' : ''}
+        </button>
+      </div>
+    </div>`;
+    el.querySelector('#gs-m-step1')?.addEventListener('click', () => navigateTo('argent', { tab: 'saisie', section: 'revenus' }));
+    if (!guideDone2)   el.querySelector('#gs-m-step2')?.addEventListener('click', () => navigateTo('argent', { tab: 'saisie', section: 'charges' }));
+    if (!guideDoneOpt) el.querySelector('#gs-m-step-opt')?.addEventListener('click', () => navigateTo('argent', { tab: 'budgets' }));
+    return;
+  }
+
   // ── Configuration complète : carte Bravo seule, dashboard masqué jusqu'au clic ──
   if (showBravo) {
     el.innerHTML = `
@@ -497,69 +537,117 @@ async function _renderResume(container, s, users) {
       </div>`;
     })()}
 
-    <!-- ── Détail mensuel (accordéon) ── -->
-    ${(() => {
-      const buildDashDetailTable = (isReel) => {
-        const dk = isReel ? kpiReel : kpiPrev;
-        const courses = isReel ? realCourses.total : kpiPrev.courses?.total || 0;
-        const extras  = isReel ? realExtras.total  : kpiPrev.extras?.total  || 0;
-        const uCols   = users.length > 1;
-        const hdr = uCols ? users.map(u => `<th style="text-align:right"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${escHtml(u.color||'#7C5CFC')};margin-right:3px;"></span>${escHtml(u.name)}</th>`).join('') : '';
-        const bRow = (label, cat) => {
-          if (!cat) return '';
-          const uc = uCols ? users.map(u => `<td style="text-align:right">${eur(cat.byUser?.[u.id]??0)}</td>`).join('') : '';
-          return `<tr><td>${label}</td>${uc}<td style="text-align:right">${eur(cat.total)}</td></tr>`;
-        };
-        const sTotal = dk.solde?.total ?? 0;
-        return `<table class="data-table" style="width:100%;">
-          <thead><tr><th>Catégorie</th>${hdr}<th style="text-align:right">Total</th></tr></thead>
-          <tbody>
-            ${bRow('Revenus &amp; Aides', { total:(dk.revenus?.total||0)+(dk.aides?.total||0), byUser: uCols?Object.fromEntries(users.map(u=>[u.id,(dk.revenus?.byUser?.[u.id]??0)+(dk.aides?.byUser?.[u.id]??0)])):{}  })}
-            ${(dk.primes?.total??0)>0 ? bRow('Primes', dk.primes) : ''}
-            ${bRow('Charges', dk.charges)}
-            ${courses > 0 ? `<tr><td>${isReel?'Courses (confirmé)':'Budget courses'}</td>${uCols?users.map(u=>`<td style="text-align:right">${eur(dk.courses?.byUser?.[u.id]??0)}</td>`).join(''):''}<td style="text-align:right">${eur(courses)}</td></tr>` : ''}
-            ${extras > 0 ? `<tr><td>${isReel?'Loisirs (confirmé)':'Budget loisirs'}</td>${uCols?users.map(u=>`<td style="text-align:right">${eur(dk.extras?.byUser?.[u.id]??0)}</td>`).join(''):''}<td style="text-align:right">${eur(extras)}</td></tr>` : ''}
-            ${bRow('Dép. ponctuelles', dk.achats ?? {total:0,byUser:{}})}
-            ${bRow('Imprévus', dk.imprevus ?? {total:0,byUser:{}})}
-            ${customBudgets.map(b => {
-              if (isReel) {
-                const bOps = allBudgetOps.filter(o=>o.category===b.id);
-                const spent = bOps.reduce((s,o)=>s+(Number(o.amount)||0),0);
-                const bByUser = uCols ? (() => { const acc={}; for(const o of bOps){if(o.userId){const k=String(o.userId);acc[k]=(acc[k]||0)+(Number(o.amount)||0);}else{const share=(Number(o.amount)||0)/users.length;for(const u of users){const k=String(u.id);acc[k]=(acc[k]||0)+share;}}} return acc; })() : {};
-                return `<tr><td>${b.icon||'📌'} ${escHtml(b.name)}</td>${uCols?users.map(u=>`<td style="text-align:right">${eur(bByUser[String(u.id)]??0)}</td>`).join(''):''}<td style="text-align:right">${eur(spent)}</td></tr>`;
-              } else {
-                const bgt = b.allocation==='equal'?(Number(b.amount)||0)*users.length:b.allocation==='custom'?Object.values(b.amountByUser||{}).reduce((s,v)=>s+(Number(v)||0),0):Number(b.amount)||0;
-                const bByUserP = uCols ? (() => { const acc={}; if(b.allocation==='custom'){for(const u of users)acc[String(u.id)]=Number(b.amountByUser?.[u.id]??b.amountByUser?.[String(u.id)])||0;}else if(b.allocation==='equal'){for(const u of users)acc[String(u.id)]=Number(b.amount)||0;}else{const sh=users.length?bgt/users.length:bgt;for(const u of users)acc[String(u.id)]=sh;} return acc; })() : {};
-                return `<tr><td>${b.icon||'📌'} ${escHtml(b.name)}</td>${uCols?users.map(u=>`<td style="text-align:right">${eur(bByUserP[String(u.id)]??0)}</td>`).join(''):''}<td style="text-align:right">${eur(bgt)}</td></tr>`;
-              }
-            }).join('')}
-          </tbody>
-          <tfoot>
-            ${uCols ? `<tr class="row-total"><td>${isReel?'À payer':'À envoyer (prév.)'}</td>${users.map(u=>`<td style="text-align:right">${eur(dk.aPayer?.byUser?.[u.id]??0)}</td>`).join('')}<td style="text-align:right">${eur(dk.aPayer?.total||0)}</td></tr>` : ''}
-            <tr class="row-total"><td>Solde ${isReel?'net':'prévisionnel'}</td>${uCols?users.map(u=>{const v=dk.solde?.byUser?.[u.id]??0;return`<td style="text-align:right;color:${v>=0?'var(--success)':'var(--danger)'}">${eur(v)}</td>`;}).join(''):''}<td style="text-align:right;color:${sTotal>=0?'var(--success)':'var(--danger)'}">${eur(sTotal)}</td></tr>
-          </tfoot>
-        </table>${!isReel?'<p style="font-size:0.72rem;color:var(--text-3);margin:8px 12px 4px;">💡 Ce calcul utilise les plafonds de budget et la répartition configurée.</p>':''}`;
-      };
-      return `<details class="settings-group" id="dash-detail-accord" style="margin-bottom:12px;">
-        <summary class="settings-group-title">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-          📋 Détail ${nomMois(month)} ${year}
-        </summary>
-        <div class="settings-group-body" style="padding:0;">
-          <div class="card" style="margin:0;border-radius:0 0 var(--radius) var(--radius);">
-            <div class="card-header" style="flex-wrap:wrap;gap:6px;">
-              <span class="card-title">📋 Détail ${escHtml(MOIS[month-1])} ${year}</span>
-              <div style="margin-left:auto;display:flex;gap:4px;">
-                <button class="btn btn-sm dash-dmode btn-outline" data-dmode="reel" style="font-size:0.68rem;padding:2px 8px;">✅ Réel</button>
-                <button class="btn btn-sm dash-dmode btn-primary" data-dmode="previsionnel" style="font-size:0.68rem;padding:2px 8px;">📅 Prévisionnel</button>
-              </div>
-            </div>
-            <p id="dash-detail-hint" style="font-size:0.72rem;color:var(--text-3);margin-bottom:8px;">📅 Simulation avec tous les budgets et charges du mois configurés</p>
-            <div id="dash-detail-table">${buildDashDetailTable(false)}</div>
-          </div>
+    <!-- ── Bilan mensuel ── -->
+    <div class="hub-bilan">
+      <div class="hub-bilan-header">
+        <span class="hub-bilan-title">Bilan ${nomMois(month)} ${year}</span>
+        <div style="display:flex;align-items:center;gap:6px;">
+          ${isDone ? `<span class="chip" style="background:var(--success-pale);color:var(--success);font-size:0.68rem;">✓ Clôturé</span>` : ''}
+          <button id="dash-bilan-toggle" type="button" class="hub-bilan-mode-btn ${_bilanIsPrevo ? 'prevo' : 'reel'}" title="Basculer Prévisionnel / Réel">
+            ${_bilanIsPrevo ? '📊 Prévisionnel' : '📈 Réel'}
+          </button>
         </div>
-      </details>`;
-    })()}
+      </div>
+      ${_bilanIsPrevo
+        ? `<p class="hub-bilan-mode-hint">Basé sur vos plafonds de budget. <span style="color:var(--primary);cursor:pointer;" id="dash-bilan-hint-switch">Voir le réel →</span></p>`
+        : `<p class="hub-bilan-mode-hint" style="color:var(--primary);">Dépenses réelles validées. <span style="color:var(--text-3);cursor:pointer;" id="dash-bilan-hint-switch">← Prévisionnel</span></p>`}
+
+      <!-- Revenus -->
+      <div class="hub-bilan-section-title">Revenus</div>
+      <div class="hub-bilan-rows">
+        ${users.length > 1 ? users.map(u => `
+          <div class="hub-bilan-row hub-bilan-row-sub">
+            <span style="display:flex;align-items:center;gap:5px;">
+              <span style="width:7px;height:7px;border-radius:50%;background:${escHtml(u.color||'#7C5CFC')};display:inline-block;"></span>
+              ${escHtml(u.name)}
+            </span>
+            <span style="color:var(--success);">+ ${eur(kpiPrev?.revenus?.byUser?.[u.id]||0)}</span>
+          </div>`).join('') : ''}
+        ${(kpiPrev?.aides?.total||0) > 0 ? `<div class="hub-bilan-row hub-bilan-row-sub"><span>Aides</span><span style="color:var(--success);">+ ${eur(kpiPrev.aides.total)}</span></div>` : ''}
+        ${(kpiPrev?.primes?.total||0) > 0 ? `<div class="hub-bilan-row hub-bilan-row-sub"><span>Primes &amp; bonus</span><span style="color:var(--success);">+ ${eur(kpiPrev.primes.total)}</span></div>` : ''}
+        <div class="hub-bilan-row hub-bilan-row-total">
+          <span>Total revenus</span>
+          <span style="color:var(--success);font-weight:800;">+ ${eur(totalRev)}</span>
+        </div>
+      </div>
+
+      <!-- Charges fixes -->
+      ${totalChg > 0 ? `
+      <div class="hub-bilan-section-title">Charges fixes</div>
+      <div class="hub-bilan-rows">
+        <div class="hub-bilan-row"><span>${charges.length} charge${charges.length>1?'s':''}</span><span>− ${eur(totalChg)}</span></div>
+      </div>` : ''}
+
+      <!-- Budgets variables -->
+      ${hubBudgets.length > 0 ? `
+      <div class="hub-bilan-section-title">Budgets variables ${_bilanIsPrevo ? '<span style="font-size:0.65rem;color:var(--text-3);font-weight:400;">(plafonds)</span>' : '<span style="font-size:0.65rem;color:var(--text-3);font-weight:400;">(réel)</span>'}</div>
+      <div class="hub-bilan-rows">
+        ${hubBudgets.map(b => {
+          const showAmt = _bilanIsPrevo ? b.budget : b.spent;
+          const isOver  = b.budget > 0 && b.spent > b.budget;
+          const color   = !_bilanIsPrevo && isOver ? 'var(--danger)' : 'var(--text-2)';
+          return `<div class="hub-bilan-row hub-bilan-row-sub">
+            <span>${b.icon} ${escHtml(b.label)}${!_bilanIsPrevo && b.budget > 0 ? ` <span style="color:var(--text-3);font-size:0.65rem;">/ ${eur(b.budget)}</span>` : ''}</span>
+            <span style="color:${color};">− ${eur(showAmt)}</span>
+          </div>`;
+        }).join('')}
+        <div class="hub-bilan-row hub-bilan-row-total"><span>Total budgets</span><span>− ${eur(bilanBudgets)}</span></div>
+      </div>` : ''}
+
+      <!-- Dépenses ponctuelles -->
+      ${achats.length > 0 ? `
+      <div class="hub-bilan-section-title">Dépenses ponctuelles</div>
+      <div class="hub-bilan-rows">
+        ${achats.map(a => `
+          <div class="hub-bilan-row hub-bilan-row-sub">
+            <span>${escHtml(a.label || a.description || 'Achat')}</span>
+            <span style="color:var(--danger);">− ${eur(Number(a.amount)||0)}</span>
+          </div>`).join('')}
+      </div>` : ''}
+
+      <!-- Imprévus -->
+      ${imprévus.length > 0 ? `
+      <div class="hub-bilan-section-title">Dépenses imprévues</div>
+      <div class="hub-bilan-rows">
+        ${imprévus.map(i => `
+          <div class="hub-bilan-row hub-bilan-row-sub">
+            <span>${escHtml(i.label || 'Imprévu')}</span>
+            <span style="color:var(--danger);">− ${eur(Number(i.amount)||0)}</span>
+          </div>`).join('')}
+      </div>` : ''}
+
+      <!-- Il reste -->
+      <div class="hub-bilan-total">
+        <span>Il reste</span>
+        <span style="color:${bilanColor};font-size:1.35rem;font-weight:900;">${eur(bilanSolde)}</span>
+      </div>
+
+      <!-- Par utilisateur -->
+      ${users.length > 1 ? `
+      <div class="hub-bilan-peruser">
+        ${users.map(u => {
+          const uSolde = bilanUserSolde(u.id);
+          const uAp    = aPayerPerUser[String(u.id)] || 0;
+          const uColor = uSolde >= 0 ? 'var(--success)' : 'var(--danger)';
+          const uRevU  = (kpiPrev?.revenus?.byUser?.[u.id]||0) + (kpiPrev?.aides?.byUser?.[u.id]||0) + (kpiPrev?.primes?.byUser?.[u.id]||0);
+          const uTx    = uRevU > 0 ? uSolde / uRevU : 0;
+          return `<div class="hub-bilan-user-row">
+            <div style="display:flex;align-items:center;gap:5px;">
+              <span style="width:8px;height:8px;border-radius:50%;background:${escHtml(u.color||'#7C5CFC')};display:inline-block;"></span>
+              <span style="font-size:0.8rem;font-weight:600;">${escHtml(u.name)}</span>
+            </div>
+            <div style="text-align:right;">
+              <div style="font-size:0.68rem;color:var(--text-3);margin-bottom:1px;">à payer : ${eur(uAp)}</div>
+              <div style="font-size:0.9rem;font-weight:800;color:${uColor};">${eur(uSolde)}</div>
+              ${uRevU > 0 ? `<div style="font-size:0.66rem;color:var(--text-3);">${_bilanIsPrevo ? 'prévu ' : ''}épargne ${Math.max(0, Math.round(uTx*100))} %</div>` : ''}
+            </div>
+          </div>`;
+        }).join('')}
+      </div>` : ''}
+
+      ${totalRev > 0 ? `
+      <div class="hub-bilan-rate">${_bilanIsPrevo ? 'Taux d\'épargne prévu' : 'Taux d\'épargne réel'} : <strong>${Math.round(Math.max(0, bilanSolde / (totalRev||1)) * 100)} %</strong></div>` : ''}
+    </div>
 
     <div style="height:16px;"></div>
   `;
