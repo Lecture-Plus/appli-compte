@@ -17,12 +17,19 @@ const FB_SYNC_KEY = 'fbLastSync';
 const DEBOUNCE_MS = 6_000;   // 6 s après la dernière modif
 const LOOP_GAP_MS = 8_000;   // ignorer les retours de nos propres pushes
 
+// ID unique par appareil (persiste en localStorage) — permet de distinguer
+// deux appareils utilisant le même compte Firebase
+function _getDeviceId() {
+  let id = localStorage.getItem('_fbDeviceId');
+  if (!id) { id = Math.random().toString(36).slice(2) + Date.now().toString(36); localStorage.setItem('_fbDeviceId', id); }
+  return id;
+}
+
 let _unsubscribe  = null;
 let _syncTimer    = null;
 let _isSyncing    = false;
 let _isDirty      = false;
 let _lastPushAt   = 0;
-let _ownUid       = null;
 
 // ── Indicateur visuel dans le header ──────────────────────────────────────
 
@@ -72,7 +79,7 @@ export async function pushToFirebase(foyerId) {
 
     await setDoc(
       doc(db, 'foyers', foyerId, 'snapshots', 'current'),
-      { data, updatedAt: serverTimestamp(), updatedBy: user.uid }
+      { data, updatedAt: serverTimestamp(), updatedBy: _getDeviceId() }
     );
 
     await setSetting(FB_SYNC_KEY, new Date().toISOString());
@@ -136,8 +143,6 @@ export async function startFirebaseSync(foyerId) {
   const user = await getCurrentUser();
   if (!user || !foyerId) { setFbStatus('none'); return; }
 
-  _ownUid = user.uid;
-
   // Pull initial (rattraper d'éventuelles modifs hors-ligne)
   setFbStatus('syncing');
   const imported = await pullFromFirebase(foyerId);
@@ -158,7 +163,7 @@ export async function startFirebaseSync(foyerId) {
     if (!remote?.data?.appName) return;
 
     // Ignorer nos propres pushes (éviter la boucle)
-    if (remote.updatedBy === _ownUid) {
+    if (remote.updatedBy === _getDeviceId()) {
       const remoteTs = remote.updatedAt?.toDate?.()?.getTime() ?? 0;
       if (Date.now() - remoteTs < LOOP_GAP_MS) return;
     }
